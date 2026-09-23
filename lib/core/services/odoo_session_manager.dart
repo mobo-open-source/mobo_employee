@@ -3,13 +3,24 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:mobo_employees/features/two_factor_authentication/twoFactorAuthenticationPage.dart';
 import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/appsession.dart';
+import '../utils/server_url_utils.dart';
 import 'secure_storage_service.dart';
 import 'connectivity_service.dart';
+import 'odoo_metadata_service.dart';
+
+enum LoginStatus { success, twoFactorEnabled, failed }
+
+/// Thrown by [OdooSessionManager._authenticateDetectingMfa] when the server
+/// accepted the password but requires a second factor. Odoo returns this
+/// as a successful `{'uid': None}` result rather than an RPC error.
+class MfaRequiredException implements Exception {
+  @override
+  String toString() => 'Two-factor authentication is required.';
+}
 
 class OdooSessionManager {
   //// Session state
@@ -194,11 +205,7 @@ class OdooSessionManager {
     }
 
     /// Normalize server URL
-    String normalizedUrl = serverUrl.trim();
-    if (!normalizedUrl.startsWith('http://') &&
-        !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = 'https://$normalizedUrl';
-    }
+    String normalizedUrl = normalizeServerUrl(serverUrl);
 
     /// Connectivity checks
     try {
@@ -220,11 +227,16 @@ class OdooSessionManager {
       try {
         OdooSession odooSession;
         if (!otp) {
-          odooSession = await client.authenticate(
+          odooSession = await _authenticateDetectingMfa(
+            client,
             database,
             userLogin,
             password,
           );
+          /// A 2FA-enabled user gets a NEW client above (carrying the
+          /// pending-MFA session cookie) rather than mutating the existing
+          /// one, since OdooClient exposes no public session setter.
+          client = OdooClient(client.baseURL, sessionId: odooSession);
         } else {
           odooSession = client.sessionId!;
         }
@@ -288,20 +300,15 @@ class OdooSessionManager {
 
         return LoginStatus.success;
       } catch (e) {
+        if (e is MfaRequiredException) {
+          return LoginStatus.twoFactorEnabled;
+        }
+
         /// Handle HTML response error
         if (e is FormatException && e.toString().contains('<html>')) {
           throw Exception(
             'Server returned HTML instead of JSON. Please check server URL and ensure Odoo is running.',
           );
-        }
-
-        final msg = e.toString().toLowerCase();
-        if (msg.contains('type \'null\'') &&
-            msg.contains('map<string') &&
-            !msg.contains('html') &&
-            !msg.contains('502') &&
-            !msg.contains('timeout')) {
-          return LoginStatus.twoFactorEnabled;
         }
 
         /// Don't retry credential errors
@@ -375,6 +382,60 @@ class OdooSessionManager {
     }
   }
 
+  /// Authenticates like [OdooClient.authenticate], but detects a pending
+  /// 2FA challenge deterministically: Odoo returns a successful
+  /// `{'uid': None}` result in that case, which [OdooClient.authenticate]
+  /// doesn't special-case.
+  static Future<OdooSession> _authenticateDetectingMfa(
+    OdooClient client,
+    String database,
+    String login,
+    String password,
+  ) async {
+    final uri = Uri.parse('${client.baseURL}/web/session/authenticate');
+    final response = await http.post(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'jsonrpc': '2.0',
+        'method': 'call',
+        'params': {'db': database, 'login': login, 'password': password},
+        'id': DateTime.now().microsecondsSinceEpoch,
+      }),
+    );
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (decoded['error'] != null) {
+      throw OdooException(decoded['error']);
+    }
+
+    final result = decoded['result'];
+    if (result is! Map || result['uid'] == null) {
+      throw MfaRequiredException();
+    }
+
+    final sessionInfo = Map<String, dynamic>.from(result);
+    var session = OdooSession.fromSessionInfo(sessionInfo);
+
+    /// The real session id lives in the Set-Cookie header, not the JSON
+    /// body — mirrors OdooClient's own private cookie handling.
+    final setCookie = response.headers['set-cookie'];
+    if (setCookie != null) {
+      final lookForCommaExpression = RegExp(r'(?<=)(,)(?=[^;]+?=)');
+      for (final cookieStr in setCookie.split(lookForCommaExpression)) {
+        try {
+          final cookie = Cookie.fromSetCookieValue(cookieStr);
+          if (cookie.name == 'session_id') {
+            session = session.updateSessionId(cookie.value);
+          }
+        } catch (_) {}
+      }
+    }
+
+    return session;
+  }
+
   /// Authenticate without saving (for account switching)
   static Future<AppSessionData?> authenticate({
     required String serverUrl,
@@ -391,11 +452,7 @@ class OdooSessionManager {
     }
 
     /// Normalize server URL
-    String normalizedUrl = serverUrl.trim();
-    if (!normalizedUrl.startsWith('http://') &&
-        !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = 'https://$normalizedUrl';
-    }
+    String normalizedUrl = normalizeServerUrl(serverUrl);
 
     await ConnectivityService.instance.ensureInternetOrThrow();
     await ConnectivityService.instance.ensureServerReachable(normalizedUrl);
@@ -404,7 +461,8 @@ class OdooSessionManager {
 
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
-        final odooSession = await client.authenticate(
+        final odooSession = await _authenticateDetectingMfa(
+          client,
           database,
           username,
           password,
@@ -900,43 +958,95 @@ class OdooSessionManager {
     return callWithSession((client) => client.callKw(map));
   }
 
-  /// Logout and clear session
+  /// Logout and clear session. Each step is isolated in its own try/catch
+  /// so a failure in one (e.g. secure storage) never skips the rest,
+  /// particularly clearing `isLoggedIn`.
   static Future<void> logout() async {
     /// Clear password from secure storage
-    final session = _cachedSession ?? await getCurrentSession();
-    if (session?.userId != null) {
-      await SecureStorageService.instance.deletePassword(
-        'session_password_${session!.userId}',
-      );
-    }
+    try {
+      final session = _cachedSession ?? await getCurrentSession();
+      if (session?.userId != null) {
+        await SecureStorageService.instance.deletePassword(
+          'session_password_${session!.userId}',
+        );
+      }
+    } catch (_) {}
 
     _client = null;
     _cachedSession = null;
     _isRefreshing = false;
     _lastAuthTime = null;
 
+    try {
+      await clearAccountScopedState();
+    } catch (_) {}
+
     ConnectivityService.instance.setCurrentServerUrl(null);
 
-    final prefs = await SharedPreferences.getInstance();
-
-    /// Only remove session-related keys to preserve app settings
-    const keysToRemove = [
-      'sessionId',
-      'userLogin',
-      'database',
-      'serverUrl',
-      'userId',
-      'expiresAt',
-      'isLoggedIn',
-      'selected_company_id',
-      'selected_allowed_company_ids',
-    ];
-
-    for (final key in keysToRemove) {
-      await prefs.remove(key);
-    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in accountScopedPrefKeys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
 
     _onSessionCleared?.call();
+  }
+
+  /// Preference keys that belong to ONE logged-in account and must never
+  /// outlive it (includes pending offline edits and per-server caches).
+  static const List<String> accountScopedPrefKeys = [
+    'sessionId',
+    'userLogin',
+    'database',
+    'serverUrl',
+    'userId',
+    'expiresAt',
+    'isLoggedIn',
+    'selected_company_id',
+    'selected_allowed_company_ids',
+    'pending_company_id',
+    'user_profile',
+    'user_profile_pending_users',
+    'user_profile_pending_partner',
+    'user_profile_hr_fields',
+  ];
+
+  /// Drops every trace of the outgoing account that isn't the session
+  /// itself — call before activating a different account (the session keys
+  /// are overwritten by the incoming account's own save).
+  static Future<void> clearAccountScopedState() async {
+    OdooMetadataService.reset();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in const [
+        'pending_company_id',
+        'user_profile',
+        'user_profile_pending_users',
+        'user_profile_pending_partner',
+        'user_profile_hr_fields',
+      ]) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
+  }
+
+  static int _parseMajorVersionStatic(String serverVersion) {
+    final match = RegExp(r'\d+').firstMatch(serverVersion);
+    if (match != null) return int.tryParse(match.group(0)!) ?? 0;
+    return 0;
+  }
+
+  /// The connected server's major Odoo version (17, 18, 19, ...), parsed
+  /// from the active session's `server_version`. Returns 0 when there's no
+  /// active session or the version string can't be parsed -- callers should
+  /// treat that as "unknown", not as a specific version.
+  static Future<int> getServerMajorVersion() async {
+    final session = await getCurrentSession();
+    final version = session?.odooSession.serverVersion;
+    if (version == null || version.isEmpty) return 0;
+    return _parseMajorVersionStatic(version);
   }
 
   /// Clear cached client
@@ -973,6 +1083,10 @@ class OdooSessionManager {
     String serverUrl,
     String password,
   ) async {
+    /// Normalize so the same server can't be saved under differently
+    /// formatted URLs across login paths.
+    serverUrl = normalizeServerUrl(serverUrl);
+
     final sessionData = AppSessionData(
       odooSession: session,
       password: password, ///  no password

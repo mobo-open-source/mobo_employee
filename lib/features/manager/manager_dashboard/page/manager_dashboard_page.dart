@@ -7,6 +7,7 @@ import 'package:mobo_employees/widgets/managers/widget_manager_welcome_card.dart
 import 'package:mobo_employees/widgets/managers/widget_shimmer_manager_dashboard.dart';
 import 'package:mobo_employees/widgets/widget_costoverviewcard.dart';
 import 'package:mobo_employees/widgets/widget_recentActivity.dart';
+import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../../review/services/review_service.dart';
@@ -47,29 +48,29 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
 
   Widget _buildDashboardContent(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15),
-        child: Consumer<ManagerDashboardProvider>(
-          builder: (context, provider, _) {
-            final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+      body: Consumer<ManagerDashboardProvider>(
+        builder: (context, provider, _) {
+          final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
 
-            if (provider.isInitialLoading ||
-                provider.isManagerDashboardDataLoading == false) {
-              return const WidgetShimmerManagerDashboard();
-            }
+          if (provider.isInitialLoading ||
+              provider.isManagerDashboardDataLoading == false) {
+            return const WidgetShimmerManagerDashboard();
+          }
 
-            return RefreshIndicator(
-              onRefresh: provider.isManagerDashboardLoading
-                  ? () async {}
-                  : _onRefresh,
-              displacement: 60,
-              edgeOffset: 0,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 20),
+          // Read live from ProfileProvider so avatar updates reflect immediately.
+          final userAvatar = context.watch<ProfileProvider>().userAvatar;
+
+          return RefreshIndicator(
+            onRefresh: provider.isManagerDashboardLoading
+                ? () async {}
+                : _onRefresh,
+            color: AppColors.appColor,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     WidgetManagerWelcomeCard(
                       wishText:
                           "Good ${provider.dashboard.user.greetings} ${provider.dashboard.user.name}!",
@@ -77,90 +78,79 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
                           "Manage your administrator operations efficiently",
                       wishTextFontSize: 16,
                       subTextFontSize: 14,
-                      provider: provider,
+                      userAvatar: userAvatar,
+                      userName: provider.dashboard.user.name,
                       isDarkTheme: isDarkTheme,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
                     Text(
                       "Quick Overview",
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDarkTheme ? Colors.white : AppColors.color101828,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-
-                    const SizedBox(height: 15),
-                    StaggeredGrid.count(
+                    const SizedBox(height: 16),
+                    GridView.count(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.2,
                       children: [
-                        StaggeredGridTile.fit(
-                          crossAxisCellCount: 1,
-                          child: WidgetQuickOverview(
-                            count: provider.dashboard.overview.totalEmployees
-                                .toString(),
-                              title: "Employees",
-                            subtitle: "Total Employees",
-                            color: AppColors.Color43B75D,
-                            icon: HugeIcons.strokeRoundedUserMultiple,
-                            isDarkTheme: isDarkTheme,
-                          ),
+                        WidgetQuickOverview(
+                          count: provider.dashboard.overview.totalEmployees
+                              .toString(),
+                          title: "Employees",
+                          subtitle: "Total Employees",
+                          color: AppColors.Color43B75D,
+                          icon: HugeIcons.strokeRoundedUserMultiple,
+                          isDarkTheme: isDarkTheme,
                         ),
-                        StaggeredGridTile.fit(
-                          crossAxisCellCount: 1,
-                          child: WidgetQuickOverview(
-                            count: provider.dashboard.overview.todayAttendance
-                                .toString(),
-                            title: "Todays attendance",
-                            subtitle: "Daily attendance",
-                            color: AppColors.color007AFF,
-                            icon: HugeIcons.strokeRoundedUserCheck01,
-                            isDarkTheme: isDarkTheme,
-                          ),
+                        WidgetQuickOverview(
+                          count: provider.dashboard.overview.todayAttendance
+                              .toString(),
+                          title: "Todays attendance",
+                          subtitle: "Daily attendance",
+                          color: AppColors.color007AFF,
+                          icon: HugeIcons.strokeRoundedUserCheck01,
+                          isDarkTheme: isDarkTheme,
                         ),
-                        StaggeredGridTile.fit(
-                          crossAxisCellCount: 1,
-                          child: WidgetQuickOverview(
-                            isDarkTheme: isDarkTheme,
-                            count: provider.dashboard.overview.todayLeaves
-                                .toString(),
-                            title: "Leaves",
-                            subtitle: "Leaves on today",
-
-                            color: AppColors.colorF30B0B,
-                            icon: HugeIcons.strokeRoundedUserRemove01,
-                          ),
+                        WidgetQuickOverview(
+                          isDarkTheme: isDarkTheme,
+                          count: provider.dashboard.overview.todayLeaves
+                              .toString(),
+                          title: "Leaves",
+                          subtitle: "Leaves on today",
+                          color: AppColors.colorF30B0B,
+                          icon: HugeIcons.strokeRoundedUserRemove01,
                         ),
-                        StaggeredGridTile.fit(
-                          crossAxisCellCount: 1,
-                          child: WidgetQuickOverview(
-                            isDarkTheme: isDarkTheme,
-                            count: provider.dashboard.overview.leaveRequests
-                                .toString(),
-                            title: "Approvals",
-                            subtitle:
-                                "${provider.dashboard.overview.leaveRequests} Leave requests",
-
-                            color: AppColors.Color009688,
-                            icon: HugeIcons.strokeRoundedDocumentValidation,
-                          ),
+                        WidgetQuickOverview(
+                          isDarkTheme: isDarkTheme,
+                          count: provider.dashboard.overview.leaveRequests
+                              .toString(),
+                          title: "Approvals",
+                          subtitle:
+                              "${provider.dashboard.overview.leaveRequests} Leave requests",
+                          color: AppColors.Color009688,
+                          icon: HugeIcons.strokeRoundedDocumentValidation,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
                     Text(
                       "Today's Reports",
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDarkTheme ? Colors.white : AppColors.color101828,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 16),
                     StaggeredGrid.count(
                       crossAxisCount: 2,
                       mainAxisSpacing: 10,
@@ -207,7 +197,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
             );
           },
         ),
-      ),
-    );
+      );
   }
 }

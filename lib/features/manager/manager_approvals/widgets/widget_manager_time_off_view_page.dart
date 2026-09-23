@@ -68,12 +68,8 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
       itemCount: provider.timeOffList.length,
       itemBuilder: (context, index) {
         final item = provider.timeOffList[index];
-         final imageBytes = provider.getEmployeeImage(item.employeeId);
-        if (imageBytes == null) {
-          Future.microtask(() {
-            provider.loadEmployeeImage(item.employeeId);
-          });
-        }
+        // Avatars are preloaded by fetchTimeOffDetails(); don't fetch per-row here.
+        final imageBytes = provider.getEmployeeImage(item.employeeId);
         final bool isCancelled = item.state == 'cancel';
         final isValidating = provider.isValidating(item.id);
         final isRefusing = provider.isRefusing(item.id);
@@ -105,8 +101,10 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
           imageBytes: imageBytes,
           onValidate: isValidating
               ? null
-              : () => provider.validateTimeOff(item.id, item.state),
-          onRefuse: isRefusing ? null : () => provider.refuseTimeOff(item.id),
+              : () => provider.validateTimeOff(context, item.id, item.state),
+          onRefuse: isRefusing
+              ? null
+              : () => provider.refuseTimeOff(context, item.id),
           isValidating: isValidating,
           isRefusing: isRefusing,
         );

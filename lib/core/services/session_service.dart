@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:odoo_rpc/odoo_rpc.dart';
 import '../models/appsession.dart';
+import '../utils/server_url_utils.dart';
 import 'connectivity_service.dart';
 import 'odoo_session_manager.dart';
 import 'secure_storage_service.dart';
@@ -93,20 +95,27 @@ class SessionService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Each step is isolated so a failure in one can never skip [clearSession].
+  /// Clears all stored accounts/passwords but leaves the remembered server
+  /// URL/database history alone, so the sign-in screen keeps it pre-filled.
   Future<void> logout() async {
     try {
       /// Clear the session on the backend
       await OdooSessionManager.logout();
+    } catch (e) {}
 
+    try {
       /// Clear stored accounts for privacy
       await _clearStoredAccountsData();
+    } catch (e) {}
 
+    try {
       /// Clear password caches
       await _clearPasswordCaches();
+    } catch (e) {}
 
-      /// Clear session service state
-      clearSession();
-    } catch (e, stackTrace) {}
+    /// Clear session service state
+    clearSession();
   }
 
   /// Account management methods
@@ -163,7 +172,8 @@ class SessionService extends ChangeNotifier {
 
     for (final account in _storedAccounts) {
       final userId = account['userId']?.toString() ?? '';
-      final serverUrl = account['serverUrl']?.toString() ?? '';
+      /// Normalize so accounts stored before normalization existed still merge.
+      final serverUrl = normalizeServerUrl(account['serverUrl']?.toString() ?? '');
       final database = account['database']?.toString() ?? '';
 
       if (userId.isEmpty || serverUrl.isEmpty || database.isEmpty) {
@@ -206,39 +216,46 @@ class SessionService extends ChangeNotifier {
 
       /// Try to fetch user details including image
       try {
-        final client = await OdooSessionManager.getClient();
+        /// Isolated client scoped to this session, not the shared/global
+        /// client which may be authenticated as a different account.
+        final client = OdooClient(
+          session.serverUrl,
+          sessionId: session.odooSession,
+        );
 
-        if (client != null && session.userId != null) {
-          final userDetails = await client.callKw({
-            'model': 'res.users',
-            'method': 'read',
-            'args': [
-              [session.userId],
-              ['name', 'image_1920'],
-            ],
-            'kwargs': {},
-          });
+        final userDetails = await client.callKw({
+          'model': 'res.users',
+          'method': 'read',
+          'args': [
+            [session.userId],
+            ['name', 'image_1920'],
+          ],
+          'kwargs': {},
+        });
 
-          if (userDetails is List && userDetails.isNotEmpty) {
-            final user = userDetails.first as Map;
-            final n = user['name'];
-            if (n != null && n != false) {
-              userDisplayName = n.toString();
-            }
-            final img = user['image_1920'];
-            if (img != null && img != false) {
-              imageBase64 = img.toString();
-            }
+        if (userDetails is List && userDetails.isNotEmpty) {
+          final user = userDetails.first as Map;
+          final n = user['name'];
+          if (n != null && n != false) {
+            userDisplayName = n.toString();
+          }
+          final img = user['image_1920'];
+          if (img != null && img != false) {
+            imageBase64 = img.toString();
           }
         }
       } catch (e) {}
+
+      /// `url` and `serverUrl` share the same normalized value so this
+      /// record stays consistent with dedup/comparison logic elsewhere.
+      final normalizedUrl = normalizeServerUrl(session.serverUrl);
 
       /// Create account data (WITHOUT password - stored securely)
       final accountData = {
         'id': session.userId.toString(),
         'name': userDisplayName,
         'email': session.userLogin,
-        'url': session.serverUrl.trim(),
+        'url': normalizedUrl,
         'database': session.database,
         'username': session.userLogin,
         'isCurrent': markAsCurrent,
@@ -247,7 +264,7 @@ class SessionService extends ChangeNotifier {
         /// Keep compatibility fields
         'userId': session.userId.toString(),
         'userName': userDisplayName,
-        'serverUrl': session.serverUrl,
+        'serverUrl': normalizedUrl,
         /// DON'T store password here - use secure storage
         'sessionId': session.sessionId,
       };
@@ -259,11 +276,12 @@ class SessionService extends ChangeNotifier {
         }
       }
 
-      /// Check if account already exists
+      /// Check if account already exists (same normalization as
+      /// `_cleanupDuplicateAccounts`'s dedup key).
       final existingIndex = _storedAccounts.indexWhere(
         (account) =>
-            account['id'] == accountData['id'] &&
-            account['url'] == accountData['url'] &&
+            account['userId']?.toString() == accountData['userId'] &&
+            normalizeServerUrl(account['serverUrl']?.toString() ?? '') == normalizedUrl &&
             account['database'] == accountData['database'],
       );
 
@@ -273,6 +291,7 @@ class SessionService extends ChangeNotifier {
         _storedAccounts.insert(0, accountData);
       }
 
+      await _cleanupDuplicateAccounts();
       await _saveStoredAccountsWithRetry();
 
       /// Store password with multiple patterns

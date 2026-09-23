@@ -12,6 +12,7 @@ import 'package:mobo_employees/features/employee/bottom_navigation_bar/bottom_na
 import 'package:mobo_employees/features/employee/dashboard/page/dashboard_page.dart';
 import 'package:mobo_employees/features/profile/pages/profile_screen.dart';
 import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
+import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -193,51 +194,28 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
                           ),
                         ),
                       )
-                    : CircleAvatar(
-                        key: ValueKey(
-                          userAvatar != null
-                              ? 'avatar_with_image'
-                              : 'avatar_placeholder',
-                        ),
-                        radius: 16,
-                        backgroundColor: isDark
-                            ? Colors.grey[800]
-                            : Colors.grey[300],
-                        child: userAvatar != null
-                            ? ClipOval(
-                                child: Image.memory(
-                                  userAvatar,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return HugeIcon(
-                                      icon: HugeIcons.strokeRoundedUserCircle,
-                                      color: isDark
-                                          ? Colors.white70
-                                          : Colors.black54,
-                                      size: 18,
-                                    );
-                                  },
-                                ),
-                                )
-                            : CircleAvatar(
-                                key: const ValueKey('avatar_placeholder'),
-                                radius: 16,
-                                backgroundColor: isDark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[300],
-                                child: ClipOval(
-                                  child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedUserCircle,
-                                    color: isDark
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                    size: 18,
-                                  ),
+                    : (userAvatar != null
+                          ? ClipOval(
+                              key: const ValueKey('avatar_with_image'),
+                              child: Image.memory(
+                                userAvatar,
+                                width: 32,
+                                height: 32,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    InitialsAvatar(
+                                  name: profileProvider.userData?['name']
+                                      ?.toString(),
+                                  diameter: 32,
                                 ),
                               ),
-                      ),
+                            )
+                          : InitialsAvatar(
+                              key: const ValueKey('avatar_placeholder'),
+                              name:
+                                  profileProvider.userData?['name']?.toString(),
+                              diameter: 32,
+                            )),
               ),
               onPressed: () {
                 Navigator.push(

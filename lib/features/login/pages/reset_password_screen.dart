@@ -7,6 +7,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/services/reset_password_service.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
 
+/// Screen for initiating the password reset process via email.
 class ResetPasswordScreen extends StatefulWidget {
   final String? url;
   final String? database;
@@ -105,9 +106,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         _successAnimationController.forward();
         await HapticFeedback.selectionClick();
       } else if (result['requiresWebView'] == true) {
-        /// Navigate to WebView for reCAPTCHA-enabled servers
         await HapticFeedback.lightImpact();
-
       } else {
         setState(() {
           _errorMessage = result['message'];
@@ -136,18 +135,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return WillPopScope(
-      onWillPop: () async => !_isLoading,
+    return PopScope(
+      canPop: !_isLoading,
       child: Scaffold(
         body: Stack(
           children: [
-            /// Background
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
                   color: isDark ? Colors.grey[950] : Colors.grey[50],
                   image: DecorationImage(
-                    ///set your login image
                     image: AssetImage('assets/images/loginbg.png'),
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
@@ -161,7 +158,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               ),
             ),
 
-            /// Main content (perfectly centered like login page)
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
@@ -169,7 +165,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      /// Ensure the content takes at least full viewport height for vertical centering
                       minHeight: constraints.maxHeight,
                     ),
                     child: Center(
@@ -179,11 +174,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            /// Header
                             _buildHeader(),
                             const SizedBox(height: 48),
 
-                            /// Success message (animated)
                             if (_successMessage != null)
                               AnimatedBuilder(
                                 animation: _successAnimationController,
@@ -198,7 +191,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                                 },
                               ),
 
-                            /// Form or success state
                             if (_successMessage == null) ...[
                               _buildForm(),
                             ] else ...[
@@ -214,7 +206,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               },
             ),
 
-            /// Back button
             Positioned(
               top: 24,
               left: 0,
@@ -293,7 +284,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          /// Email field
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
@@ -306,6 +296,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               if (value == null || value.trim().isEmpty) {
                 return 'Email is required';
               }
+
               return null;
             },
             onChanged: (value) {
@@ -332,21 +323,28 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                 color: Colors.black.withOpacity(.4),
               ),
               prefixIcon: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.only(left: 16, right: 12),
                 child: HugeIcon(icon: HugeIcons.strokeRoundedMail01, size: 20),
               ),
+              prefixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
               prefixIconColor: WidgetStateColor.resolveWith(
                 (states) => states.contains(WidgetState.disabled)
                     ? Colors.black26
                     : Colors.black54,
               ),
               suffixIcon: _emailHasError
-                  ? HugeIcon(
-                      icon: HugeIcons.strokeRoundedMail01,
-                      color: Colors.red,
-                      size: 20,
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 16, left: 12),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedMail01,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                     )
                   : null,
+              suffixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -370,7 +368,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           ),
           const SizedBox(height: 24),
 
-          /// Error message
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: _errorMessage != null ? 48 : 0,
@@ -400,7 +397,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
 
           const SizedBox(height: 24),
 
-          /// Send reset email button
           SizedBox(
             height: 48,
             child: ElevatedButton(

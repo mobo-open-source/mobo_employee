@@ -7,9 +7,10 @@ import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/biometric_context_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
-import 'package:mobo_employees/features/employee/bottom_navigation_bar/bottom_navigation_bar_page.dart';
+import 'package:mobo_employees/features/login/pages/otp_page.dart';
 import 'package:mobo_employees/features/login/pages/server_setup_screen.dart';
-import 'package:mobo_employees/features/two_factor_authentication/twoFactorAuthenticationPage.dart';
+import 'package:mobo_employees/features/login/providers/login_provider.dart';
+import 'package:mobo_employees/features/login/services/odoo_totp_service.dart';
 import 'package:mobo_employees/shared/providers/clear_provider.dart';
 
 import 'package:provider/provider.dart';
@@ -17,9 +18,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/const/app_colors.dart';
 import '../../../shared/widgets/snackbars/custom_snackbar.dart';
-import '../../company/providers/company_provider.dart';
 import '../../login/pages/credentials_screen.dart';
-import '../providers/profile_provider.dart';
+import '../../../core/utils/server_url_utils.dart';
 
 class SwitchAccountWidget extends StatelessWidget {
   const SwitchAccountWidget({super.key});
@@ -35,7 +35,6 @@ class SwitchAccountWidget extends StatelessWidget {
         final otherAccounts = sessionService.storedAccounts.where((account) {
           final currentSession = sessionService.currentSession;
           if (currentSession == null) return false;
-          if (account['userId'] == currentSession.userId) return false;
 
           return !_isCurrentAccount(account, sessionService);
         }).toList();
@@ -85,7 +84,8 @@ class SwitchAccountWidget extends StatelessWidget {
     if (currentSession == null) return false;
 
     return account['userId']?.toString() == currentSession.userId.toString() &&
-        account['serverUrl'] == currentSession.serverUrl &&
+        normalizeServerUrl(account['serverUrl']?.toString() ?? '') ==
+            normalizeServerUrl(currentSession.serverUrl) &&
         account['database'] == currentSession.database;
   }
 
@@ -347,35 +347,16 @@ class SwitchAccountWidget extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context);
-        final errorMsg = e.toString().toLowerCase();
-        if (errorMsg.contains('two-factor') ||
-            errorMsg.contains('totp') ||
-            errorMsg.contains('token_expired') ||
-            (errorMsg.contains('null') && errorMsg.contains('subtype'))) {
-          /// Handle 2FA redirect logic
-          final username =
-              account['username']?.toString() ??
-              account['userName']?.toString();
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TotpPage(
-                serverUrl: account['serverUrl'],
-                database: account['database'],
-                addaccount: true,
-                username: username ?? '',
-                password: account['password'] ?? '',
-                protocol: 'https://', /// Assuming https or extract from url
-              ),
-            ),
-          );
-          if (result == true) {
-            if (context.mounted) {
-              ClearProviders.clearAllProviders(context);
-            }
-          }
+
+        /// Matched by type, not by substring: the exception's message
+        /// contains words like "authentication" that would otherwise
+        /// misclassify it below as bad credentials.
+        if (e is MfaRequiredException) {
+          await _promptForTotp(context, account, sessionService);
           return;
         }
+
+        final errorMsg = e.toString().toLowerCase();
 
         if (errorMsg.contains('authentication') ||
             errorMsg.contains('password') ||
@@ -384,7 +365,11 @@ class SwitchAccountWidget extends StatelessWidget {
             context,
             dynamicRoute(
               context,
-              BottonnavbarPage(),
+              CredentialsScreen(
+                url: account['serverUrl'] ?? '',
+                database: account['database'] ?? '',
+                prefilledUsername: account['username'] ?? account['userName'],
+              ),
             ),
           );
         } else {
@@ -396,6 +381,38 @@ class SwitchAccountWidget extends StatelessWidget {
         }
       }
     }
+  }
+
+  /// Sends the user to the TOTP screen for [account] so a 2FA switch can be
+  /// completed with a code instead of a full sign-in.
+  Future<void> _promptForTotp(
+    BuildContext context,
+    Map<String, dynamic> account,
+    SessionService sessionService,
+  ) async {
+    final password =
+        await sessionService.retrievePasswordWithMultiplePatterns(account) ??
+            '';
+    if (!context.mounted) return;
+
+    final serverUrl = account['serverUrl']?.toString() ?? '';
+
+    Navigator.push(
+      context,
+      dynamicRoute(
+        context,
+        TotpPage(
+          serverUrl: serverUrl,
+          database: account['database']?.toString() ?? '',
+          username: account['username']?.toString() ??
+              account['userName']?.toString() ??
+              '',
+          password: password,
+          protocol: serverUrl.startsWith('http://') ? 'http://' : 'https://',
+          addaccount: true,
+        ),
+      ),
+    );
   }
 
   Future<void> _removeAccount(
@@ -445,7 +462,11 @@ class SwitchAccountWidget extends StatelessWidget {
 
     if (confirmed == true) {
       final accountIndex = sessionService.storedAccounts.indexWhere(
-        (stored) => stored['userId'] == account['userId'],
+        (stored) =>
+            stored['userId']?.toString() == account['userId']?.toString() &&
+            normalizeServerUrl(stored['serverUrl']?.toString() ?? '') ==
+                normalizeServerUrl(account['serverUrl']?.toString() ?? '') &&
+            stored['database'] == account['database'],
       );
 
       if (accountIndex != -1) {
@@ -514,12 +535,21 @@ class SwitchAccountWidget extends StatelessWidget {
     }
 
     /// Try avatar URL
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
     final avatarUrl =
-        '$serverUrl/web/image?model=res.users&id=$userId&field=image_128&unique=$timestamp';
+        '$serverUrl/web/image?model=res.users&id=$userId&field=image_128';
+
+    /// Scoped to this row's own session cookie so the request can't be
+    /// resolved against a different account's ambient session; the cache key
+    /// is likewise scoped to server+database+user.
+    final sessionId = account?['sessionId'] as String?;
+    final database = account?['database'] as String?;
 
     return CachedNetworkImage(
       imageUrl: avatarUrl,
+      cacheKey: '${serverUrl}_${database}_${userId}_avatar',
+      httpHeaders: (sessionId != null && sessionId.isNotEmpty)
+          ? {'Cookie': 'session_id=$sessionId'}
+          : null,
       fit: BoxFit.cover,
       fadeInDuration: const Duration(milliseconds: 200),
       placeholder: (context, url) {
@@ -598,36 +628,59 @@ class SwitchAccountWidget extends StatelessWidget {
     biometricContext.startAccountOperation('account_switch');
 
     try {
-      final password = await sessionService
-          .retrievePasswordWithMultiplePatterns(account);
-
       final username =
           account['username']?.toString() ?? account['userName']?.toString();
+      final serverUrl = account['serverUrl']?.toString() ?? '';
+      final database = account['database']?.toString() ?? '';
 
+      /// Absence is not fatal here: the stored-session path below needs no
+      /// password, which is what makes switching into a 2FA account possible.
+      final password = await sessionService.retrievePasswordWithMultiplePatterns(
+        account,
+      );
+
+      /// Drop the outgoing account's cached metadata and queued writes
+      /// before the new session goes live.
+      await OdooSessionManager.clearAccountScopedState();
+
+      /// Preferred path: reuse this account's stored session cookie. A
+      /// password re-auth can never complete for a 2FA account (Odoo
+      /// returns a null uid while the second factor is pending), so this
+      /// restores the already-verified session instead. Runs for non-2FA
+      /// accounts too, saving them a password round-trip.
+      final storedSessionId = account['sessionId']?.toString();
+      if (storedSessionId != null && storedSessionId.isNotEmpty) {
+        final restored = await _restoreStoredSession(
+          context: context,
+          serverUrl: serverUrl,
+          database: database,
+          username: username ?? '',
+          password: password ?? '',
+          sessionId: storedSessionId,
+        );
+
+        if (restored) {
+          await _finishSwitch(context, biometricContext);
+          return;
+        }
+      }
+
+      /// Fallback: stored session is gone/expired, only a password re-auth
+      /// is left. For a 2FA account this raises [MfaRequiredException].
       if (password == null || password.isEmpty) {
         throw Exception('No password found for account');
       }
 
       final newSession = await OdooSessionManager.authenticate(
-        serverUrl: account['serverUrl'],
-        database: account['database'],
+        serverUrl: serverUrl,
+        database: database,
         username: username ?? '',
         password: password,
       );
       if (newSession == null) throw Exception('Authentication failed');
 
-      final client = await OdooSessionManager.getClientEnsured();
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<CompanyProvider>().initialize();
-        context.read<ProfileProvider>().fetchUserProfile();
-      });
-
-      final userCompanies = await OdooSessionManager.getAllowedCompaniesList();
-      final selectedCompany = newSession.companyId;
-
       final fixedSession = newSession.copyWith(
-        selectedCompanyId: selectedCompany,
+        selectedCompanyId: newSession.companyId,
         allowedCompanyIds: newSession.allowedCompanyIds,
       );
 
@@ -636,50 +689,79 @@ class SwitchAccountWidget extends StatelessWidget {
       await OdooSessionManager.updateSession(fixedSession);
       sessionService.updateSession(fixedSession);
 
-      if (!context.mounted) return;
-      ClearProviders.clearAllProviders(context);
-
-      Navigator.pop(context);
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AppEntry()),
-        (_) => false,
-      );
-
-      biometricContext.endAccountOperation('account_switch');
+      await _finishSwitch(context, biometricContext);
     } catch (e) {
       biometricContext.endAccountOperation('account_switch');
-      final baseurl = account['serverUrl'];
-      final protocol = baseurl.startsWith("https://") ? "https://" : "https://";
-
-      final msg = e.toString().toLowerCase();
-      final password = await sessionService
-          .retrievePasswordWithMultiplePatterns(account);
-
-      if (password == null || password.isEmpty) {
-        throw Exception('No password found for account');
-      }
-      if (msg.contains('type \'null\'') &&
-          msg.contains('map<string') &&
-          !msg.contains('html') &&
-          !msg.contains('502') &&
-          !msg.contains('timeout')) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TotpPage(
-              protocol: protocol,
-              serverUrl: baseurl,
-              database: account['database'],
-              username: account['username'],
-              password: password,
-              addaccount: true,
-            ),
-          ),
-        );
-      }
+      rethrow;
     }
+  }
+
+  /// Restores [sessionId] as the live session without a password. Returns
+  /// false when it can't be used (expired, wrong database, unreachable), so
+  /// the caller can fall back to a password re-auth.
+  Future<bool> _restoreStoredSession({
+    required BuildContext context,
+    required String serverUrl,
+    required String database,
+    required String username,
+    required String password,
+    required String sessionId,
+  }) async {
+    Map<String, dynamic> info;
+    try {
+      info = await OdooTotpService().fetchSessionInfo(
+        serverUrl: serverUrl,
+        sessionId: sessionId,
+      );
+    } catch (_) {
+      /// Unreachable, expired, or MFA-pending -- nothing restorable.
+      return false;
+    }
+
+    final uid = info['uid'];
+    if (uid == null || uid == false) return false;
+
+    /// A session is bound to one database; refuse a cookie whose
+    /// session_info reports a different db than the account being switched into.
+    final sessionDb = info['db']?.toString();
+    if (sessionDb != null && sessionDb.isNotEmpty && sessionDb != database) {
+      return false;
+    }
+
+    if (!context.mounted) return false;
+
+    /// Reuses the exact same path the 2FA login uses to turn a
+    /// get_session_info payload into a saved session.
+    await context.read<LoginProvider>().onLoginSuccessFromSession(
+          info,
+          login: username,
+          password2: password,
+          serverUrls: serverUrl,
+          databses: database,
+          sessionId: sessionId,
+        );
+
+    return true;
+  }
+
+  /// Shared tail for both switch paths: wipe the outgoing account's
+  /// provider state and land back on [AppEntry].
+  Future<void> _finishSwitch(
+    BuildContext context,
+    BiometricContextService biometricContext,
+  ) async {
+    if (!context.mounted) return;
+
+    ClearProviders.clearAllProviders(context);
+
+    Navigator.pop(context);
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const AppEntry()),
+      (_) => false,
+    );
+
+    biometricContext.endAccountOperation('account_switch');
   }
 
   String _parseAccountSwitchError(String error) {

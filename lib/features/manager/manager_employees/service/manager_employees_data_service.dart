@@ -43,6 +43,8 @@ class ManagerEmployeesDataService {
             'company_id',
             'work_location_id',
             'avatar_128',
+            'is_absent',
+            'hr_presence_state',
           ],
         },
       });

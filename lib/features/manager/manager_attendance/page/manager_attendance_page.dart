@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/provider/manager_attendance_provider.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/service/manager_attendance_data_service.dart';
-import 'package:mobo_employees/widgets/widget_search_bar_page.dart';
 import 'package:provider/provider.dart';
+import '../../../../shared/widgets/filters/filter_status_row.dart';
+import '../../../../shared/widgets/search/mobo_search_bar.dart';
 import '../model/model_manager_attendance_data.dart';
-import '../widgets/widget_attendance_filter_bottomsheet.dart';
+import '../widgets/attendance_filter_sheet.dart';
 import '../widgets/widget_shimmer_attendance_page.dart';
 
 class ManagerAttendancePage extends StatefulWidget {
@@ -39,63 +39,17 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ///  SEARCH BAR — NOT inside Consumer
-            WidgetSearchBarPage(
-              leftIcon: HugeIcons.strokeRoundedFilterHorizontal,
-              onTap: () {
-                final provider = context.read<ManagerAttendanceProvider>();
-                provider.prepareDraftFilters();
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                  ),
-                  builder: (_) {
-                    return Consumer<ManagerAttendanceProvider>(
-                      builder: (_, provider, __) {
-                        return CommonFilterBottomSheet(
-                          title: "Group By",
-                          isDarkTheme:
-                              Theme.of(context).brightness == Brightness.dark,
-                          primaryColor: AppColors.colorE53E5A,
-                          provider: provider,
-                          selectedGroups: provider.draftGroupBy,
-                          onToggle: (value) {
-                            provider.toggleDraftGroupBy(
-                              value == "Month"
-                                  ? AttendanceGroupBy.month
-                                  : AttendanceGroupBy.employee,
-                            );
-                          },
-                          onClear: () async {
-                            await provider.clearAllFilters();
-                          },
-                          onApply: provider.applyDraftFilters,
-                          sections: [
-                            CommonFilterSection(
-                              title: "Group By",
-                              items: ["Month", "Employee"],
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
+            ///  SEARCH BAR
+            Consumer<ManagerAttendanceProvider>(
+              builder: (context, provider, __) {
+                return MoboSearchBar(
+                  controller: provider.searchController,
+                  hintText: 'Search by name',
+                  hasActiveFilter: provider.activeFilterCount > 0,
+                  onFilterTap: () => AttendanceFilterSheet.show(context),
+                  onChanged: (value) => provider.updateSearch(value),
                 );
               },
-              rightIcon: HugeIcons.strokeRoundedCancel01,
-              clearfield: context.read<ManagerAttendanceProvider>().clearSearch,
-              iconSize: 20,
-              iconColor: AppColors.color666666,
-              controller: context
-                  .read<ManagerAttendanceProvider>()
-                  .searchController,
-              provider: context.read<ManagerAttendanceProvider>(),
-              isDarkTheme: isDarkTheme,
-              hintText: 'Search by name',
             ),
 
             const SizedBox(height: 15),
@@ -104,6 +58,10 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
             Expanded(
               child: Consumer<ManagerAttendanceProvider>(
                 builder: (context, provider, _) {
+                  if (provider.isFirstLoad) {
+                    return const WidgetShimmerAttendancePage();
+                  }
+
                   if (provider.isLoading &&
                       provider.groupBy.isEmpty &&
                       provider.modelManagerAttendanceData == null) {
@@ -114,73 +72,23 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
                     return const WidgetShimmerAttendancePage();
                   }
 
+                  final groupLabel = provider.groupBy.isEmpty
+                      ? null
+                      : provider.groupBy.map((g) => g.label).join(', ');
+
                   return Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildFilterLabel(provider, isDarkTheme),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isDarkTheme
-                                      ? AppColors.whiteColor.withOpacity(.2)
-                                      : AppColors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: AppColors.whiteColor.withOpacity(.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  provider.pageCountLabel,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDarkTheme
-                                        ? AppColors.whiteColor
-                                        : AppColors.greyShade700Color,
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 0,
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: provider.canGoPrev
-                                    ? provider.loadPrevPage
-                                    : null,
-                                child: Icon(
-                                  Icons.chevron_left,
-                                  size: 20,
-                                  color: provider.canGoPrev
-                                      ? AppColors.greyShade700Color
-                                      : AppColors.greyShade400Color,
-                                ),
-                              ),
-
-                              const SizedBox(width: 6),
-
-                              InkWell(
-                                onTap: provider.canGoNext
-                                    ? provider.loadNextPage
-                                    : null,
-                                child: Icon(
-                                  Icons.chevron_right,
-                                  size: 20,
-                                  color: provider.canGoNext
-                                      ? AppColors.greyShade700Color
-                                      : AppColors.greyShade400Color,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      FilterStatusRow(
+                        filterCount: provider.activeFilters.length +
+                            ((provider.filterStartDate != null || provider.filterEndDate != null) ? 1 : 0),
+                        groupByLabel: groupLabel,
+                        isDark: isDarkTheme,
+                        paginationText: provider.pageCountLabel,
+                        canPrev: provider.canGoPrev,
+                        canNext: provider.canGoNext,
+                        onPrev: provider.loadPrevPage,
+                        onNext: provider.loadNextPage,
+                        showPagination: true,
                       ),
                       const SizedBox(height: 10),
                       Expanded(
@@ -246,9 +154,7 @@ Widget _buildAttendanceBody(ManagerAttendanceProvider provider) {
     provider: provider,
     groupOrder: provider.groupBy,
     level: 0,
-    accumulatedDomain: const [
-      ['employee_id.active', '=', true],
-    ],
+    accumulatedDomain: provider.baseDomain,
   );
 }
 
@@ -597,36 +503,4 @@ class _MonthAttendanceList extends StatelessWidget {
       },
     );
   }
-}
-
-Widget _buildFilterLabel(ManagerAttendanceProvider provider, bool isDarkTheme) {
-  final count = provider.activeFilterCount;
-
-  if (count == 0) {
-    return Text(
-      'No filters applied',
-      style: GoogleFonts.manrope(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: AppColors.color4A5565,
-      ),
-    );
-  }
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: Colors.black,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text(
-      count == 1 ? '1 Active filter' : '$count Active filters',
-      style: GoogleFonts.manrope(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-        letterSpacing: .3,
-      ),
-    ),
-  );
 }

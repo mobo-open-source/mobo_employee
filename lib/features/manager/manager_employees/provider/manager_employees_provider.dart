@@ -5,6 +5,23 @@ import 'package:mobo_employees/features/manager/manager_employees/service/manage
 
 enum EmployeeFilter { atWork, absent, myTeam, myDepartment }
 
+enum EmployeeGroupBy { none, department, jobPosition, attendance }
+
+extension EmployeeGroupByX on EmployeeGroupBy {
+  String get label {
+    switch (this) {
+      case EmployeeGroupBy.department:
+        return 'Department';
+      case EmployeeGroupBy.jobPosition:
+        return 'Job Position';
+      case EmployeeGroupBy.attendance:
+        return 'Attendance';
+      case EmployeeGroupBy.none:
+        return '';
+    }
+  }
+}
+
 class ManagerEmployeesProvider extends ChangeNotifier {
   final TextEditingController searchEmployeeController =
       TextEditingController();
@@ -40,6 +57,45 @@ class ManagerEmployeesProvider extends ChangeNotifier {
 
   Set<EmployeeFilter> activeFilters = {};
   Set<EmployeeFilter> draftFilters = {};
+
+  EmployeeGroupBy groupBy = EmployeeGroupBy.none;
+  EmployeeGroupBy draftGroupBy = EmployeeGroupBy.none;
+
+  String currentSearch = '';
+
+  bool get hasActiveFilter =>
+      activeFilters.isNotEmpty || groupBy != EmployeeGroupBy.none;
+
+  /// Employees grouped by [groupBy], computed over the currently-fetched
+  /// page (grouping is client-side, matching the flat pagination model).
+  Map<String, List<ModelFetchManagerEmployeeDetails>> get grouped {
+    if (groupBy == EmployeeGroupBy.none) return {'': employees};
+    final map = <String, List<ModelFetchManagerEmployeeDetails>>{};
+    for (final e in employees) {
+      (map[_groupKey(e)] ??= []).add(e);
+    }
+    return map;
+  }
+
+  String _groupKey(ModelFetchManagerEmployeeDetails e) {
+    switch (groupBy) {
+      case EmployeeGroupBy.department:
+        return e.departmentName?.isNotEmpty == true
+            ? e.departmentName!
+            : 'No Department';
+      case EmployeeGroupBy.jobPosition:
+        return e.jobTitle?.isNotEmpty == true ? e.jobTitle! : 'No Job Position';
+      case EmployeeGroupBy.attendance:
+        if (e.isAbsent == true) return 'Absent';
+        if (e.hrPresenceState?.isNotEmpty == true) {
+          final s = e.hrPresenceState!;
+          return s[0].toUpperCase() + s.substring(1);
+        }
+        return 'Unknown';
+      case EmployeeGroupBy.none:
+        return '';
+    }
+  }
 
   bool _isAttendanceFilter(EmployeeFilter f) =>
       f == EmployeeFilter.atWork || f == EmployeeFilter.absent;
@@ -138,7 +194,8 @@ class ManagerEmployeesProvider extends ChangeNotifier {
   }
 
 
-  Future<void> fetchEmployees({bool reset = false, String search = ''}) async {
+  Future<void> fetchEmployees({bool reset = false, String? search}) async {
+    if (search != null) currentSearch = search;
     final client = await OdooSessionManager.getClient();
     currentUserId = client?.sessionId?.userId;
     if (reset) {
@@ -154,7 +211,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
       final response = await ManagerEmployeesDataService.fetchAllEmployees(
         domain: buildDomain(),
         offset: offset,
-        search: search,
+        search: currentSearch,
         limit: pageSize,
       );
       employees.clear();
@@ -162,7 +219,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
       employees.addAll(response.employees);
       totalRecords = await ManagerEmployeesDataService.fetchAllEmployeesCount(
         domain: buildDomain(),
-        search: search,
+        search: currentSearch,
       );
     } catch (e) {
     } finally {
@@ -173,6 +230,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
 
   void prepareDraftFilters() {
     draftFilters = {...activeFilters};
+    draftGroupBy = groupBy;
   }
 
   String get filterLabel {
@@ -191,12 +249,28 @@ class ManagerEmployeesProvider extends ChangeNotifier {
 
   void applyDraftFilters() {
     activeFilters = {...draftFilters};
+    groupBy = draftGroupBy;
     fetchEmployees(reset: true);
+  }
+
+  /// Called by [EmployeeFilterSheet]'s Apply button with the sheet's own
+  /// selection state.
+  Future<void> applyFilterAndGroup(
+    Set<EmployeeFilter> filters,
+    EmployeeGroupBy group,
+  ) async {
+    activeFilters = {...filters};
+    draftFilters = {...filters};
+    groupBy = group;
+    draftGroupBy = group;
+    await fetchEmployees(reset: true);
   }
 
   void clearAllFilters() {
     activeFilters.clear();
     draftFilters.clear();
+    groupBy = EmployeeGroupBy.none;
+    draftGroupBy = EmployeeGroupBy.none;
     fetchEmployees(reset: true);
   }
 
@@ -210,6 +284,9 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     /// Filters
     activeFilters.clear();
     draftFilters.clear();
+    groupBy = EmployeeGroupBy.none;
+    draftGroupBy = EmployeeGroupBy.none;
+    currentSearch = '';
 
     /// Data
     employees.clear();
@@ -235,7 +312,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
 
   void clearSearch() {
     searchEmployeeController.clear();
-    fetchEmployees(reset: true);
+    fetchEmployees(reset: true, search: '');
   }
 
   Future<void> refreshEmployees() async {

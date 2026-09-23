@@ -1,14 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
-import 'package:mobo_employees/features/employee/dashboard/provider/dashboard_provider.dart';
+import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 
 class WelcomeCard extends StatelessWidget {
   final String wishText;
   final String subText;
   final double wishTextFontSize;
   final double subTextFontSize;
-  final DashboardProvider provider;
+  final Uint8List? userAvatar;
+  final String? userName;
   final bool isDarkTheme;
 
   const WelcomeCard({
@@ -17,26 +20,30 @@ class WelcomeCard extends StatelessWidget {
     required this.subText,
     required this.wishTextFontSize,
     required this.subTextFontSize,
-    required this.provider,
+    required this.userAvatar,
+    required this.userName,
     required this.isDarkTheme,
   });
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
-    return Card(
-      color: AppColors.appColor,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: AppColors.appColor,
+      ),
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: size.height * 0.03,
-          horizontal: size.width * 0.04,
+        padding: const EdgeInsets.only(
+          left: 15,
+          right: 15,
+          top: 28,
+          bottom: 28,
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
+            Flexible(
               child: DefaultTextStyle(
                 style: const TextStyle(color: Colors.white),
                 child: Column(
@@ -46,44 +53,42 @@ class WelcomeCard extends StatelessWidget {
                       wishText,
                       style: TextStyle(
                         fontSize: wishTextFontSize,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: size.height * 0.005),
                     Text(
                       subText,
                       style: GoogleFonts.manrope(
                         fontSize: subTextFontSize,
                         fontWeight: FontWeight.w400,
                       ),
-                      overflow: TextOverflow.ellipsis,
+                      overflow: TextOverflow.visible,
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            CircleAvatar(
-              radius: 27,
-              backgroundColor: Colors.white.withOpacity(.3),
-              child:
-                  provider.userImageBytes != null &&
-                      provider.userImageBytes!.isNotEmpty
+            Container(
+              width: 60,
+              height: 60,
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+              ),
+              child: userAvatar != null && userAvatar!.isNotEmpty
                   ? ClipOval(
                       child: Image.memory(
-                        provider.userImageBytes!,
+                        userAvatar!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return provider.iconHandle(
-                            color: isDarkTheme ? Colors.white : Colors.white,
-                          );
-                        },
+                        errorBuilder: (context, error, stackTrace) =>
+                            InitialsAvatar(name: userName, diameter: 56),
                       ),
                     )
-                  : const Icon(Icons.person, color: Colors.black),
+                  : InitialsAvatar(name: userName, diameter: 56),
             ),
           ],
         ),

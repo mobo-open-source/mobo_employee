@@ -2,6 +2,7 @@ import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/secure_storage_service.dart';
+import '../utils/server_url_utils.dart';
 
 /// Extended session model with app-specific metadata
 class AppSessionData {
@@ -113,11 +114,7 @@ class AppSessionData {
         return null;
       }
 
-      serverUrl = serverUrl!.trim();
-      if (!serverUrl.startsWith('http://') &&
-          !serverUrl.startsWith('https://')) {
-        serverUrl = 'https://$serverUrl';
-      }
+      serverUrl = normalizeServerUrl(serverUrl!);
 
       /// Load password from secure storage
       String? password = await SecureStorageService.instance.getPassword(

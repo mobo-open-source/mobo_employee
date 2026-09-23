@@ -298,6 +298,42 @@ class ManagerCalendarService {
     }
   }
 
+  /// Fetches base64-encoded profile images for several employees in ONE
+  /// request, keyed by employee id, instead of one RPC per row.
+  static Future<Map<int, String?>> fetchEmployeeUserProfileImages(
+    List<int> userIds,
+  ) async {
+    if (userIds.isEmpty) return {};
+    try {
+      final odooClient = await OdooSessionManager.callKwWithCompany;
+
+      final response = await odooClient({
+        'model': 'hr.employee',
+        'method': 'search_read',
+        'args': [],
+        'kwargs': {
+          'domain': [
+            ['id', 'in', userIds],
+          ],
+          'fields': ['id', 'image_128'],
+        },
+      });
+
+      final result = <int, String?>{};
+      if (response is List) {
+        for (final row in response) {
+          final id = row['id'];
+          if (id is int) {
+            result[id] = row['image_128'] as String?;
+          }
+        }
+      }
+      return result;
+    } catch (e) {
+      return {};
+    }
+  }
+
   /// Fetches leave calendar events for the currently logged-in user.
   static Future<List<LeaveCalendarEvent>> fetchMyLeaveCalendarEvents({
     required DateTime from,
@@ -502,7 +538,7 @@ class ManagerCalendarService {
             'name',
             'display_name',
             'department_id',
-            'image_128',
+            'avatar_128',
           ],
         },
       });

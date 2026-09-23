@@ -6,12 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:mobo_employees/core/models/appsession.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
-import 'package:mobo_employees/features/two_factor_authentication/twoFactorAuthenticationPage.dart';
+import 'package:mobo_employees/core/utils/server_url_utils.dart';
 import 'package:mobo_employees/features/user_type_role_check/user_type_role_check_provider.dart';
 
 import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+
+enum LoginResult { success, twoFactorRequired, invalidCredentials, networkError }
 
 class LoginProvider with ChangeNotifier {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -157,14 +159,8 @@ class LoginProvider with ChangeNotifier {
 
       /// Helper to add if non-empty and normalized
       String _normalize(String url) {
-        String u = url.trim();
-        if (u.isEmpty) return u;
-        /// Ensure protocol prefix for consistency in display/saving
-        if (!u.startsWith('http://') && !u.startsWith('https://')) {
-          u = '$_selectedProtocol$u';
-        }
-        if (u.endsWith('/')) u = u.substring(0, u.length - 1);
-        return u;
+        if (url.trim().isEmpty) return '';
+        return normalizeServerUrl(url, defaultScheme: _selectedProtocol);
       }
 
       void addUrl(String? url) {
@@ -363,25 +359,13 @@ class LoginProvider with ChangeNotifier {
     } catch (e) {}
   }
 
-  String _normalizeUrl(String url) {
-    String normalizedUrl = url.trim();
-    if (!normalizedUrl.startsWith('http://') &&
-        !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = '$_selectedProtocol$normalizedUrl';
-    }
-    if (normalizedUrl.endsWith('/')) {
-      normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
-    }
-    return normalizedUrl;
-  }
+  String _normalizeUrl(String url) =>
+      normalizeServerUrl(url, defaultScheme: _selectedProtocol);
 
   String getFullUrl() {
     final url = urlController.text.trim();
     if (url.isEmpty) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
-    return '$_selectedProtocol$url';
+    return normalizeServerUrl(url, defaultScheme: _selectedProtocol);
   }
 
   String extractProtocol(String fullUrl) {
@@ -655,12 +639,17 @@ class LoginProvider with ChangeNotifier {
         await _saveCredentials();
         await _setAuthenticationTimestamp();
 
-        /// Store account in SessionService for account switching
+        /// Store account in SessionService for account switching.
         try {
           final sessionService = SessionService.instance;
           final currentSession = await OdooSessionManager.getCurrentSession();
 
           if (currentSession != null) {
+            await sessionService.storeAccount(
+              currentSession,
+              password,
+              markAsCurrent: true,
+            );
           }
         } catch (e) {}
 

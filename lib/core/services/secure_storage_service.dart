@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service for securely storing sensitive data like passwords
 /// Uses platform-specific secure storage (Keychain on iOS, Keystore on Android)
@@ -10,6 +11,19 @@ class SecureStorageService {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+
+  static const String _installFlagKey = 'secure_storage_seeded_this_install';
+
+  /// Wipes secure storage on the first run after a fresh install/reinstall,
+  /// since the platform Keychain/Keystore can survive an uninstall even
+  /// though SharedPreferences doesn't. Must run before anything else reads
+  /// from secure storage.
+  Future<void> clearIfFreshInstall() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_installFlagKey) == true) return;
+    await clearAll();
+    await prefs.setBool(_installFlagKey, true);
+  }
 
   /// Store a password securely
   Future<void> storePassword(String key, String password) async {

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 
 class ProfileHeaderCard extends StatelessWidget {
   final String name;
@@ -26,7 +27,6 @@ class ProfileHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     double rs(double size) {
       final w = MediaQuery.of(context).size.width;
       final scale = (w / 390.0).clamp(0.85, 1.2);
@@ -40,29 +40,11 @@ class ProfileHeaderCard extends StatelessWidget {
               height: 50,
               width: 50,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return CircleAvatar(
-                  radius: 25,
-                  backgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
-                  child: HugeIcon(
-                    icon: HugeIcons.strokeRoundedUserCircle,
-                    size: 30,
-                    color: isDark ? Colors.grey[500] : Colors.grey[600],
-                  ),
-                );
-              },
+              errorBuilder: (context, error, stackTrace) =>
+                  InitialsAvatar(name: name, diameter: 50),
             ),
           )
-
-        : CircleAvatar(
-            radius: 34,
-            backgroundColor: isDark ? Colors.grey[700] : Colors.grey[300],
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedUserCircle,
-              size: 30,
-              color: isDark ? Colors.grey[500] : Colors.grey[600],
-            ),
-          );
+        : InitialsAvatar(name: name, diameter: 68);
 
     final content = Container(
       margin: const EdgeInsets.all(20),
@@ -91,7 +73,7 @@ class ProfileHeaderCard extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey[200]!, width: 2),
+                      border: Border.all(color: Colors.white, width: 3),
                     ),
                     child: photoWidget,
                   ),

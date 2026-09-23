@@ -64,6 +64,12 @@ class AppTheme {
         borderSide: const BorderSide(color: primaryColor, width: 2),
       ),
     ),
+    /// Override the M3 default pale tonal header with the brand color.
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: Colors.white,
+      headerBackgroundColor: primaryColor,
+      headerForegroundColor: Colors.white,
+    ),
     primaryTextTheme: _buildTextTheme(TextTheme()),
     textTheme: _buildTextTheme(TextTheme()),
   );
@@ -96,6 +102,12 @@ class AppTheme {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: primaryColor, width: 2),
       ),
+    ),
+    /// Same header override as the light theme.
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: Colors.grey[900],
+      headerBackgroundColor: primaryColor,
+      headerForegroundColor: Colors.white,
     ),
 
     /// Apply the custom TextTheme

@@ -1,6 +1,6 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class ResetPasswordService {
   static Future<Map<String, dynamic>> sendResetPasswordEmail({
@@ -22,6 +22,7 @@ class ResetPasswordService {
         database,
         login,
       );
+
       if (webFlowResult['success'] == true ||
           webFlowResult['requiresWebView'] == true) {
         return webFlowResult;
@@ -53,11 +54,12 @@ class ResetPasswordService {
                   'Accept-Language': 'en-US,en;q=0.5',
                 },
               )
-              .timeout(const Duration(seconds: 10));
+              .timeout(Duration(seconds: 10));
 
           if (response.statusCode == 200) {
             final body = response.body.toLowerCase();
-            var isValidResetForm = false;
+
+            bool isValidResetForm = false;
 
             if (body.contains('password') &&
                 (body.contains('reset') || body.contains('forgot'))) {
@@ -75,17 +77,17 @@ class ResetPasswordService {
             if (isValidResetForm) {
               workingEndpoint = endpoint;
               responseBody = response.body;
+
               requiresRecaptcha = _detectRecaptcha(response.body);
 
               final cookieHeader = response.headers['set-cookie'];
               if (cookieHeader != null) {
                 cookies = _parseCookies(cookieHeader);
               }
-
               break;
             }
           }
-        } catch (_) {
+        } catch (e) {
           continue;
         }
       }
@@ -105,7 +107,11 @@ class ResetPasswordService {
         };
       }
 
-      final formData = _extractAllFormData(responseBody!, login, database);
+      final Map<String, String> formData = _extractAllFormData(
+        responseBody!,
+        login,
+        database,
+      );
 
       final headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -196,20 +202,20 @@ class ResetPasswordService {
                 )
                 .timeout(const Duration(seconds: 30));
 
-            final redirectBody = redirectResponse.body.toLowerCase();
-            if (_containsSuccessIndicators(redirectBody)) {
+            final responseBody = redirectResponse.body.toLowerCase();
+            if (_containsSuccessIndicators(responseBody)) {
               return {
                 'success': true,
                 'message':
                     'Password reset email sent successfully. Please check your email for reset instructions.',
               };
-            } else if (_containsErrorIndicators(redirectBody)) {
+            } else if (_containsErrorIndicators(responseBody)) {
               return {
                 'success': false,
                 'message': 'User not found or invalid email address.',
               };
             }
-          } catch (_) {}
+          } catch (e) {}
         }
 
         return {
@@ -342,7 +348,7 @@ class ResetPasswordService {
       if (!(uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https'))) {
         return false;
       }
-      if (!uri.hasAuthority || uri.host.isEmpty) {
+      if (!uri.hasAuthority || (uri.host).isEmpty) {
         return false;
       }
 
@@ -365,7 +371,7 @@ class ResetPasswordService {
     String login,
     String database,
   ) {
-    final formData = <String, String>{};
+    final Map<String, String> formData = {};
 
     formData['login'] = login;
 
@@ -471,6 +477,7 @@ class ResetPasswordService {
         r'<input[^>]*value=["\x27]([^"\x27]*)["\x27][^>]*name=["\x27]token["\x27]',
         caseSensitive: false,
       ),
+
       RegExp(
         r'<input[^>]*type=["\x27]hidden["\x27][^>]*name=["\x27]token["\x27][^>]*value=["\x27]([^"\x27]*)["\x27]',
         caseSensitive: false,
@@ -479,6 +486,7 @@ class ResetPasswordService {
         r'<input[^>]*name=["\x27]token["\x27][^>]*type=["\x27]hidden["\x27][^>]*value=["\x27]([^"\x27]*)["\x27]',
         caseSensitive: false,
       ),
+
       RegExp(
         r'token["\x27]?\s*:\s*["\x27]([^"\x27]+)["\x27]',
         caseSensitive: false,
@@ -487,6 +495,7 @@ class ResetPasswordService {
         r'var\s+token\s*=\s*["\x27]([^"\x27]+)["\x27]',
         caseSensitive: false,
       ),
+
       RegExp(
         r'name=["\x27]token["\x27][^>]*value=["\x27]([^"\x27]*)["\x27]',
         caseSensitive: false,
@@ -512,6 +521,7 @@ class ResetPasswordService {
 
   static bool _detectRecaptcha(String responseBody) {
     final body = responseBody.toLowerCase();
+
     final recaptchaIndicators = [
       'recaptcha',
       'grecaptcha',
@@ -521,7 +531,7 @@ class ResetPasswordService {
       'g-recaptcha',
     ];
 
-    for (final indicator in recaptchaIndicators) {
+    for (String indicator in recaptchaIndicators) {
       if (body.contains(indicator)) {
         return true;
       }
@@ -578,7 +588,7 @@ class ResetPasswordService {
       }
 
       return await _tryWebInterfaceReset(cleanUrl, database, login);
-    } catch (_) {
+    } catch (e) {
       return await _tryWebInterfaceReset(cleanUrl, database, login);
     }
   }
@@ -591,28 +601,70 @@ class ResetPasswordService {
     try {
       final loginUrl = '$cleanUrl/web/login';
       final resetUrl = '$cleanUrl/web/reset_password';
-
-      final initialGet = await http
-          .get(
-            Uri.parse('$loginUrl?redirect=/web/login'),
-            headers: {
-              'User-Agent':
-                  'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
-              'Accept':
-                  'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            },
-          )
-          .timeout(const Duration(seconds: 15));
-
+      final dbQuery = database.isNotEmpty ? '&db=$database' : '';
       Map<String, String> cookies = {};
-      final initialSetCookie = initialGet.headers['set-cookie'];
-      if (initialSetCookie != null) {
-        cookies.addAll(_parseCookies(initialSetCookie));
+
+      final loginHeaders = {
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      };
+
+      final initialUri = Uri.parse('$loginUrl?redirect=/web/login$dbQuery');
+      final client = http.Client();
+      http.Response initialGet;
+      try {
+        final initialRequest = http.Request('GET', initialUri)
+          ..followRedirects = false
+          ..headers.addAll(loginHeaders);
+        initialGet = await http.Response.fromStream(
+          await client.send(initialRequest).timeout(const Duration(seconds: 15)),
+        );
+
+        final initialSetCookie = initialGet.headers['set-cookie'];
+        if (initialSetCookie != null) {
+          cookies.addAll(_parseCookies(initialSetCookie));
+        }
+
+        // Follow this one redirect manually with the cookie attached, since
+        // automatic redirect handling wouldn't carry it and Odoo would loop.
+        if (initialGet.statusCode == 301 ||
+            initialGet.statusCode == 302 ||
+            initialGet.statusCode == 303 ||
+            initialGet.statusCode == 307 ||
+            initialGet.statusCode == 308) {
+          final location = initialGet.headers['location'];
+          final followUri = location == null
+              ? initialUri
+              : (location.startsWith('http')
+                  ? Uri.parse(location)
+                  : Uri.parse('$cleanUrl$location'));
+
+          final followRequest = http.Request('GET', followUri)
+            ..followRedirects = false
+            ..headers.addAll({
+              ...loginHeaders,
+              'Cookie': cookies.entries
+                  .map((e) => '${e.key}=${e.value}')
+                  .join('; '),
+            });
+          initialGet = await http.Response.fromStream(
+            await client.send(followRequest).timeout(const Duration(seconds: 15)),
+          );
+
+          final followSetCookie = initialGet.headers['set-cookie'];
+          if (followSetCookie != null) {
+            cookies.addAll(_parseCookies(followSetCookie));
+          }
+        }
+      } finally {
+        client.close();
       }
 
       final resetGet = await http
           .get(
-            Uri.parse('$resetUrl?redirect=/web/login'),
+            Uri.parse('$resetUrl?redirect=/web/login$dbQuery'),
             headers: {
               'User-Agent':
                   'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
@@ -622,7 +674,7 @@ class ResetPasswordService {
                 'Cookie': cookies.entries
                     .map((e) => '${e.key}=${e.value}')
                     .join('; '),
-              'Referer': '$loginUrl?redirect=/web/login',
+              'Referer': '$loginUrl?redirect=/web/login$dbQuery',
             },
           )
           .timeout(const Duration(seconds: 15));
@@ -658,16 +710,13 @@ class ResetPasswordService {
         'Accept':
             'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Origin': cleanUrl,
-        'Referer': '$resetUrl?redirect=/web/login',
-        if (cookies.isNotEmpty)
-          'Cookie': cookies.entries
-              .map((e) => '${e.key}=${e.value}')
-              .join('; '),
+        'Referer': '$resetUrl?redirect=/web/login$dbQuery',
+        'Cookie': cookies.entries.map((e) => '${e.key}=${e.value}').join('; '),
       };
 
       final postResponse = await http
           .post(
-            Uri.parse('$resetUrl?redirect=/web/login'),
+            Uri.parse('$resetUrl?redirect=/web/login$dbQuery'),
             headers: postHeaders,
             body: Uri(queryParameters: formData).query,
           )
@@ -696,6 +745,7 @@ class ResetPasswordService {
             'message': 'No user found with this email address.',
           };
         }
+
         return {
           'success': true,
           'message':
@@ -710,7 +760,7 @@ class ResetPasswordService {
         'message':
             'Unable to reset password automatically. Please complete the reset in the secure browser.',
       };
-    } catch (_) {
+    } catch (e) {
       return {
         'success': false,
         'requiresWebView': true,

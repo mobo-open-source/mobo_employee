@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -27,6 +26,7 @@ class ProfileProvider extends ChangeNotifier {
       'user_profile_pending_users';
   static const String _cacheKeyPendingPartnerUpdates =
       'user_profile_pending_partner';
+  static const String _cacheKeyHrFields = 'user_profile_hr_fields';
 
   bool get isLoading => _isLoading;
   Map<String, dynamic>? get userData => _userData;
@@ -61,72 +61,232 @@ class ProfileProvider extends ChangeNotifier {
     return out;
   }
 
-  String? _partnerMobileFieldNameCache;
+  /// Whether `res.partner.mobile` exists on this server (removed in Odoo 19).
+  /// Tri-state so "not probed yet" is distinguishable from "confirmed absent".
+  bool _mobileFieldResolved = false;
+  String? _mobileFieldName;
+
+  /// True once the server has been probed and it really has no mobile field.
+  bool get serverHasNoMobileField =>
+      _mobileFieldResolved && _mobileFieldName == null;
+
+  /// Forgets the probe result; must be re-run on account switch since the
+  /// field's existence is per-server.
+  void resetMobileFieldDetection() {
+    _mobileFieldResolved = false;
+    _mobileFieldName = null;
+  }
+
+  /// Resolves the mobile field name via `fields_get` (not `ir.model.fields`,
+  /// which a plain employee has no access to). Throws on probe failure so
+  /// callers can tell "absent" apart from "unknown".
+  Future<String?> _resolvePartnerMobileFieldName() async {
+    if (_mobileFieldResolved) return _mobileFieldName;
+
+    final fieldsInfo = await OdooSessionManager.callKwWithCompany({
+      'model': 'res.partner',
+      'method': 'fields_get',
+      'args': [],
+      'kwargs': {
+        'allfields': ['mobile_phone', 'x_studio_mobile_phone', 'mobile'],
+        'attributes': <String>[],
+      },
+    });
+
+    final present = <String>{
+      if (fieldsInfo is Map) for (final k in fieldsInfo.keys) k.toString(),
+    };
+
+    /// A custom/Studio field wins over the standard one when both exist.
+    _mobileFieldName = const ['mobile_phone', 'x_studio_mobile_phone', 'mobile']
+        .cast<String?>()
+        .firstWhere((f) => present.contains(f), orElse: () => null);
+    _mobileFieldResolved = true;
+    return _mobileFieldName;
+  }
+
+  /// Best-effort variant for the read path, where a failed probe should
+  /// just mean "don't request the field this time" rather than an error.
   Future<String?> _getPartnerMobileFieldName() async {
-    if (_partnerMobileFieldNameCache != null)
-      return _partnerMobileFieldNameCache;
     try {
-      /// Prefer custom 'mobile_phone' if present
-      final hasMobilePhone = await OdooSessionManager.callKwWithCompany({
-        'model': 'ir.model.fields',
-        'method': 'search_count',
-        'args': [
-          [
-            ['model', '=', 'res.partner'],
-            ['name', '=', 'mobile_phone'],
-          ],
-        ],
-        'kwargs': {},
-      });
-      final hasMp = (hasMobilePhone is int)
-          ? hasMobilePhone > 0
-          : (hasMobilePhone as num) > 0;
-      if (hasMp) {
-        _partnerMobileFieldNameCache = 'mobile_phone';
-        return _partnerMobileFieldNameCache;
-      }
-
-      /// Odoo Studio commonly uses x_studio_mobile_phone
-      /// Odoo Studio commonly uses x_studio_mobile_phone
-      final hasStudioMobilePhone = await OdooSessionManager.callKwWithCompany({
-        'model': 'ir.model.fields',
-        'method': 'search_count',
-        'args': [
-          [
-            ['model', '=', 'res.partner'],
-            ['name', '=', 'x_studio_mobile_phone'],
-          ],
-        ],
-        'kwargs': {},
-      });
-      final hasXs = (hasStudioMobilePhone is int)
-          ? hasStudioMobilePhone > 0
-          : (hasStudioMobilePhone as num) > 0;
-      if (hasXs) {
-        _partnerMobileFieldNameCache = 'x_studio_mobile_phone';
-        return _partnerMobileFieldNameCache;
-      }
-
-      /// Otherwise check standard 'mobile'
-      /// Otherwise check standard 'mobile'
-      final hasMobile = await OdooSessionManager.callKwWithCompany({
-        'model': 'ir.model.fields',
-        'method': 'search_count',
-        'args': [
-          [
-            ['model', '=', 'res.partner'],
-            ['name', '=', 'mobile'],
-          ],
-        ],
-        'kwargs': {},
-      });
-      final hasM = (hasMobile is int) ? hasMobile > 0 : (hasMobile as num) > 0;
-      _partnerMobileFieldNameCache = hasM ? 'mobile' : null;
-      return _partnerMobileFieldNameCache;
+      return await _resolvePartnerMobileFieldName();
     } catch (_) {
-      /// On failure, don't assume a field; we'll fallback to using phone for UI
-      _partnerMobileFieldNameCache = null;
-      return _partnerMobileFieldNameCache;
+      return null;
+    }
+  }
+
+  /// The connected server's major Odoo version, used to gate version-specific
+  /// UI (see `isOdoo17`).
+  int? _serverMajorVersion;
+  bool get isOdoo17 => _serverMajorVersion == 17;
+
+  Future<void> _resolveServerVersion() async {
+    if (_serverMajorVersion != null) return;
+    try {
+      _serverMajorVersion = await OdooSessionManager.getServerMajorVersion();
+    } catch (_) {
+      /// Leave unresolved so the next fetch retries.
+    }
+  }
+
+  /// Whether the HR module is installed, adding `job_title` / `work_phone` /
+  /// `private_*` fields on `res.users` (related to `hr.employee`). Detected
+  /// via `fields_get`, not `ir.model.fields`, which a plain employee can't
+  /// access.
+  bool _hrFieldsResolved = false;
+  bool _hasJobTitleField = false;
+  bool _hasWorkPhoneField = false;
+  bool _hasEmployeeIdField = false;
+  bool _hasPrivateAddressFields = false;
+
+  /// Whether `res.users.job_title` itself is writable (true on 17/18, false
+  /// on 19 — detected via `fields_get`'s `readonly` attribute rather than
+  /// guessed from a version number).
+  bool _jobTitleWritableViaUsers = false;
+  bool get jobTitleWritableViaUsers => _jobTitleWritableViaUsers;
+
+  bool get hasJobTitleField => _hasJobTitleField;
+  bool get hasWorkPhoneField => _hasWorkPhoneField;
+  bool get hasPrivateAddressFields => _hasPrivateAddressFields;
+
+  /// Whether the current account actually has an `hr.employee` linked, as
+  /// opposed to `_hasEmployeeIdField`, which only means the field exists.
+  bool get _hasLinkedEmployee {
+    final id = _userData?['employee_id'];
+    return id is List && id.isNotEmpty && id[0] != null;
+  }
+
+  /// Whether a job_title edit should also be mirrored directly onto
+  /// `hr.employee.job_title` -- the fallback needed only when
+  /// `res.users.job_title` can't carry the write (Odoo 19). Only succeeds
+  /// for HR "Officer" accounts (`hr.group_hr_user`); see
+  /// `writeEmployeeJobTitleBestEffort`.
+  bool get canWriteEmployeeJobTitle =>
+      _hasJobTitleField && !_jobTitleWritableViaUsers && _hasLinkedEmployee;
+
+  /// Forgets the probe result (and its persisted cache) so it's re-detected
+  /// on account switch, since HR presence is a per-server fact.
+  void resetHrFieldDetection() {
+    _hrFieldsResolved = false;
+    _hasJobTitleField = false;
+    _hasWorkPhoneField = false;
+    _hasEmployeeIdField = false;
+    _hasPrivateAddressFields = false;
+    _jobTitleWritableViaUsers = false;
+    unawaited(_clearHrFieldsCache());
+  }
+
+  static const List<String> _privateAddressFieldNames = [
+    'private_street',
+    'private_street2',
+    'private_city',
+    'private_zip',
+    'private_state_id',
+    'private_country_id',
+  ];
+
+  Map<String, bool> _hrFieldsSnapshot() => {
+        'hasJobTitleField': _hasJobTitleField,
+        'hasWorkPhoneField': _hasWorkPhoneField,
+        'hasEmployeeIdField': _hasEmployeeIdField,
+        'hasPrivateAddressFields': _hasPrivateAddressFields,
+        'jobTitleWritableViaUsers': _jobTitleWritableViaUsers,
+      };
+
+  void _applyHrFieldsSnapshot(Map<String, dynamic> map) {
+    _hasJobTitleField = map['hasJobTitleField'] == true;
+    _hasWorkPhoneField = map['hasWorkPhoneField'] == true;
+    _hasEmployeeIdField = map['hasEmployeeIdField'] == true;
+    _hasPrivateAddressFields = map['hasPrivateAddressFields'] == true;
+    _jobTitleWritableViaUsers = map['jobTitleWritableViaUsers'] == true;
+  }
+
+  /// Loads a previously-persisted probe result for the active account.
+  /// Returns whether one was found and applied.
+  Future<bool> _loadHrFieldsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKeyHrFields);
+      if (raw == null || raw.isEmpty) return false;
+      _applyHrFieldsSnapshot(jsonDecode(raw) as Map<String, dynamic>);
+      _hrFieldsResolved = true;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _saveHrFieldsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKeyHrFields, jsonEncode(_hrFieldsSnapshot()));
+    } catch (_) {
+    }
+  }
+
+  Future<void> _clearHrFieldsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKeyHrFields);
+    } catch (_) {
+    }
+  }
+
+  /// Resolves which HR fields exist/are writable, once per account.
+  /// Persisted so a cold start (offline included) has an answer immediately.
+  Future<void> _resolveHrFields() async {
+    if (_hrFieldsResolved) return;
+
+    if (await _loadHrFieldsCache()) {
+      /// Refresh in the background in case HR was installed/uninstalled,
+      /// without blocking the caller on a round-trip.
+      unawaited(_probeHrFields());
+      return;
+    }
+
+    await _probeHrFields();
+  }
+
+  Future<void> _probeHrFields() async {
+    try {
+      /// `fields_get` covers existence and writability (`readonly`) in one
+      /// call and needs no `ir.model.access` grant, unlike `ir.model.fields`.
+      final fieldsInfo = await OdooSessionManager.callKwWithCompany({
+        'model': 'res.users',
+        'method': 'fields_get',
+        'args': [],
+        'kwargs': {
+          'allfields': [
+            'job_title',
+            'work_phone',
+            'employee_id',
+            ..._privateAddressFieldNames,
+          ],
+          'attributes': ['readonly'],
+        },
+      });
+
+      final info = <String, dynamic>{
+        if (fieldsInfo is Map)
+          for (final entry in fieldsInfo.entries) entry.key.toString(): entry.value,
+      };
+
+      bool isReadonly(String name) {
+        final desc = info[name];
+        return desc is Map && desc['readonly'] == true;
+      }
+
+      _hasJobTitleField = info.containsKey('job_title');
+      _hasWorkPhoneField = info.containsKey('work_phone');
+      _hasEmployeeIdField = info.containsKey('employee_id');
+      _jobTitleWritableViaUsers = _hasJobTitleField && !isReadonly('job_title');
+      _hasPrivateAddressFields =
+          _privateAddressFieldNames.every(info.containsKey);
+      _hrFieldsResolved = true;
+      await _saveHrFieldsCache();
+    } catch (_) {
+      /// Leave unresolved so the next fetch retries the probe instead of
+      /// permanently assuming HR isn't installed.
     }
   }
 
@@ -135,10 +295,13 @@ class ProfileProvider extends ChangeNotifier {
   ) async {
     /// Map our internal 'mobile' to whichever field server supports
     if (!normalized.containsKey('mobile')) return normalized;
-    final fieldName = await _getPartnerMobileFieldName();
+
+    /// Don't swallow a probe failure: an unknown field must fail loudly and
+    /// be queued for retry rather than silently dropping the mobile number.
+    final fieldName = await _resolvePartnerMobileFieldName();
+
     if (fieldName == null) {
-      /// Server doesn't support a distinct mobile field; do NOT overwrite phone.
-      /// Drop 'mobile' from the payload to avoid merging numbers.
+      /// Confirmed absent (Odoo 19); drop it rather than merging into `phone`.
       final copy = Map<String, dynamic>.from(normalized);
       copy.remove('mobile');
       return copy;
@@ -184,7 +347,11 @@ class ProfileProvider extends ChangeNotifier {
 
       await fetchUserProfile(forceRefresh: true);
     } catch (e) {
-      /// Queue on error and update local cache for smooth UX
+      if (!_isConnectivityError(e)) {
+        _error = 'Failed to update profile: $e';
+        rethrow;
+      }
+      /// Queue only on connectivity failure.
       final normalized = _normalizePartnerUpdates(updates);
       _mergeInto(_pendingPartnerUpdates, normalized);
       await _savePendingUpdates();
@@ -237,12 +404,23 @@ class ProfileProvider extends ChangeNotifier {
         _userData = data;
         final img = data['image_1920'];
         if (img != null && img is String && img.isNotEmpty && img != 'false') {
-          try {} catch (_) {}
+          try {
+            _userAvatar = base64Decode(img);
+          } catch (_) {}
         }
         _isLoading = false;
         notifyListeners();
       }
-    } catch (e) {}
+    } catch (e) {
+    }
+  }
+
+  /// Treats null/''/the literal string 'false' (Odoo's empty-field RPC
+  /// value) as "not set".
+  String? _val(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString();
+    return (s.isEmpty || s == 'false') ? null : s;
   }
 
   Future<void> fetchUserProfile({bool forceRefresh = false}) async {
@@ -262,6 +440,11 @@ class ProfileProvider extends ChangeNotifier {
         return;
       }
 
+      /// Must run before the read below: requesting HR fields unconditionally
+      /// throws on installs without the HR module.
+      await _resolveHrFields();
+      await _resolveServerVersion();
+
       /// Read basic user fields from res.users (exclude unsupported fields like 'mobile')
       final res = await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
@@ -275,6 +458,10 @@ class ProfileProvider extends ChangeNotifier {
             /// phone/mobile live on res.partner; we will fetch them from partner below
             'website',
             'function',
+            if (_hasJobTitleField) 'job_title',
+            if (_hasWorkPhoneField) 'work_phone',
+            if (_hasEmployeeIdField) 'employee_id',
+            if (_hasPrivateAddressFields) ..._privateAddressFieldNames,
             'image_1920',
             'company_id',
             'partner_id',
@@ -286,6 +473,10 @@ class ProfileProvider extends ChangeNotifier {
       if (res is List && res.isNotEmpty) {
         final data = res.first as Map<String, dynamic>;
 
+        /// Prefer HR's job_title over the generic Contacts function, when set.
+        final jobTitle = _val(data['job_title']);
+        if (jobTitle != null) data['function'] = jobTitle;
+
         /// If partner is linked, fetch phone/mobile from res.partner and merge for UI compatibility
         final partner = data['partner_id'];
         if (partner != null && partner is List && partner.isNotEmpty) {
@@ -295,6 +486,7 @@ class ProfileProvider extends ChangeNotifier {
             final fields = <String>[
               'phone',
               'street',
+              'street2',
               'city',
               'zip',
               'state_id',
@@ -327,12 +519,37 @@ class ProfileProvider extends ChangeNotifier {
               /// If server has no mobile field, keep empty so UI treats it as separate and editable
               data['mobile'] = mobileValue ?? '';
               data['street'] = partnerData['street'];
+              data['street2'] = partnerData['street2'];
               data['city'] = partnerData['city'];
               data['zip'] = partnerData['zip'];
               data['state_id'] = partnerData['state_id'];
               data['country_id'] = partnerData['country_id'];
             }
-          } catch (e) {}
+          } catch (e) {
+          }
+        }
+
+        final workPhone = _val(data['work_phone']);
+        if (workPhone != null) data['phone'] = workPhone;
+
+        /// Prefer the Employee's private address over the Contact's, when set.
+        if (_hasPrivateAddressFields) {
+          final privateStreet = _val(data['private_street']);
+          if (privateStreet != null) data['street'] = privateStreet;
+          final privateStreet2 = _val(data['private_street2']);
+          if (privateStreet2 != null) data['street2'] = privateStreet2;
+          final privateCity = _val(data['private_city']);
+          if (privateCity != null) data['city'] = privateCity;
+          final privateZip = _val(data['private_zip']);
+          if (privateZip != null) data['zip'] = privateZip;
+          final privateState = data['private_state_id'];
+          if (privateState is List && privateState.isNotEmpty) {
+            data['state_id'] = privateState;
+          }
+          final privateCountry = data['private_country_id'];
+          if (privateCountry is List && privateCountry.isNotEmpty) {
+            data['country_id'] = privateCountry;
+          }
         }
 
         _userData = data;
@@ -449,9 +666,20 @@ class ProfileProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
+      try {
+        _userAvatar = base64Decode(base64Image);
+      } catch (_) {}
+      _userData ??= {};
+      _userData!['image_1920'] = base64Image;
+      notifyListeners();
+
       await fetchUserProfile(forceRefresh: true);
     } catch (e) {
-      /// Queue on failure too
+      if (!_isConnectivityError(e)) {
+        _error = 'Failed to update profile photo: $e';
+        rethrow;
+      }
+      /// Queue on connectivity failure too
       _pendingUserUpdates['image_1920'] = base64Image;
       await _savePendingUpdates();
       try {
@@ -491,6 +719,26 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
+  /// Maps generic address keys to `res.users`'s private-address field names.
+  Map<String, dynamic> _toPrivateAddressUpdates(
+    Map<String, dynamic> addressData,
+  ) {
+    const keyMap = {
+      'street': 'private_street',
+      'street2': 'private_street2',
+      'city': 'private_city',
+      'zip': 'private_zip',
+      'state_id': 'private_state_id',
+      'country_id': 'private_country_id',
+    };
+    final out = <String, dynamic>{};
+    addressData.forEach((key, value) {
+      final mapped = keyMap[key];
+      if (mapped != null) out[mapped] = value;
+    });
+    return out;
+  }
+
   Future<void> updateAddressFields(Map<String, dynamic> addressData) async {
     try {
       if (_userData == null) return;
@@ -500,9 +748,17 @@ class ProfileProvider extends ChangeNotifier {
         throw Exception('Partner ID not found');
       }
 
+      /// Mirrored via `res.users` (never `hr.employee` directly — plain
+      /// employees have no ACL access to `hr.employee`).
+      final userAddressUpdates =
+          _hasPrivateAddressFields ? _toPrivateAddressUpdates(addressData) : null;
+
       /// Offline-first: queue and apply locally if no internet
       if (!_hasInternet) {
         _mergeInto(_pendingPartnerUpdates, addressData);
+        if (userAddressUpdates != null) {
+          _mergeInto(_pendingUserUpdates, userAddressUpdates);
+        }
         await _savePendingUpdates();
         await _applyLocalUserUpdates(addressData);
         return;
@@ -518,12 +774,61 @@ class ProfileProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
+      if (userAddressUpdates != null) {
+        final session = await OdooSessionManager.getCurrentSession();
+        if (session != null && session.userId != null) {
+          await OdooSessionManager.callKwWithCompany({
+            'model': 'res.users',
+            'method': 'write',
+            'args': [
+              [session.userId],
+              userAddressUpdates,
+            ],
+            'kwargs': {},
+          });
+        }
+      }
+
       await fetchUserProfile(forceRefresh: true);
     } catch (e) {
-      /// Queue on failure and update local cache
+      if (!_isConnectivityError(e)) {
+        _error = 'Failed to update address: $e';
+        rethrow;
+      }
+      /// Queue on connectivity failure and update local cache
       _mergeInto(_pendingPartnerUpdates, addressData);
+      if (_hasPrivateAddressFields) {
+        _mergeInto(_pendingUserUpdates, _toPrivateAddressUpdates(addressData));
+      }
       await _savePendingUpdates();
       await _applyLocalUserUpdates(addressData);
+    }
+  }
+
+  /// Best-effort mirror of a job_title edit onto `hr.employee.job_title`,
+  /// used only when `res.users.job_title` can't carry the write (see
+  /// `canWriteEmployeeJobTitle`). Failure is swallowed, not surfaced.
+  Future<void> writeEmployeeJobTitleBestEffort(String value) async {
+    try {
+      if (_userData == null || !_hasInternet) return;
+      final employeeId = _userData!['employee_id'];
+      if (employeeId is! List || employeeId.isEmpty || employeeId[0] == null) {
+        return;
+      }
+
+      await OdooSessionManager.callKwWithCompany({
+        'model': 'hr.employee',
+        'method': 'write',
+        'args': [
+          [employeeId[0]],
+          {'job_title': value},
+        ],
+        'kwargs': {},
+      });
+
+      await fetchUserProfile(forceRefresh: true);
+    } catch (_) {
+      /// Most commonly an AccessError for a non-HR-officer account.
     }
   }
 
@@ -554,7 +859,11 @@ class ProfileProvider extends ChangeNotifier {
 
       await fetchUserProfile(forceRefresh: true);
     } catch (e) {
-      /// Queue on error and update local cache for smooth UX
+      if (!_isConnectivityError(e)) {
+        _error = 'Failed to update profile: $e';
+        rethrow;
+      }
+      /// Queue only on connectivity failure.
       _mergeInto(_pendingUserUpdates, updates);
       await _savePendingUpdates();
       await _applyLocalUserUpdates(updates);
@@ -693,6 +1002,13 @@ class ProfileProvider extends ChangeNotifier {
     _states = [];
     _isLoadingCountries = false;
     _isLoadingStates = false;
+    /// Clear queued edits and per-server probes — they belong to the
+    /// outgoing account, not the incoming one.
+    _pendingUserUpdates.clear();
+    _pendingPartnerUpdates.clear();
+    resetMobileFieldDetection();
+    resetHrFieldDetection();
+    _serverMajorVersion = null;
     notifyListeners();
   }
 
@@ -703,6 +1019,21 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> processPendingUpdates() => _processPendingUpdates();
 
   /// ---------- Offline helpers ----------
+
+  /// True only for genuine connectivity failures (dropped connection, DNS,
+  /// timeout). Determines whether a failed save is queued for retry or
+  /// surfaced as a real error.
+  bool _isConnectivityError(Object e) {
+    if (e is SocketException || e is TimeoutException) return true;
+    final s = e.toString().toLowerCase();
+    return s.contains('socketexception') ||
+        s.contains('timeout') ||
+        s.contains('connection refused') ||
+        s.contains('network is unreachable') ||
+        s.contains('failed host lookup') ||
+        s.contains('connection reset');
+  }
+
   void _mergeInto(Map<String, dynamic> target, Map<String, dynamic> src) {
     for (final e in src.entries) {
       target[e.key] = e.value;
@@ -720,7 +1051,8 @@ class ProfileProvider extends ChangeNotifier {
       if (p != null && p.isNotEmpty) {
         _pendingPartnerUpdates = Map<String, dynamic>.from(jsonDecode(p));
       }
-    } catch (e) {}
+    } catch (e) {
+    }
   }
 
   Future<void> _savePendingUpdates() async {
@@ -734,7 +1066,8 @@ class ProfileProvider extends ChangeNotifier {
         _cacheKeyPendingPartnerUpdates,
         jsonEncode(_pendingPartnerUpdates),
       );
-    } catch (e) {}
+    } catch (e) {
+    }
   }
 
   Future<void> _processPendingUpdates() async {
@@ -778,7 +1111,8 @@ class ProfileProvider extends ChangeNotifier {
 
       await _savePendingUpdates();
       await fetchUserProfile(forceRefresh: true);
-    } catch (e) {}
+    } catch (e) {
+    }
   }
 
   Future<void> _applyLocalUserUpdates(Map<String, dynamic> updates) async {
@@ -790,6 +1124,7 @@ class ProfileProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_cacheKeyUser, jsonEncode(_userData));
       notifyListeners();
-    } catch (e) {}
+    } catch (e) {
+    }
   }
 }

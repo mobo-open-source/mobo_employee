@@ -17,12 +17,19 @@ class MoboCheckbox extends StatefulWidget {
   final double size;
   final double radius;
 
+  /// Override the disabled-state border/fill colors; left null, disabled
+  /// still renders with the primary color.
+  final Color? disabledBorderColor;
+  final Color? disabledFillColor;
+
   const MoboCheckbox({
     super.key,
     required this.value,
     required this.onChanged,
     this.size = 22,
     this.radius = 6,
+    this.disabledBorderColor,
+    this.disabledFillColor,
   });
 
   @override
@@ -49,9 +56,12 @@ class _MoboCheckboxState extends State<MoboCheckbox> {
           height: widget.size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),
-            border: Border.all(color: primary, width: 2),
+            border: Border.all(
+              color: isDisabled ? (widget.disabledBorderColor ?? primary) : primary,
+              width: 2,
+            ),
             color: widget.value
-                ? primary
+                ? (isDisabled ? (widget.disabledFillColor ?? primary) : primary)
                 : (_hovering
                       ? primary.withOpacity(0.10)
                       : Colors.transparent),

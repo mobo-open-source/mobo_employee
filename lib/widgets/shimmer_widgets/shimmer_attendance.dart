@@ -1,15 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 
 class AttendancePageShimmer extends StatelessWidget {
-  const AttendancePageShimmer({super.key});
+  final bool isDarkTheme;
+
+  const AttendancePageShimmer({super.key, this.isDarkTheme = false});
+
+  Color get _baseColor =>
+      isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade300;
+
+  Color get _highlightColor =>
+      isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade100;
 
   Widget _box({double height = 20, double width = double.infinity}) {
-    return Container(
-      height: height,
-      width: width,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade300,
-        borderRadius: BorderRadius.circular(8),
+    return Shimmer.fromColors(
+      baseColor: _baseColor,
+      highlightColor: _highlightColor,
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }

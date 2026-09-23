@@ -50,7 +50,8 @@ class ManagerDashboardDataService {
     return attendanceCount is int ? attendanceCount : 0;
   }
 
-  /// Fetch Today Leave Total count (manager Dashboard)
+  /// Fetch count of employees on leave today (manager Dashboard).
+  /// Counts leaves whose date range spans today, not just ones starting today.
   static Future<int> fetchTodayLeavesTotalCount() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
@@ -70,8 +71,8 @@ class ManagerDashboardDataService {
       'args': [
         [
           ['state', '=', 'validate'],
-          ['date_from', '>=', odooFormat(startOfDay)],
           ['date_from', '<', odooFormat(endOfDay)],
+          ['date_to', '>=', odooFormat(startOfDay)],
         ],
       ],
     });
