@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
-/// Reusable pagination controls widget with prev/next buttons and page info
+/// Reusable pagination controls with prev/next buttons and page info.
 class PaginationControls extends StatelessWidget {
   final bool canGoToPreviousPage;
   final bool canGoToNextPage;
@@ -8,7 +9,6 @@ class PaginationControls extends StatelessWidget {
   final VoidCallback onNextPage;
   final String paginationText;
   final bool isDark;
-  final ThemeData theme;
 
   const PaginationControls({
     super.key,
@@ -18,81 +18,55 @@ class PaginationControls extends StatelessWidget {
     required this.onNextPage,
     required this.paginationText,
     required this.isDark,
-    required this.theme,
+    ThemeData? theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color disabled = isDark
-        ? Colors.white.withOpacity(0.28)
-        : Colors.black.withOpacity(0.28);
-    final Color iconActive = theme.primaryColor;
-    final Color iconInactive = disabled;
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        /// Center pill displaying 1-2/2 style text
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF2B2B2B) : const Color(0xFFF3F4F6),
-            borderRadius: BorderRadius.circular(18),
+            color: isDark ? Colors.grey[800] : Colors.grey[100],
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.10)
-                  : Colors.black.withOpacity(0.05),
+              color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+              width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withOpacity(0.25)
-                    : Colors.black.withOpacity(0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Text(
             paginationText,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? Colors.white.withOpacity(0.9)
-                  : const Color(0xFF4B5563),
+              fontSize: 13,
+              color: isDark ? Colors.white : Colors.black87,
             ),
           ),
         ),
-
-        const SizedBox(width: 12),
-
-        /// Prev chevron (to the right of pill as in screenshot)
         InkWell(
           onTap: canGoToPreviousPage ? onPreviousPage : null,
-          customBorder: const CircleBorder(),
           child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(
-              Icons.chevron_left,
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowLeft01,
               size: 20,
-              color: canGoToPreviousPage ? iconActive : iconInactive,
+              color: canGoToPreviousPage
+                  ? (isDark ? Colors.white : Colors.grey[700]!)
+                  : Colors.grey[400]!,
             ),
           ),
         ),
-
-        const SizedBox(width: 6),
-
-        /// Next chevron
         InkWell(
           onTap: canGoToNextPage ? onNextPage : null,
-          customBorder: const CircleBorder(),
           child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(
-              Icons.chevron_right,
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight01,
               size: 20,
-              color: canGoToNextPage ? iconActive : iconInactive,
+              color: canGoToNextPage
+                  ? (isDark ? Colors.white : Colors.grey[700]!)
+                  : Colors.grey[400]!,
             ),
           ),
         ),

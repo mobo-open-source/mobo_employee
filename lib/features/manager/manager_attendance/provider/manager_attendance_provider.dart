@@ -11,6 +11,36 @@ import 'package:mobo_employees/features/manager/manager_attendance/service/manag
 
 enum AttendanceGroupBy { month, employee }
 
+extension AttendanceGroupByX on AttendanceGroupBy {
+  String get label {
+    switch (this) {
+      case AttendanceGroupBy.month:
+        return 'Month';
+      case AttendanceGroupBy.employee:
+        return 'Employee';
+    }
+  }
+}
+
+enum AttendanceFilter { myTeam, today, thisWeek, checkedIn, checkedOut }
+
+extension AttendanceFilterX on AttendanceFilter {
+  String get label {
+    switch (this) {
+      case AttendanceFilter.myTeam:
+        return 'My Team';
+      case AttendanceFilter.today:
+        return 'Today';
+      case AttendanceFilter.thisWeek:
+        return 'This Week';
+      case AttendanceFilter.checkedIn:
+        return 'Checked In';
+      case AttendanceFilter.checkedOut:
+        return 'Checked Out';
+    }
+  }
+}
+
 class ManagerAttendanceProvider extends ChangeNotifier {
   final TextEditingController searchController = TextEditingController();
 
@@ -35,6 +65,10 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   bool isLoading = false;
   bool isGroupLoading = false;
   bool initialLoadDone = false;
+
+  /// Dedicated first-load flag, kept separate from `isLoading`/
+  /// `isGroupLoading` since those double as reentrancy guards elsewhere.
+  bool isFirstLoad = true;
   bool hasMoreMonths = true;
   bool hasMoreEmployees = true;
   bool hasMoreGroups = true;
@@ -58,6 +92,116 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
   List<AttendanceGroupBy> draftGroupBy = [];
   List<AttendanceGroupBy> groupBy = [];
+
+  Set<AttendanceFilter> activeFilters = {};
+  Set<AttendanceFilter> draftFilters = {};
+
+  /// Current manager's user id (for the "My Team" filter). Populated once
+  /// during [initialLoad].
+  int? currentUserId;
+
+  /// Custom "Attendance Date" range from the Filter tab's date pickers.
+  DateTime? filterStartDate;
+  DateTime? filterEndDate;
+  DateTime? draftFilterStartDate;
+  DateTime? draftFilterEndDate;
+
+  Future<void> _ensureCurrentUser() async {
+    if (currentUserId != null) return;
+    final client = await OdooSessionManager.getClient();
+    currentUserId = client?.sessionId?.userId;
+  }
+
+  String _fmtDateTime(DateTime d) => DateFormat('yyyy-MM-dd HH:mm:ss').format(d);
+
+  /// ANDs together domain fragments (each a leaf or a '&'/'|'-prefixed group).
+  List<dynamic> _domainAnd(List<List<dynamic>> fragments) {
+    final nonEmpty = fragments.where((f) => f.isNotEmpty).toList();
+    if (nonEmpty.isEmpty) return [];
+    if (nonEmpty.length == 1) return nonEmpty.first;
+    final result = <dynamic>[];
+    for (var i = 0; i < nonEmpty.length - 1; i++) {
+      result.add('&');
+    }
+    for (final f in nonEmpty) {
+      result.addAll(f);
+    }
+    return result;
+  }
+
+  /// "Today" / "This Week" quick schedule filters, resolved against
+  /// [check_in]. If both are selected, the wider (this-week) range wins.
+  List<dynamic>? get _scheduleFragment {
+    final hasToday = activeFilters.contains(AttendanceFilter.today);
+    final hasWeek = activeFilters.contains(AttendanceFilter.thisWeek);
+    if (!hasToday && !hasWeek) return null;
+
+    final now = DateTime.now();
+    DateTime start;
+    if (hasWeek) {
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      start = DateTime(monday.year, monday.month, monday.day);
+    } else {
+      start = DateTime(now.year, now.month, now.day);
+    }
+    final end = hasWeek ? start.add(const Duration(days: 7)) : start.add(const Duration(days: 1));
+
+    return ['&', ['check_in', '>=', _fmtDateTime(start)], ['check_in', '<', _fmtDateTime(end)]];
+  }
+
+  /// "Checked In" / "Checked Out" status filter, OR'd together if both
+  /// are selected (matching the employees list's OR-of-status convention).
+  List<dynamic>? get _statusFragment {
+    final conds = <List<dynamic>>[];
+    if (activeFilters.contains(AttendanceFilter.checkedIn)) {
+      conds.add(['check_out', '=', false]);
+    }
+    if (activeFilters.contains(AttendanceFilter.checkedOut)) {
+      conds.add(['check_out', '!=', false]);
+    }
+    if (conds.isEmpty) return null;
+    if (conds.length == 1) return [conds.first];
+    return ['|', ...conds];
+  }
+
+  /// Custom "Attendance Date" range from the Filter tab's date pickers.
+  List<dynamic>? get _customDateRangeFragment {
+    if (filterStartDate == null && filterEndDate == null) return null;
+    final conds = <List<dynamic>>[];
+    if (filterStartDate != null) {
+      final s = DateTime(filterStartDate!.year, filterStartDate!.month, filterStartDate!.day);
+      conds.add(['check_in', '>=', _fmtDateTime(s)]);
+    }
+    if (filterEndDate != null) {
+      final e = DateTime(filterEndDate!.year, filterEndDate!.month, filterEndDate!.day)
+          .add(const Duration(days: 1));
+      conds.add(['check_in', '<', _fmtDateTime(e)]);
+    }
+    if (conds.length == 1) return [conds.first];
+    return ['&', ...conds];
+  }
+
+  /// Base domain (active employees + active filters) shared by every fetch.
+  List<dynamic> get baseDomain {
+    final fragments = <List<dynamic>>[
+      [['employee_id.active', '=', true]],
+    ];
+
+    if (activeFilters.contains(AttendanceFilter.myTeam) && currentUserId != null) {
+      fragments.add([['employee_id.parent_id.user_id', '=', currentUserId]]);
+    }
+
+    final schedule = _scheduleFragment;
+    if (schedule != null) fragments.add(schedule);
+
+    final status = _statusFragment;
+    if (status != null) fragments.add(status);
+
+    final customRange = _customDateRangeFragment;
+    if (customRange != null) fragments.add(customRange);
+
+    return _domainAnd(fragments);
+  }
 
   final Map<String, ModelManagerAttendanceData> _groupAttendanceCache = {};
   final Map<String, ModelAttendanceGroupByEmployeeData> _employeeGroupCache =
@@ -124,6 +268,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
           limit: 0,
           offset: 0,
           search: currentSearch,
+          domain: baseDomain,
         );
 
     totalMonthGroups = res.groups.length; /// read_group returns total length
@@ -176,14 +321,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   }
 
 
-  String _groupByLabel(AttendanceGroupBy g) {
-    switch (g) {
-      case AttendanceGroupBy.month:
-        return 'Month';
-      case AttendanceGroupBy.employee:
-        return 'Employee';
-    }
-  }
 
   Future<void> fetchMonthGroupsForDomain(List<dynamic> domain) async {
     final key = _domainKey(domain);
@@ -429,6 +566,12 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     /// draftGroupBy = AttendanceGroupBy.none;
     draftGroupBy.clear();
     groupBy.clear();
+    draftFilters.clear();
+    activeFilters.clear();
+    filterStartDate = null;
+    filterEndDate = null;
+    draftFilterStartDate = null;
+    draftFilterEndDate = null;
     draftSearch = '';
     draftSelectedMonth = null;
     notifyListeners();
@@ -436,6 +579,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
   void applyDraftFilters() {
     groupBy = List.from(draftGroupBy);
+    activeFilters = {...draftFilters};
 
     currentSearch = draftSearch;
     selectedMonth = draftSelectedMonth;
@@ -469,6 +613,51 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Applies filters, group-by and date range from the filter sheet.
+  Future<void> applyFilterAndGroupBy(
+    Set<AttendanceFilter> filters,
+    Set<AttendanceGroupBy> group,
+    DateTime? startDate,
+    DateTime? endDate,
+  ) async {
+    activeFilters = {...filters};
+    draftFilters = {...filters};
+    groupBy = group.toList();
+    draftGroupBy = group.toList();
+    filterStartDate = startDate;
+    filterEndDate = endDate;
+    draftFilterStartDate = startDate;
+    draftFilterEndDate = endDate;
+
+    totalMonthGroups = 0;
+    totalEmployeeGroups = 0;
+    _monthOffset = 0;
+    _employeeOffset = 0;
+    hasMoreMonths = true;
+    hasMoreEmployees = true;
+
+    _groupOffset = 0;
+    hasMoreGroups = true;
+
+    _monthGroupCache.clear();
+    _employeeGroupCache.clear();
+    _groupAttendanceCache.clear();
+    _loadingGroupNodes.clear();
+    _loadingGroupAttendance.clear();
+
+    _monthDetailsCache.clear();
+    _employeeDetailsCache.clear();
+    _loadingMonths.clear();
+    _loadingEmployees.clear();
+
+    if (groupBy.isEmpty) {
+      await fetchAllAttendances();
+    } else {
+      await fetchRootGroups();
+    }
+    notifyListeners();
+  }
+
   Future<void> fetchRootGroups() async {
     final first = groupBy.first;
 
@@ -481,11 +670,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       _employeeOffset = 0;
       hasMoreEmployees = true;
 
-      await fetchTotalEmployeeGroups(
-        domain: [
-          ['employee_id.active', '=', true],
-        ],
-      ); /// administrator total
+      await fetchTotalEmployeeGroups(domain: baseDomain); /// administrator total
       await fetchEmployeeGroups(reset: true);
     }
   }
@@ -499,6 +684,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     /// Restore default grouping
     groupBy = List.from(defaultGroupBy);
     draftGroupBy = List.from(defaultGroupBy);
+    activeFilters.clear();
+    draftFilters.clear();
 
     _monthOffset = 0;
     _employeeOffset = 0;
@@ -520,6 +707,10 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       count += groupBy.length;
     }
     if (selectedMonth != null) {
+      count++;
+    }
+    count += activeFilters.length;
+    if (filterStartDate != null || filterEndDate != null) {
       count++;
     }
     return count;
@@ -549,9 +740,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     }
 
     try {
-      final domain = [
-        ['employee_id.active', '=', true],
-      ];
+      final domain = baseDomain;
 
       ///Get TOTAL COUNT
       totalAttendanceCount =
@@ -590,6 +779,9 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
   void prepareDraftFilters() {
     draftGroupBy = List.from(groupBy);
+    draftFilters = {...activeFilters};
+    draftFilterStartDate = filterStartDate;
+    draftFilterEndDate = filterEndDate;
     draftSearch = currentSearch;
     draftSelectedMonth = selectedMonth;
   }
@@ -612,6 +804,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
             limit: employeeGroupLimit,
             offset: _employeeOffset,
             search: currentSearch,
+            domain: baseDomain,
           );
 
       if (res.groups.isEmpty) {
@@ -798,6 +991,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
             limit: monthGroupLimit,
             offset: _monthOffset,
             search: currentSearch,
+            domain: baseDomain,
           );
 
       if (response.groups.isEmpty) {
@@ -873,9 +1067,17 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   Future<void> initialLoad() async {
     if (initialLoadDone) return;
     initialLoadDone = true;
-    await setInitialGroupByByVersion();
 
-    await fetchRootGroups();
+    try {
+      await _ensureCurrentUser();
+      await setInitialGroupByByVersion();
+
+      await fetchRootGroups();
+    } finally {
+      // Always clear, even on error, so the shimmer can't get stuck.
+      isFirstLoad = false;
+      notifyListeners();
+    }
   }
 
   ///  Usually also required
@@ -902,6 +1104,12 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     ///  RESET TO DEFAULT, NOT EMPTY
     /// groupBy = List.from(defaultGroupBy);
     /// draftGroupBy = List.from(defaultGroupBy);
+    activeFilters.clear();
+    draftFilters.clear();
+    filterStartDate = null;
+    filterEndDate = null;
+    draftFilterStartDate = null;
+    draftFilterEndDate = null;
 
     currentSearch = '';
     draftSearch = '';
@@ -954,8 +1162,15 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     /// Filters
     groupBy.clear();
     draftGroupBy.clear();
+    activeFilters.clear();
+    draftFilters.clear();
+    filterStartDate = null;
+    filterEndDate = null;
+    draftFilterStartDate = null;
+    draftFilterEndDate = null;
     selectedMonth = null;
     draftSelectedMonth = null;
+    currentUserId = null;
 
     /// Pagination
     _currentPage = 0;

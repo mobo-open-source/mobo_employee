@@ -34,7 +34,7 @@ class Employee {
     String? deptName;
 
     ///  Decode image
-    final image = json['image_128'];
+    final image = json['avatar_128'];
     if (image is String && image.isNotEmpty) {
       try {
         imageBytes = base64Decode(image);

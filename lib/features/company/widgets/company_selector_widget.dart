@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:mobo_employees/core/const/all_design.dart';
-import 'package:mobo_employees/shared/widgets/toggles/mobo_checkbox.dart';
 import 'dart:math' as math;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobo_employees/shared/widgets/toggles/mobo_checkbox.dart';
+import 'package:mobo_employees/core/services/session_service.dart';
+import 'package:mobo_employees/shared/widgets/snackbars/custom_snackbar.dart';
+import 'package:mobo_employees/core/const/keys/global_keys.dart';
 import '../providers/company_provider.dart';
 
 /// A comprehensive company selector widget with two modes:
 /// 1. Compact mode: Dropdown showing active company (for AppBar)
 /// 2. Expanded mode: Bottom sheet with multi-select for allowed companies
-class CompanySelectorWidget extends StatelessWidget {
+class CompanySelectorWidget extends StatefulWidget {
   final bool showMultiSelect;
   final VoidCallback? onCompanyChanged;
 
@@ -19,9 +22,49 @@ class CompanySelectorWidget extends StatelessWidget {
   });
 
   @override
+  State<CompanySelectorWidget> createState() => _CompanySelectorWidgetState();
+}
+
+class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
+  // Session we last initialised for; on account switch this changes so we
+  // re-run CompanyProvider.initialize() instead of showing stale data.
+  String? _initialisedFor;
+
+  // Ensures a persistent failure auto-retries once, not indefinitely.
+  bool _hasAutoRetriedThisFailure = false;
+
+  String? _sessionKey(SessionService session) {
+    final s = session.currentSession;
+    if (s == null) return null;
+    return '${s.userId}@${s.serverUrl}#${s.database}';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<CompanyProvider>(
-      builder: (context, provider, _) {
+    return Consumer2<CompanyProvider, SessionService>(
+      builder: (context, provider, session, _) {
+        final sessionKey = _sessionKey(session);
+
+        // Re-run initialize on first mount, account switch, or a failed
+        // attempt (retried once only, to avoid looping).
+        final isNewSession =
+            sessionKey != null && sessionKey != _initialisedFor;
+        if (isNewSession) {
+          _initialisedFor = sessionKey;
+          _hasAutoRetriedThisFailure = false;
+        }
+        final shouldAutoRetry =
+            provider.companies.isEmpty &&
+            !provider.isLoading &&
+            (isNewSession ||
+                (provider.error != null && !_hasAutoRetriedThisFailure));
+        if (shouldAutoRetry) {
+          _hasAutoRetriedThisFailure = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) provider.initialize();
+          });
+        }
+
         if (provider.isLoading && provider.companies.isEmpty) {
           return _buildLoadingState(context);
         }
@@ -145,6 +188,7 @@ class CompanySelectorWidget extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
             const SizedBox(width: 4),
@@ -172,10 +216,6 @@ class CompanySelectorWidget extends StatelessWidget {
   void _showDropdownMenu(BuildContext context, CompanyProvider provider) async {
     /// Always refetch on open to ensure we display up-to-date companies
     /// Fire-and-forget so the UI opens immediately but shows a spinner while loading
-    /// This will set provider.isLoading = true and the compact button shows spinner
-    /// The dropdown content will rebuild via Provider/Consumer if used inside
-    /// broader widgets; here we keep it simple and rely on provider state
-    /// management to refresh the entries.
     /// ignore: unawaited_futures
     provider.initialize();
     final screenSize = MediaQuery.of(context).size;
@@ -197,7 +237,7 @@ class CompanySelectorWidget extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: _CompanyDropdownContent(
               provider: provider,
-              onCompanyChanged: onCompanyChanged,
+              onCompanyChanged: widget.onCompanyChanged,
               width: screenSize.width, /// take full width inside sheet
             ),
           );
@@ -243,7 +283,7 @@ class CompanySelectorWidget extends StatelessWidget {
                   constraints: BoxConstraints(maxWidth: popoverWidth),
                   child: _CompanyDropdownContent(
                     provider: provider,
-                    onCompanyChanged: onCompanyChanged,
+                    onCompanyChanged: widget.onCompanyChanged,
                     width: popoverWidth,
                   ),
                 ),
@@ -287,6 +327,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
   late int _tempSelectedCompanyId;
   late Set<int> _tempAllowedCompanyIds;
   bool _applying = false;
+  bool _resetting = false;
 
   @override
   void initState() {
@@ -349,7 +390,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
 
     return Container(
       width: widget.width ?? 280,
-      constraints: const BoxConstraints(maxHeight: 350),
+      constraints: const BoxConstraints(maxHeight: 480),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -401,10 +442,15 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                 final isAllowed = _tempAllowedCompanyIds.contains(companyId);
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   child: Material(
                     color: isActive
-                        ? (primaryColor.withOpacity(0.1))
+                        ? (isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : primaryColor.withOpacity(0.1))
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
@@ -421,29 +467,29 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 8,
+                          vertical: 10,
                         ),
                         child: Row(
                           children: [
-                            /// Checkbox
-
                             /// Company Name
                             Expanded(
                               child: Text(
                                 companyName,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   fontWeight: isActive
                                       ? FontWeight.w600
                                       : FontWeight.normal,
-                                  color: isDark ? Colors.white : Colors.black87,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 12),
                             SizedBox(
-                              width: 20,
-                              height: 20,
+                              width: 28,
+                              height: 28,
                               child: MoboCheckbox(
                                 value: isAllowed,
                                 onChanged: _applying
@@ -463,7 +509,10 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                           }
                                         });
                                       },
-                                size: 18,
+                                size: 26,
+                                /// Locked (active company) checkbox still reads as checked.
+                                disabledBorderColor: primaryColor,
+                                disabledFillColor: primaryColor,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -479,50 +528,82 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
           /// Action Buttons
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-
             child: Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _applying
-                        ? null
-                        : () {
-                            setState(() {
-                              _tempSelectedCompanyId =
-                                  widget.provider.selectedCompanyId ?? -1;
-                              _tempAllowedCompanyIds = widget
-                                  .provider
-                                  .selectedAllowedCompanyIds
-                                  .toSet();
-                            });
-                          },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 45),
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: (_applying || _resetting)
+                          ? null
+                          : () async {
+                              setState(() => _resetting = true);
+                              try {
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.remove(
+                                  'selected_allowed_company_ids',
+                                );
+                                await prefs.remove('selected_company_id');
+
+                                await widget.provider.initialize();
+                                if (mounted) {
+                                  setState(() {
+                                    _tempSelectedCompanyId =
+                                        widget.provider.selectedCompanyId ?? -1;
+                                    _tempAllowedCompanyIds = widget
+                                        .provider
+                                        .selectedAllowedCompanyIds
+                                        .toSet();
+                                  });
+                                  final ctx = navigatorKey.currentContext;
+                                  if (ctx != null && ctx.mounted) {
+                                    CustomSnackbar.showSuccess(
+                                      ctx,
+                                      'Synced with server',
+                                    );
+                                  }
+                                }
+                              } finally {
+                                if (mounted) setState(() => _resetting = false);
+                              }
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryColor,
+                        disabledForegroundColor: primaryColor,
+                        minimumSize: const Size(double.infinity, 48),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        side: BorderSide(color: primaryColor, width: 1.2),
                       ),
-                      side: BorderSide(
-                        color: isDark ? Colors.white24 : AppColors.appColor,
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      'Reset',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark
-                            ? Colors.white70
-                            : AppColors.appColor,
-                      ),
+                      child: _resetting
+                          ? SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  primaryColor,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Reset',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 16,
+                                color: primaryColor,
+                              ),
+                            ),
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
+                  child: Builder(
+                    builder: (context) {
                       final noActiveChange =
                           _tempSelectedCompanyId ==
                           widget.provider.selectedCompanyId;
@@ -532,52 +613,68 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                       );
                       final disabled =
                           _applying ||
+                          _resetting ||
                           widget.provider.isSwitching ||
                           (noActiveChange && noAllowedChange);
-                      if (!disabled) {
-                        _onConfirm();
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 45),
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    child: _applying
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Applying...',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          )
-                        : const Text(
-                            'Confirm',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                      return SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: disabled ? null : _onConfirm,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            // White background in dark mode keeps the black label readable.
+                            backgroundColor: isDark ? Colors.white : primaryColor,
+                            foregroundColor: isDark ? Colors.black : Colors.white,
+                            disabledBackgroundColor:
+                                isDark ? Colors.white : primaryColor,
+                            disabledForegroundColor:
+                                isDark ? Colors.black : Colors.white,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
+                          child: _applying
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              isDark
+                                                  ? Colors.black
+                                                  : Colors.white,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Applying...',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.black
+                                            : Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  'Confirm',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.black : Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

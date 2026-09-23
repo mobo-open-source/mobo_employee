@@ -60,6 +60,11 @@ class LeavePageProvider extends ChangeNotifier {
   /// The currently selected leave type model for a new application.
   ModelTimeOffType? modelTimeOffType;
 
+  /// The "From"/"To" dates backing [MoboDateField], kept in sync with
+  /// [fromDateController]/[toDateController]'s displayed text.
+  DateTime? fromDate;
+  DateTime? toDate;
+
   bool _isLoading = false;
 
   /// Whether a general data loading operation is in progress.
@@ -305,6 +310,8 @@ class LeavePageProvider extends ChangeNotifier {
     }
     final now = DateTime.now();
     final formatted = _formatDate(now);
+    fromDate = now;
+    toDate = now;
     fromDateController.text = formatted;
     toDateController.text = formatted;
     notifyListeners();
@@ -405,56 +412,19 @@ class LeavePageProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Shows a date picker and updates the provided controller with the selected date.
-  Future<void> chooseDate(
-    BuildContext context,
-    TextEditingController controller,
-  ) async {
-    final DateTime today = DateTime.now();
+  /// Sets [fromDate] and keeps [fromDateController]'s displayed text in
+  /// sync. Called by [MoboDateField].
+  void setFromDate(DateTime date) {
+    fromDate = date;
+    fromDateController.text = _formatDate(date);
+    notifyListeners();
+  }
 
-    DateTime initialDate = today;
-    final currentText = controller.text.trim();
-    if (currentText.isNotEmpty && currentText != '-') {
-      try {
-        final parsed = DateFormat('MMM dd').parse(currentText);
-        initialDate = DateTime(today.year, parsed.month, parsed.day);
-      } catch (_) {
-        initialDate = today;
-      }
-    }
-
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Theme.of(context).primaryColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
-            ),
-            datePickerTheme: DatePickerThemeData(
-              dividerColor: Colors.transparent,
-              headerBackgroundColor: Theme.of(context).primaryColor,
-              headerForegroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (pickedDate != null) {
-      controller.text = _formatDate(pickedDate);
-      notifyListeners();
-    }
+  /// Sets [toDate] and keeps [toDateController]'s displayed text in sync.
+  void setToDate(DateTime date) {
+    toDate = date;
+    toDateController.text = _formatDate(date);
+    notifyListeners();
   }
 
   static String _formatDate(DateTime? d) {

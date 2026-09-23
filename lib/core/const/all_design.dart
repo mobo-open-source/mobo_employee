@@ -7,6 +7,20 @@ class AppColors {
   static const Color whiteColor = AppTheme.secondaryColor;
   static const Color blackColor = Colors.black;
 
+  static const Color primaryTint = Color(0xFFFCE7EE);
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color elevatedDark = Color(0xFF424242);
+  static const Color textPrimary = Color(0xFF101010);
+  static const Color textHint = Color(0xFF939BA6);
+  static const Color searchDark = Color(0xFF2A2A2A);
+  static const Color cardDark = Color(0xFF303030);
+  static const Color inputFillLight = Color(0xFFF2F4F6);
+  static const Color inputFillDark = Color(0xFF2C2C2C);
+  static const Color popupDark = Color(0xFF2C2C2C);
+  static const Color error = Color(0xFFF44336);
+
+  static Color inputFill(bool isDark) => isDark ? inputFillDark : inputFillLight;
+
   static Color white = Colors.white;
 
   static Color grey = Colors.grey;

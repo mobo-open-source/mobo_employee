@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
@@ -10,6 +9,7 @@ import 'package:mobo_employees/features/company/widgets/company_selector_widget.
 import 'package:mobo_employees/features/profile/pages/profile_screen.dart';
 import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_banner.dart';
+import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
 /// Providers for refreshing data after company switch
@@ -195,25 +195,26 @@ class _HomeScaffoldState extends State<HomeScaffold>
                         ),
                       )
                     : (userAvatar != null
-                          ? CircleAvatar(
+                          ? ClipOval(
                               key: const ValueKey('avatar_with_image'),
-                              radius: 16,
-                              backgroundColor: isDark
-                                  ? Colors.grey[800]
-                                  : Colors.grey[300],
-                              backgroundImage: MemoryImage(userAvatar),
-                            )
-                          : CircleAvatar(
-                              key: const ValueKey('avatar_placeholder'),
-                              radius: 16,
-                              backgroundColor: isDark
-                                  ? Colors.grey[800]
-                                  : Colors.grey[300],
-                              child: HugeIcon(
-                                icon: HugeIcons.strokeRoundedUserCircle,
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                size: 18,
+                              child: Image.memory(
+                                userAvatar,
+                                width: 32,
+                                height: 32,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    InitialsAvatar(
+                                  name: profileProvider.userData?['name']
+                                      ?.toString(),
+                                  diameter: 32,
+                                ),
                               ),
+                            )
+                          : InitialsAvatar(
+                              key: const ValueKey('avatar_placeholder'),
+                              name:
+                                  profileProvider.userData?['name']?.toString(),
+                              diameter: 32,
                             )),
               ),
               onPressed: () {

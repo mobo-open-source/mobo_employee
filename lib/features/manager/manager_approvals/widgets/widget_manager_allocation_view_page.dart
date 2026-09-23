@@ -59,12 +59,8 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
       itemCount: provider.allocationList.length,
       itemBuilder: (context, index) {
         final item = provider.allocationList[index];
+        // Avatars are preloaded by fetchAllocationDetails(); don't fetch per-row here.
         final imageBytes = provider.getEmployeeImage(item.employeeId);
-        if (imageBytes == null) {
-          Future.microtask(() async {
-            await provider.loadEmployeeImage(item.employeeId);
-          });
-        }
 
         final isValidating = provider.isValidating(item.id);
         final isRefusing = provider.isRefusing(item.id);

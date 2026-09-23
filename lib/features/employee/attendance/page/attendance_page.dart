@@ -52,7 +52,7 @@ class _AttendancePageState extends State<AttendancePage> {
         child: Consumer<AttendanceProvider>(
           builder: (context, provider, _) {
             if (!provider.isInitialLoaded) {
-              return const AttendancePageShimmer();
+              return AttendancePageShimmer(isDarkTheme: isDarkTheme);
             }
             return RefreshIndicator(
               onRefresh: () async {

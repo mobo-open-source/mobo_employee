@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobo_employees/core/providers/logout_view_model.dart';
+import 'package:mobo_employees/core/services/secure_storage_service.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
 import 'package:mobo_employees/core/theme/theme_provider.dart';
 import 'package:mobo_employees/core/theme/themeData.dart';
@@ -26,7 +27,13 @@ import 'core/const/keys/global_keys.dart';
 import 'features/employee/leave/provider/leave_page_provider.dart';
 import 'features/review/services/review_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  /// Must run before any provider touches secure storage, so a leftover
+  /// Keychain password from a previous install isn't read back as this one's.
+  await SecureStorageService.instance.clearIfFreshInstall();
+
   runApp(
     MultiProvider(
       providers: [
@@ -64,14 +71,14 @@ void main() {
         ChangeNotifierProvider(
           create: (_) {
             final p = CompanyProvider();
+
             /// Kick off initial load from server; will show loading in selector
             p.initialize();
             return p;
           },
         ),
       ],
-      child:
-          const MyApp(),
+      child: const MyApp(),
     ),
   );
 }
@@ -105,9 +112,8 @@ class _MyAppState extends State<MyApp> {
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
           scaffoldMessengerKey: scaffoldMessengerKey,
-          home:
-              const SplashScreen(),
-             routes: {
+          home: const SplashScreen(),
+          routes: {
             '/server_setup': (_) => const ServerSetupScreen(),
             '/home': (_) => const DashboardPage(),
           },
@@ -116,5 +122,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-

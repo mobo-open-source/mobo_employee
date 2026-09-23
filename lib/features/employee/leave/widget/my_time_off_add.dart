@@ -3,9 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import '../../../../shared/widgets/forms/mobo_date_field.dart';
+import '../../../../shared/widgets/forms/mobo_form_field.dart';
+import '../../../../shared/widgets/pickers/mobo_typeahead_field.dart';
 import '../../../../widgets/snackbar_widgets.dart';
-import 'package:mobo_employees/features/employee/leave/widget/widget_common_text_form_field.dart';
-import 'package:mobo_employees/features/employee/leave/widget/widget_common_type_a_head.dart';
 import 'package:provider/provider.dart';
 import '../model/model_time_off_type.dart';
 import '../provider/leave_page_provider.dart';
@@ -78,162 +79,61 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                   ),
 
                   const SizedBox(height: 20),
-                  WidgetCommonTypeAHead<ModelTimeOffType>(
+                  MoboTypeaheadField<ModelTimeOffType>(
                     label: "Leave Type",
-                    controller: provider.leaveTypeController,
-                    isDarkTheme: false,
-                    hideOnEmpty: false,
-                    suggestionsCallback: (pattern) async {
-                      final now = DateTime.now();
-                      return await LeaveService.fetchTimeOffTypes(
-                        text: pattern,
-                      );
-                    },
-                    suggestionItemBuilder: (context, item) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.colorFFFFFF,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            item.displayName,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                    onSelected: (item) {
+                    isRequired: true,
+                    selectedItem: provider.modelTimeOffType,
+                    hintText: "Select Leave Type",
+                    emptyText: "No leave types found",
+                    displayText: (item) => item.displayName,
+                    compareFn: (a, b) => a.id == b.id,
+                    suggestionsCallback: (pattern) =>
+                        LeaveService.fetchTimeOffTypes(text: pattern),
+                    itemBuilder: (context, item) => ListTile(
+                      dense: true,
+                      title: Text(
+                        item.displayName,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    onChanged: (item) {
                       provider.modelTimeOffType = item;
-                      provider.leaveTypeController.text = item.displayName;
+                      provider.leaveTypeController.text = item?.displayName ?? '';
                       provider.notifyListener();
-                    },
-                    fieldBuilder: (context, controller, focusNode) {
-                      return TextFormField(
-                        controller: controller,
-                        focusNode: focusNode,
-
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: AppColors.colorF3F3F5,
-                          hintText: "Select Leave Type",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Colors.transparent,
-                            ),
-                          ),
-
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      );
                     },
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "From Date",
-                              style: GoogleFonts.manrope(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                                color: AppColors.color6A7282,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            WidgetCommonTextFormField(
-                              readOnly: true,
-                              controller: provider.fromDateController,
-                              onTap: () {
-                                provider.chooseDate(
-                                  context,
-                                  provider.fromDateController,
-                                );
-                              },
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: HugeIcon(
-                                  icon: HugeIcons.strokeRoundedCalendar03,
-                                  size: 18,
-                                  color: AppColors.color6A7282,
-                                ),
-                              ),
-                            ),
-                          ],
+                        child: MoboDateField(
+                          label: "From Date",
+                          isRequired: true,
+                          value: provider.fromDate,
+                          onChanged: (date) {
+                            if (date != null) provider.setFromDate(date);
+                          },
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "To Date",
-                              style: GoogleFonts.manrope(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                                color: AppColors.color6A7282,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            WidgetCommonTextFormField(
-                              readOnly: true,
-                              controller: provider.toDateController,
-                              onTap: () {
-                                provider.chooseDate(
-                                  context,
-                                  provider.toDateController,
-                                );
-                              },
-                              prefixIcon: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: HugeIcon(
-                                  icon: HugeIcons.strokeRoundedCalendar03,
-                                  size: 18,
-                                  color: AppColors.color6A7282,
-                                ),
-                              ),
-                            ),
-                          ],
+                        child: MoboDateField(
+                          label: "To Date",
+                          isRequired: true,
+                          value: provider.toDate,
+                          onChanged: (date) {
+                            if (date != null) provider.setToDate(date);
+                          },
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Description",
-                              style: GoogleFonts.manrope(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                                color: AppColors.color6A7282,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            WidgetCommonTextFormField(
-                              controller: provider.descriptionController,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  MoboFormField(
+                    label: "Description",
+                    controller: provider.descriptionController,
+                    hintText: "Enter description here...",
+                    maxLines: 4,
                   ),
                   const SizedBox(height: 10),
                   Row(

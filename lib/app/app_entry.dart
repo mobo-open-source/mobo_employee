@@ -210,9 +210,12 @@ class _AppEntryState extends State<AppEntry> {
         } else if (isLoggedIn) {
           final userRoleProvider = context.watch<UserTypeRoleCheckProvider>();
           if (userRoleProvider.groupIds.isEmpty) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              context.read<UserTypeRoleCheckProvider>().fetchAndSetUserRole();
-            });
+            /// Only refetch if a session still exists, to avoid racing a concurrent logout.
+            if (SessionService.instance.currentSession != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<UserTypeRoleCheckProvider>().fetchAndSetUserRole();
+              });
+            }
             return const Scaffold(body: Center(child: LoadingIndicator()));
           }
 
@@ -233,7 +236,9 @@ class _AppEntryState extends State<AppEntry> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final roleProvider = context.read<RoleProvider>();
 
-            if (roleProvider.role == null) {
+            /// Same staleness guard as above -- skip refetch if no live session.
+            if (roleProvider.role == null &&
+                SessionService.instance.currentSession != null) {
               roleProvider.loadRole().then((_) {
                 if (roleProvider.isAdmin) {
                 } else if (roleProvider.isOfficer) {

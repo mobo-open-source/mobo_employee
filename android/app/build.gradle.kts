@@ -10,7 +10,8 @@ plugins {
 
 val keyPropertiesFile = rootProject.file("key.properties")
 val keyProperties = Properties()
-if (keyPropertiesFile.exists()) {
+val hasKeyProperties = keyPropertiesFile.exists()
+if (hasKeyProperties) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
 
@@ -37,17 +38,36 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keyProperties["keyAlias"] as String
-            keyPassword = keyProperties["keyPassword"] as String
-            storeFile = file(keyProperties["storeFile"] as String)
-            storePassword = keyProperties["storePassword"] as String
+        // Gradle configures every signingConfig block for any task that
+        // touches this module -- including a plain `assembleDebug` -- so
+        // reading keyProperties["keyAlias"] as a non-null String crashed
+        // configuration entirely on a machine with no key.properties
+        // (e.g. local development), with "null cannot be cast to non-null
+        // type kotlin.String". Only declaring "release" when the file is
+        // actually present avoids evaluating those non-null casts at all
+        // on a machine that was never going to use them.
+        if (hasKeyProperties) {
+            create("release") {
+                keyAlias = keyProperties["keyAlias"] as String
+                keyPassword = keyProperties["keyPassword"] as String
+                storeFile = file(keyProperties["storeFile"] as String)
+                storePassword = keyProperties["storePassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Falls back to the debug signing config when key.properties
+            // isn't present, so local `flutter run --release` / `build apk`
+            // still works without real signing credentials on hand. A
+            // machine that does have key.properties (a real release build)
+            // still gets properly signed via the config above.
+            signingConfig = if (hasKeyProperties) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

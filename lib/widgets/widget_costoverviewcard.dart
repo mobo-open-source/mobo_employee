@@ -23,27 +23,25 @@ class WidgetQuickOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
-
           BoxShadow(
-            color: AppColors.color000000.withOpacity(.04),
-            offset: const Offset(3, 11),
-            blurRadius: 8.5,
-            spreadRadius: -3,
+            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Flexible(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 FittedBox(
                   alignment: Alignment.centerLeft,
@@ -51,50 +49,48 @@ class WidgetQuickOverview extends StatelessWidget {
                   child: Text(
                     count,
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: isDarkTheme ? Colors.white : AppColors.color101828,
+                      height: 1.1,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                    color: isDarkTheme
-                        ? AppColors.white
-                        : AppColors.Color616161,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDarkTheme ? Colors.white : AppColors.color101828,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0,
+                    height: 1.35,
                     color: isDarkTheme
-                        ? AppColors.white
-                        : AppColors.Color4E4E4E,
+                        ? Colors.white38
+                        : AppColors.color6A7282,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withOpacity(isDarkTheme ? 0.22 : 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: HugeIcon(icon: icon, color: color, size: 20),
+            child: HugeIcon(icon: icon, color: color, size: 24),
           ),
         ],
       ),

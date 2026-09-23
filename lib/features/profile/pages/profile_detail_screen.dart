@@ -12,6 +12,7 @@ import 'package:mobo_employees/shared/widgets/dialogs/data_loss_warning_dialog.d
 import 'package:mobo_employees/shared/widgets/forms/custom_dropdown_field.dart';
 import 'package:mobo_employees/shared/widgets/forms/custom_text_field.dart';
 import 'package:mobo_employees/shared/widgets/loaders/list_shimmer.dart';
+import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/widgets/images/full_image_screen.dart';
@@ -271,6 +272,9 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       final userUpdates = <String, dynamic>{};
       final partnerUpdates = <String, dynamic>{};
+      /// Set only when job_title needs the hr.employee fallback write; see
+      /// `ProfileProvider.canWriteEmployeeJobTitle`.
+      String? jobTitleForEmployeeFallback;
 
       if (_nameController.text.trim() != _normalizeForEdit(userData['name'])) {
         userUpdates['name'] = _nameController.text.trim();
@@ -281,10 +285,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       }
       if (_phoneController.text.trim() !=
           _normalizeForEdit(userData['phone'])) {
-        partnerUpdates['phone'] = _phoneController.text.trim();
+        final newPhone = _phoneController.text.trim();
+        partnerUpdates['phone'] = newPhone;
+        /// Mirror onto hr.employee.work_phone too, so the Employees app card
+        /// reflects the change.
+        if (provider.hasWorkPhoneField) {
+          userUpdates['work_phone'] = newPhone;
+        }
       }
-      if (_mobileController.text.trim() !=
-          _normalizeForEdit(userData['mobile'])) {
+
+      /// Skip on servers with no mobile field (Odoo 19).
+      if (!provider.serverHasNoMobileField &&
+          _mobileController.text.trim() !=
+              _normalizeForEdit(userData['mobile'])) {
         /// Correct mapping: Work Mobile -> res.partner.mobile
         partnerUpdates['mobile'] = _mobileController.text.trim();
       }
@@ -294,7 +307,17 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       }
       if (_functionController.text.trim() !=
           _normalizeForEdit(userData['function'])) {
-        partnerUpdates['function'] = _functionController.text.trim();
+        final newFunction = _functionController.text.trim();
+        partnerUpdates['function'] = newFunction;
+        /// hr.employee.job_title is separate from res.partner.function and
+        /// is what the Employees app card shows.
+        if (provider.hasJobTitleField) {
+          if (provider.jobTitleWritableViaUsers) {
+            userUpdates['job_title'] = newFunction;
+          } else if (provider.canWriteEmployeeJobTitle) {
+            jobTitleForEmployeeFallback = newFunction;
+          }
+        }
       }
 
       if (userUpdates.isNotEmpty) {
@@ -302,6 +325,11 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       }
       if (partnerUpdates.isNotEmpty) {
         await provider.updatePartnerFields(partnerUpdates);
+      }
+      if (jobTitleForEmployeeFallback != null) {
+        await provider.writeEmployeeJobTitleBestEffort(
+          jobTitleForEmployeeFallback,
+        );
       }
 
       isSuccess = true;
@@ -356,8 +384,10 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     return _nameController.text.trim() != _normalizeForEdit(userData['name']) ||
         _emailController.text.trim() != _normalizeForEdit(userData['email']) ||
         _phoneController.text.trim() != _normalizeForEdit(userData['phone']) ||
-        _mobileController.text.trim() !=
-            _normalizeForEdit(userData['mobile']) ||
+        /// Ignored when the field doesn't exist server-side (Odoo 19).
+        (!provider.serverHasNoMobileField &&
+            _mobileController.text.trim() !=
+                _normalizeForEdit(userData['mobile'])) ||
         _websiteController.text.trim() !=
             _normalizeForEdit(userData['website']) ||
         _functionController.text.trim() !=
@@ -1240,6 +1270,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     bool isDark,
     bool isEditingDisabled,
     Uint8List? userAvatar,
+    String? userName,
   ) {
     Widget photoWidget;
     if (_pickedImageFile != null) {
@@ -1249,13 +1280,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           width: 120,
           height: 120,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
-            return HugeIcon(
-              icon: HugeIcons.strokeRoundedUserCircle02,
-              size: 35,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-            );
-          },
+          errorBuilder: (_, __, ___) =>
+              InitialsAvatar(name: userName, diameter: 120),
         ),
       );
     } else if (userAvatar != null) {
@@ -1265,30 +1291,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           width: 120,
           height: 120,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
-            return HugeIcon(
-              icon: HugeIcons.strokeRoundedUserCircle02,
-              size: 35,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
-            );
-          },
+          errorBuilder: (_, __, ___) =>
+              InitialsAvatar(name: userName, diameter: 120),
         ),
       );
     } else {
-      final placeholderColor = isDark ? Colors.grey[700]! : Colors.grey[300]!;
-      photoWidget = Container(
-        width: 120,
-        height: 120,
-        decoration: BoxDecoration(
-          color: placeholderColor,
-          shape: BoxShape.circle,
-        ),
-        child: HugeIcon(
-          icon: HugeIcons.strokeRoundedUserCircle,
-          size: 60,
-          color: isDark ? Colors.grey[500] : Colors.grey[600],
-        ),
-      );
+      photoWidget = InitialsAvatar(name: userName, diameter: 120);
     }
 
     return Center(
@@ -1609,6 +1617,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               isDark,
                               isEditingDisabled,
                               provider.userAvatar,
+                              provider.userData?['name']?.toString(),
                             ),
                             const SizedBox(height: 32),
                             const Text(
@@ -1649,16 +1658,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
                             ),
-                            const SizedBox(height: 16),
-                            _buildCustomTextField(
-                              context,
-                              'Mobile',
-                              userData['mobile']?.toString(),
-                              HugeIcons.strokeRoundedSmartPhone01,
-                              disabled: isEditingDisabled,
-                              controller: _mobileController,
-                              keyboardType: TextInputType.phone,
-                            ),
+                            /// Odoo 19 dropped `mobile` from res.partner.
+                            if (!provider.serverHasNoMobileField) ...[
+                              const SizedBox(height: 16),
+                              _buildCustomTextField(
+                                context,
+                                'Mobile',
+                                userData['mobile']?.toString(),
+                                HugeIcons.strokeRoundedSmartPhone01,
+                                disabled: isEditingDisabled,
+                                controller: _mobileController,
+                                keyboardType: TextInputType.phone,
+                              ),
+                            ],
                             const SizedBox(height: 16),
                             _buildCustomTextField(
                               context,
@@ -1678,19 +1690,23 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               disabled: isEditingDisabled,
                               controller: _functionController,
                             ),
-                            const SizedBox(height: 16),
-                            _buildCustomTextField(
-                              context,
-                              'Company',
-                              userData['company_id'] is List &&
-                                      userData['company_id'].length > 1
-                                  ? (userData['company_id'][1]?.toString() ??
-                                        '')
-                                  : '',
-                              HugeIcons.strokeRoundedBuilding05,
-                              disabled: isEditingDisabled,
-                              showNonEditableMessage: true,
-                            ),
+                            /// Odoo 17 hides this field entirely rather
+                            /// than showing it read-only.
+                            if (!provider.isOdoo17) ...[
+                              const SizedBox(height: 16),
+                              _buildCustomTextField(
+                                context,
+                                'Company',
+                                userData['company_id'] is List &&
+                                        userData['company_id'].length > 1
+                                    ? (userData['company_id'][1]?.toString() ??
+                                          '')
+                                    : '',
+                                HugeIcons.strokeRoundedBuilding05,
+                                disabled: isEditingDisabled,
+                                showNonEditableMessage: true,
+                              ),
+                            ],
                             const SizedBox(height: 16),
                             _buildCustomTextField(
                               context,

@@ -7,11 +7,12 @@ import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/biometric_context_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
-import 'package:mobo_employees/features/two_factor_authentication/twoFactorAuthenticationPage.dart';
+import 'package:mobo_employees/core/utils/server_url_utils.dart';
 import 'package:mobo_employees/shared/providers/clear_provider.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
 import 'package:provider/provider.dart';
 import '../providers/login_provider.dart';
+import 'otp_page.dart';
 import 'reset_password_screen.dart';
 import 'login_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -170,6 +171,15 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
   }
 
   Future<bool> _addNewAccount(LoginProvider provider) async {
+    setState(() => provider.isLoading = true);
+    try {
+      return await _doAddNewAccount(provider);
+    } finally {
+      if (mounted) setState(() => provider.isLoading = false);
+    }
+  }
+
+  Future<bool> _doAddNewAccount(LoginProvider provider) async {
     try {
       /// Mark as account operation to prevent biometric prompt
       final biometricContext = BiometricContextService();
@@ -194,6 +204,9 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
         biometricContext.endAccountOperation('add_account');
         return false;
       }
+
+      /// Clear the outgoing account's cached state before the new session goes live.
+      await OdooSessionManager.clearAccountScopedState();
 
       /// Authenticate with the new credentials
       final newSession = await OdooSessionManager.authenticate(
@@ -221,6 +234,13 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       await OdooSessionManager.updateSession(fixedSession);
       sessionService.updateSession(fixedSession);
 
+      /// Persist this account as its own distinct entry in `storedAccounts`.
+      await sessionService.storeAccount(
+        fixedSession,
+        provider.passwordController.text,
+        markAsCurrent: true,
+      );
+
       /// Persist server URL history and server->database mapping for reuse
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -240,7 +260,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       }
 
       /// Switch to the new account
-      await sessionService.switchToAccount(newSession);
+      await sessionService.switchToAccount(fixedSession);
 
       /// Navigate to AppEntry so startup checks (including inventory module check)
       /// can run and show MissingInventoryScreen if needed.
@@ -254,42 +274,37 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
       biometricContext.endAccountOperation('add_account');
       return true;
     } catch (e) {
-      final msg = e.toString().toLowerCase();
-
-      if (msg.contains('type \'null\'') &&
-          msg.contains('map<string') &&
-          !msg.contains('html') &&
-          !msg.contains('502') &&
-          !msg.contains('timeout')) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TotpPage(
-              protocol: provider.selectedProtocol,
-              serverUrl: provider.urlController.text.trim(),
-              database: provider.database!,
-              username: provider.emailController.text.trim(),
-              password: provider.passwordController.text.trim(),
-              addaccount: widget.isAddingAccount,
-            ),
-          ),
-        );
-      }
-      provider.errorMessage = 'Failed to add account: ${e.toString()}';
       final biometricContext = BiometricContextService();
       biometricContext.endAccountOperation('add_account');
+
+      /// 2FA detected — matched by TYPE, not by a guessed error-message
+      /// shape, so this doesn't misfire on unrelated failures.
+      if (e is MfaRequiredException) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TotpPage(
+                protocol: provider.selectedProtocol,
+                serverUrl: provider.urlController.text.trim(),
+                database: provider.database!,
+                username: provider.emailController.text.trim(),
+                password: provider.passwordController.text.trim(),
+                addaccount: widget.isAddingAccount,
+              ),
+            ),
+          );
+        }
+        return true;
+      }
+
+      provider.errorMessage = 'Failed to add account: ${e.toString()}';
       return false;
     }
   }
 
   /// Ensures the URL has a scheme (http/https). Defaults to https if missing.
-  String _ensureScheme(String url) {
-    final trimmed = url.trim();
-    if (trimmed.isEmpty) return trimmed;
-    final hasScheme =
-        trimmed.startsWith('http://') || trimmed.startsWith('https://');
-    return hasScheme ? trimmed : 'https://$trimmed';
-  }
+  String _ensureScheme(String url) => normalizeServerUrl(url);
 
   @override
   Widget build(BuildContext context) {

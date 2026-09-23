@@ -92,6 +92,7 @@ class CalendarShimmer extends StatelessWidget {
   }
 }
 
+/// Mirrors `WidgetTimeOffCard`'s layout so size doesn't jump when real data loads.
 class WidgetTimeOffCardShimmer extends StatelessWidget {
   const WidgetTimeOffCardShimmer({super.key});
 
@@ -105,6 +106,14 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.04),
+              offset: const Offset(3, 11),
+              blurRadius: 8.5,
+              spreadRadius: -3,
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,10 +121,10 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
             /// Profile image shimmer
             Container(
               width: 50,
-              height: 10,
+              height: 60,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
 

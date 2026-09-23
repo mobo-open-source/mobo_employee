@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mobo_employees/app/app_entry.dart';
 
-import 'package:mobo_employees/features/employee/dashboard/provider/dashboard_provider.dart';
 import 'package:mobo_employees/features/settings/providers/settings_provider.dart';
-import 'package:mobo_employees/shared/providers/clear_provider.dart';
 import 'package:provider/provider.dart';
 import '../../shared/widgets/loaders/loading_widget.dart';
 import '../../shared/widgets/snackbars/custom_snackbar.dart';
 import '../services/session_service.dart';
 import '../routing/page_transition.dart';
+import '../const/keys/global_keys.dart';
 
 class LogoutViewModel extends ChangeNotifier {
   Future<void> confirmLogout(BuildContext context) async {
@@ -188,28 +187,30 @@ class LogoutViewModel extends ChangeNotifier {
     /// Small delay to let the dialog render smoothly
     await Future.delayed(const Duration(milliseconds: 900));
 
-    /// Clear Dashboard while logging out
-    final dashboardProvider = context.read<DashboardProvider>();
-    dashboardProvider.clearDashboard();
-    await ClearProviders.clearAllProviders(context);
-    /// Perform logout using SessionService
+    /// Logout must happen before providers are cleared, so a stale
+    /// `AppEntry` underneath can't race a re-fetch back into the Dashboard.
     await context.read<SessionService>().logout();
 
+    /// Feature providers are cleared later by `AppEntry`'s own init, not
+    /// here -- clearing them while ProfileScreen is still mounted would
+    /// flash it into an error state before the route swaps out.
     /// Close dialog
     if (dialogContext != null && dialogContext!.mounted) {
       Navigator.of(dialogContext!).pop();
     }
 
-    /// Navigate to AppEntry (root decides next screen based on session state)
-    if (context.mounted) {
-      await ClearProviders.clearAllProviders(context);
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        dynamicRoute(context, const AppEntry()),
+    /// Use the global `navigatorKey` rather than the local `context`: the
+    /// "Logout" tile's subtree can unmount before this point (e.g. a
+    /// provider reset rebuilding ProfileScreen), which would otherwise
+    /// silently skip navigation via a `context.mounted` guard.
+    final navigator = navigatorKey.currentState;
+    final navContext = navigatorKey.currentContext;
+    if (navigator != null && navContext != null) {
+      navigator.pushAndRemoveUntil(
+        dynamicRoute(navContext, const AppEntry()),
         (route) => false,
       );
-      CustomSnackbar.showSuccess(context, 'Logged out successfully');
+      CustomSnackbar.showSuccess(navContext, 'Logged out successfully');
     }
   }
 }

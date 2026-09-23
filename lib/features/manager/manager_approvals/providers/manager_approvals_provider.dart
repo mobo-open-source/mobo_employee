@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_allocation_data.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_leave_calendar_event.dart';
@@ -11,6 +12,8 @@ import 'package:mobo_employees/features/manager/manager_approvals/models/model_t
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_timeoff_data.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/services/manager_calendar_service.dart';
 import 'package:mobo_employees/features/employee/attendance/service/administrator_attendance_service.dart';
+import 'package:mobo_employees/shared/widgets/snackbars/custom_snackbar.dart';
+import 'package:mobo_employees/core/const/keys/global_keys.dart';
 
 /// State holder for the manager-side leave approvals feature.
 ///
@@ -343,12 +346,36 @@ class ManagerApprovalsProvider extends ChangeNotifier {
       _timeOffList
         ..clear()
         ..addAll(data);
+      await _preloadEmployeeImages(_timeOffList.map((e) => e.employeeId));
       _isTimeOffInitialLoaded = true;
     } catch (_) {
       _timeOffList.clear();
     } finally {
       _isTimeOffLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Turns a raw RPC failure into something worth showing the user.
+  String _readableActionError(Object e) {
+    final raw = e.toString();
+    if (e is OdooException && raw.contains('message:')) {
+      final message = raw.split('message:').last.split(',').first.trim();
+      if (message.isNotEmpty) return message;
+    }
+    return 'Failed to update the request. Please try again.';
+  }
+
+  /// Shows a snackbar via the app's global `navigatorKey` rather than a
+  /// row's local `context`, since the list rebuilds into its loading state
+  /// (disposing row contexts) before this is reached.
+  void _showActionSnack({required bool success, required String message}) {
+    final navContext = navigatorKey.currentContext;
+    if (navContext == null) return;
+    if (success) {
+      CustomSnackbar.showSuccess(navContext, message);
+    } else {
+      CustomSnackbar.showError(navContext, message);
     }
   }
 
@@ -359,7 +386,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// `action_approve` (manager approval, may still need second-level
   /// validation). Re-entrancy is guarded via [_validatingIds] so the per-row
   /// spinner only triggers once.
-  Future<void> validateTimeOff(int leaveId, String state) async {
+  Future<void> validateTimeOff(BuildContext context, int leaveId, String state) async {
     if (_validatingIds.contains(leaveId)) return;
     _validatingIds.add(leaveId);
     notifyListeners();
@@ -370,7 +397,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         await ManagerCalendarService.actionApprove(leaveId);
       }
       await fetchTimeOffDetails();
-    } catch (_) {
+      _showActionSnack(success: true, message: 'Time off request approved');
+    } catch (e) {
+      _showActionSnack(success: false, message: _readableActionError(e));
     } finally {
       _validatingIds.remove(leaveId);
       notifyListeners();
@@ -379,14 +408,16 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
   /// Refuses the leave request [leaveId] and refreshes the list.
   /// Guarded against double-tap via [_refusingIds].
-  Future<void> refuseTimeOff(int leaveId) async {
+  Future<void> refuseTimeOff(BuildContext context, int leaveId) async {
     if (_refusingIds.contains(leaveId)) return;
     _refusingIds.add(leaveId);
     notifyListeners();
     try {
       await ManagerCalendarService.actionRefuse(leaveId);
       await fetchTimeOffDetails();
-    } catch (_) {
+      _showActionSnack(success: true, message: 'Time off request refused');
+    } catch (e) {
+      _showActionSnack(success: false, message: _readableActionError(e));
     } finally {
       _refusingIds.remove(leaveId);
       notifyListeners();
@@ -405,11 +436,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
       _allocationList
         ..clear()
         ..addAll(data);
-      for (var item in _allocationList) {
-        if (!_employeeImageCache.containsKey(item.employeeId)) {
-          loadEmployeeImage(item.employeeId);
-        }
-      }
+      await _preloadEmployeeImages(_allocationList.map((e) => e.employeeId));
     } catch (_) {
       _allocationList.clear();
     } finally {
@@ -595,60 +622,19 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Shows the themed date picker and writes the result back to [controller]
-  /// and the matching [fromDate] / [toDate] field. Initial date is whichever
-  /// value is currently set, falling back to today.
-  Future<void> chooseDate(
-    BuildContext context,
-    TextEditingController controller,
-  ) async {
-    final DateTime today = DateTime.now();
+  /// Sets [fromDate] and keeps [fromDateController]'s text (the Odoo wire
+  /// format the submit payload reads from) in sync. Called by [MoboDateField].
+  void setFromDate(DateTime date) {
+    fromDate = date;
+    fromDateController.text = _formatDate(date);
+    notifyListeners();
+  }
 
-    DateTime initialDate = today;
-
-    if (controller == fromDateController && fromDate != null) {
-      initialDate = fromDate!;
-    } else if (controller == toDateController && toDate != null) {
-      initialDate = toDate!;
-    }
-
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Theme.of(context).primaryColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
-            ),
-            datePickerTheme: DatePickerThemeData(
-              dividerColor: Colors.transparent,
-              headerBackgroundColor: Theme.of(context).primaryColor,
-              headerForegroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (pickedDate != null) {
-      controller.text = _formatDate(pickedDate);
-      if (controller == fromDateController) {
-        fromDate = pickedDate;
-      } else if (controller == toDateController) {
-        toDate = pickedDate;
-      }
-      notifyListeners();
-    }
+  /// Sets [toDate] and keeps [toDateController]'s text in sync.
+  void setToDate(DateTime date) {
+    toDate = date;
+    toDateController.text = _formatDate(date);
+    notifyListeners();
   }
 
   /// Formats [date] as `YYYY-MM-DD`, the wire format Odoo expects.
@@ -675,6 +661,28 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetches and decodes avatars for every one of [employeeIds] not
+  /// already cached, in a single batched request, so the list and its
+  /// avatars appear together instead of popping in one by one.
+  Future<void> _preloadEmployeeImages(Iterable<int> employeeIds) async {
+    final idsToFetch = employeeIds
+        .toSet()
+        .where((id) => !_employeeImageCache.containsKey(id))
+        .toList();
+    if (idsToFetch.isEmpty) return;
+
+    final images = await ManagerCalendarService.fetchEmployeeUserProfileImages(
+      idsToFetch,
+    );
+
+    for (final id in idsToFetch) {
+      final base64Image = images[id];
+      _employeeImageCache[id] = (base64Image != null && base64Image.isNotEmpty)
+          ? base64Decode(base64Image)
+          : null;
+    }
+  }
+
   /// Approves the allocation request [allocationId] and refreshes the list.
   /// Re-entrancy guarded via [_validatingIds]. The [context] is currently
   /// unused but kept for parity with the refuse counterpart and future
@@ -691,7 +699,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     try {
       await ManagerCalendarService.actionApproveAllocation(allocationId);
       await fetchAllocationDetails();
-    } catch (_) {
+      _showActionSnack(success: true, message: 'Allocation request approved');
+    } catch (e) {
+      _showActionSnack(success: false, message: _readableActionError(e));
     } finally {
       _validatingIds.remove(allocationId);
       notifyListeners();
@@ -709,7 +719,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     try {
       await ManagerCalendarService.actionRefuseAllocation(allocationId);
       await fetchAllocationDetails();
-    } catch (_) {
+      _showActionSnack(success: true, message: 'Allocation request refused');
+    } catch (e) {
+      _showActionSnack(success: false, message: _readableActionError(e));
     } finally {
       _refusingIds.remove(allocationId);
       notifyListeners();

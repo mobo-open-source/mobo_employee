@@ -17,6 +17,8 @@ class ReviewService {
   static const String _keyFirstOpenDate = 'review_first_open_date';
   static const String _keyNextAllowedDate = 'review_next_allowed_date';
   static const String _keyNeverAskAgain = 'review_never_ask_again';
+  static const String _keyLastRequestDate = 'review_last_request_date';
+  static const String _keyFeedbackGiven = 'review_feedback_given';
 
   /// Thresholds
   static const int _thresholdOpens = 5;
@@ -100,8 +102,30 @@ class ReviewService {
       }
 
       if (shouldRequest) {
+        /// Dynamic re-ask cooldown: 30 days normally, 180 days if the user
+        /// already gave feedback on a previous showing of the dialog.
+        int? lastRequestEpoch = prefs.getInt(_keyLastRequestDate);
+        if (lastRequestEpoch != null) {
+          final lastRequest = DateTime.fromMillisecondsSinceEpoch(
+            lastRequestEpoch,
+          );
+          final daysSinceLastRequest = DateTime.now()
+              .difference(lastRequest)
+              .inDays;
+          int waitDays = (prefs.getBool(_keyFeedbackGiven) ?? false)
+              ? 180
+              : 30;
+
+          if (daysSinceLastRequest < waitDays) return;
+        }
+
         if (context != null && context.mounted) {
           _wasRequestedThisRun = true;
+          await prefs.setBool(_keyFeedbackGiven, false);
+          await prefs.setInt(
+            _keyLastRequestDate,
+            DateTime.now().millisecondsSinceEpoch,
+          );
 
           CustomRatingDialog.show(context);
         } else {
@@ -199,6 +223,17 @@ class ReviewService {
     await prefs.setBool(_keyNeverAskAgain, true);
   }
 
+  /// Mark that the user gave feedback (a bad/low review) so the next re-ask
+  /// respects the longer 180-day cooldown instead of the default 30 days.
+  Future<void> markFeedbackGiven() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyFeedbackGiven, true);
+    await prefs.setInt(
+      _keyLastRequestDate,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   /// Reset all review tracking data (useful for testing)
   Future<void> resetReviewTracking() async {
     final prefs = await SharedPreferences.getInstance();
@@ -207,5 +242,7 @@ class ReviewService {
     await prefs.remove(_keyFirstOpenDate);
     await prefs.remove(_keyNextAllowedDate);
     await prefs.remove(_keyNeverAskAgain);
+    await prefs.remove(_keyLastRequestDate);
+    await prefs.remove(_keyFeedbackGiven);
   }
 }
