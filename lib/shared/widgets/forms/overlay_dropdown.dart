@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mobo_employees/core/const/all_design.dart';
+
 class OverlayDropdownOption<T> {
   final T value;
   final String label;
@@ -80,13 +82,13 @@ class _OverlayDropdownFieldState<T> extends State<OverlayDropdownField<T>> {
               showWhenUnlinked: false,
               offset: const Offset(0, 58),
               child: Material(
-                elevation: 12.0,
+                elevation: 4.0,
                 color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 shadowColor: Colors.black.withOpacity(0.2),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isDark
                           ? Colors.white.withOpacity(0.1)
@@ -206,13 +208,11 @@ class _OverlayDropdownFieldState<T> extends State<OverlayDropdownField<T>> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
                         color: theme.primaryColor,
-                        width: 1,
+                        width: 2,
                       ),
                     ),
                     filled: true,
-                    fillColor: isDark
-                        ? const Color(0xFF2A2A2A)
-                        : const Color(0xffF8FAFB),
+                    fillColor: AppColors.inputFill(isDark),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 14,

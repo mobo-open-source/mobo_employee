@@ -20,9 +20,10 @@ class _WidgetAttendanceCalenderState extends State<WidgetAttendanceCalender> {
     final attendanceProvider = context.read<AttendanceProvider>();
     final employeeId = attendanceProvider.attendanceEmployeeModel?.id;
     final focusedDay = attendanceProvider.focusedDay;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.greyShade800Color : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -39,32 +40,13 @@ class _WidgetAttendanceCalenderState extends State<WidgetAttendanceCalender> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: _monthContainer(
               focusedDay: focusedDay,
-              onPrevious: () {
-                final newMonth = DateTime(
-                  focusedDay.year,
-                  focusedDay.month - 1,
-                );
-
-                attendanceProvider.updateCalendarMonth(newMonth);
-                attendanceProvider.focusedDay = newMonth;
-
-                attendanceProvider.refreshCalendarMonth(
-                  employeeId: attendanceProvider.attendanceEmployeeModel!.id,
-                  month: newMonth,
-                );
-              },
-              onNext: () {
-                final newMonth = DateTime(
-                  focusedDay.year,
-                  focusedDay.month + 1,
-                );
-                attendanceProvider.updateCalendarMonth(newMonth);
-                attendanceProvider.focusedDay = newMonth;
-                attendanceProvider.refreshCalendarMonth(
-                  employeeId: attendanceProvider.attendanceEmployeeModel!.id,
-                  month: newMonth,
-                );
-              },
+              onPrevious: () => attendanceProvider.goToMonth(
+                DateTime(focusedDay.year, focusedDay.month - 1),
+              ),
+              onNext: () => attendanceProvider.goToMonth(
+                DateTime(focusedDay.year, focusedDay.month + 1),
+              ),
+              isDark: isDark,
             ),
           ),
           _legendContainer(),
@@ -95,23 +77,20 @@ class _WidgetAttendanceCalenderState extends State<WidgetAttendanceCalender> {
                   employeeId,
                 );
               },
-              onPageChanged: (newFocusedDay) {
-                attendanceProvider.focusedDay = DateTime(
-                  newFocusedDay.year,
-                  newFocusedDay.month,
-                );
-              },
+              onPageChanged: attendanceProvider.goToMonth,
               daysOfWeekVisible: true,
               daysOfWeekHeight: 32,
               daysOfWeekStyle: DaysOfWeekStyle(
-                decoration: BoxDecoration(color: AppColors.colorF8F9FA),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[700]! : AppColors.colorF8F9FA,
+                ),
                 weekdayStyle: TextStyle(
-                  color: AppColors.color6A7282,
+                  color: isDark ? Colors.white70 : AppColors.color6A7282,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
                 weekendStyle: TextStyle(
-                  color: AppColors.color6A7282,
+                  color: isDark ? Colors.white70 : AppColors.color6A7282,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -194,8 +173,9 @@ class _CalendarDayContainer extends StatelessWidget {
     final isPastOrToday =
         calendarDay.isBefore(todayOnly) || calendarDay == todayOnly;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color bgColor = AppColors.white;
-    Color textColor = AppColors.color000000;
+    Color textColor = isDark ? Colors.white : AppColors.color000000;
     final highlight = isToday || isSelected;
     return Padding(
       padding: const EdgeInsets.all(4),
@@ -210,7 +190,11 @@ class _CalendarDayContainer extends StatelessWidget {
                 shape: BoxShape.circle,
 
                 border: Border.all(
-                  color: highlight ? AppColors.blue : Colors.white,
+                  color: highlight
+                      ? AppColors.blue
+                      : isDark
+                      ? AppColors.greyShade800Color
+                      : Colors.white,
                 ),
               ),
               child: Text(
@@ -218,7 +202,11 @@ class _CalendarDayContainer extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w500,
-                  color: isUnusual ? AppColors.ColorD9D9D9 : textColor,
+                  color: isUnusual
+                      ? isDark
+                            ? Colors.white38
+                            : AppColors.ColorD9D9D9
+                      : textColor,
                 ),
               ),
             ),
@@ -247,6 +235,7 @@ Widget _monthContainer({
   required DateTime focusedDay,
   required VoidCallback onPrevious,
   required VoidCallback onNext,
+  required bool isDark,
 }) {
   return Container(
     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -256,7 +245,7 @@ Widget _monthContainer({
       children: [
         Container(
           decoration: BoxDecoration(
-            color: AppColors.colorF3F3F5,
+            color: isDark ? Colors.grey[700]! : AppColors.colorF3F3F5,
             borderRadius: BorderRadius.circular(8),
           ),
           child: IconButton(
@@ -270,20 +259,24 @@ Widget _monthContainer({
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: BoxDecoration(
-              color: AppColors.colorF3F3F5,
+              color: isDark ? Colors.grey[700]! : AppColors.colorF3F3F5,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               DateFormat('MMMMyyyy').format(focusedDay),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : AppColors.color101828,
+              ),
             ),
           ),
         ),
         const SizedBox(width: 10),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.colorF3F3F5,
+            color: isDark ? Colors.grey[700]! : AppColors.colorF3F3F5,
             borderRadius: BorderRadius.circular(8),
           ),
           child: IconButton(
@@ -302,6 +295,7 @@ class _LegendDot extends StatelessWidget {
   const _LegendDot({required this.color, required this.text});
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -314,7 +308,11 @@ class _LegendDot extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           text,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: isDark ? Colors.white : AppColors.color101828,
+          ),
         ),
       ],
     );

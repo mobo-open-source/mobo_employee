@@ -505,31 +505,30 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
         children: [
           Expanded(
             child: SizedBox(
-              height: 52,
+              height: 48,
               child: OutlinedButton(
                 onPressed: _clearAll,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.appColor,
                   side: BorderSide(color: AppColors.appColor, width: 1.5),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Clear All', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: SizedBox(
-              height: 52,
+              height: 48,
               child: ElevatedButton(
                 onPressed: _apply,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.appColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
+                  shadowColor: Colors.transparent,
                 ),
                 child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
               ),

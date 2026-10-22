@@ -8,10 +8,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/core/services/haptics_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/features/employee/dashboard/provider/dashboard_provider.dart';
+import 'package:mobo_employees/features/manager/manager_dashboard/provider/manager_dashboard_provider.dart';
 import 'package:mobo_employees/shared/widgets/dialogs/data_loss_warning_dialog.dart';
 import 'package:mobo_employees/shared/widgets/forms/custom_dropdown_field.dart';
 import 'package:mobo_employees/shared/widgets/forms/custom_text_field.dart';
 import 'package:mobo_employees/shared/widgets/loaders/list_shimmer.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -68,15 +71,6 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    /// Update controllers whenever the provider data changes
-    if (mounted) {
-      _updateControllers();
-    }
-  }
-
-  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -122,9 +116,49 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  /// Controllers are seeded from the saved data only at these points —
+  /// never while the user is typing. They used to be re-seeded from
+  /// `didChangeDependencies`, which also fires on unrelated inherited
+  /// changes (this screen depends on MediaQuery/Theme), so an edit could be
+  /// silently reset to the old value before Save read it.
+  void _startEdit() {
+    _updateControllers();
+    setState(() => _isEditMode = true);
+  }
+
   void _cancelEdit() {
     _updateControllers();
     setState(() => _isEditMode = false);
+  }
+
+  /// Pulls Odoo's own error text out of an RPC exception (e.g. an
+  /// AccessError or ValidationError) so a failed save says why.
+  String _saveErrorMessage(Object e) {
+    final raw = e.toString();
+    final match = RegExp(r'message: (.*?), arguments', dotAll: true)
+        .allMatches(raw)
+        .lastOrNull;
+    final text = (match?.group(1) ?? raw).trim();
+    return text.length > 160 ? '${text.substring(0, 160)}…' : text;
+  }
+
+  /// Other screens cache the user's name/photo in their own providers
+  /// (dashboard greeting cards); push the saved values there too so the
+  /// change shows up everywhere without a full reload.
+  void _propagateProfileChange() {
+    final provider = context.read<ProfileProvider>();
+    final name = _normalizeForEdit(provider.userData?['name']);
+    final avatar = provider.userAvatar;
+    try {
+      context
+          .read<DashboardProvider>()
+          .applyProfileChange(name: name, imageBytes: avatar);
+    } catch (_) {}
+    try {
+      context
+          .read<ManagerDashboardProvider>()
+          .applyProfileChange(name: name, imageBytes: avatar);
+    } catch (_) {}
   }
 
   Future<void> _pickImageFromSource(ImageSource source) async {
@@ -239,6 +273,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     try {
       final provider = context.read<ProfileProvider>();
       await provider.updateProfileImage(_pickedImageBase64!);
+      if (mounted) _propagateProfileChange();
     } catch (e) {
       if (mounted) {
         CustomSnackbar.showError(context, 'Failed to update image: $e');
@@ -261,10 +296,20 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       return;
     }
 
+    if (!_hasUnsavedChanges()) {
+      setState(() => _isEditMode = false);
+      CustomSnackbar.showInfo(context, 'No changes to save');
+      return;
+    }
+
+    /// Commit any in-progress IME composition before reading the fields.
+    FocusScope.of(context).unfocus();
+
     setState(() => _isSaving = true);
     _showLoadingDialog(context, 'Saving Changes');
 
     bool isSuccess = false;
+    String? errorMessage;
 
     try {
       final provider = context.read<ProfileProvider>();
@@ -334,9 +379,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       isSuccess = true;
       _saveSuccess = true;
+      _updateControllers();
       setState(() => _isEditMode = false);
+      _propagateProfileChange();
     } catch (e) {
       isSuccess = false;
+      errorMessage = _saveErrorMessage(e);
     } finally {
       if (!mounted) return;
 
@@ -356,7 +404,12 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         if (HapticsService.isSupported) {
           await HapticsService.error();
         }
-        CustomSnackbar.showError(context, 'Failed to save changes');
+        CustomSnackbar.showError(
+          context,
+          errorMessage == null
+              ? 'Failed to save changes'
+              : 'Failed to save changes: $errorMessage',
+        );
       }
 
       setState(() => _isSaving = false);
@@ -671,6 +724,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                   backgroundColor: theme.primaryColor,
                   foregroundColor: Colors.white,
                   elevation: 0,
+                  shadowColor: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 12,
@@ -1000,8 +1054,19 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          labelText,
+        Text.rich(
+          TextSpan(
+            text: labelText,
+            children: [
+              if (_isEditMode &&
+                  !disabled &&
+                  _requiredFields.contains(labelText.toLowerCase()))
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: Colors.red[400]),
+                ),
+            ],
+          ),
           style: TextStyle(
             fontFamily: GoogleFonts.manrope(
               fontWeight: FontWeight.w400,
@@ -1212,11 +1277,24 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     }
   }
 
+  /// Fields Odoo's user record can't do without: the profile can't be saved
+  /// with these blank.
+  static const Set<String> _requiredFields = {'full name', 'email'};
+
   String? Function(String?)? _getValidatorForField(String labelText) {
     switch (labelText.toLowerCase()) {
+      case 'full name':
+        return (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Full name is required';
+          }
+          return null;
+        };
       case 'email':
         return (value) {
-          if (value == null || value.trim().isEmpty) return null;
+          if (value == null || value.trim().isEmpty) {
+            return 'Email is required';
+          }
           final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
           if (!emailRegex.hasMatch(value.trim())) {
             return 'Please enter a valid email address';
@@ -1489,9 +1567,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                         if (_isEditMode) {
                           _saveAllChanges();
                         } else {
-                          setState(() {
-                            _isEditMode = true;
-                          });
+                          _startEdit();
                         }
                       },
                 child: Text(
@@ -1517,44 +1593,18 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           builder: (context, provider, child) {
             /// Prefer cached data; avoid shimmer when offline
             if (provider.userData == null) {
-              if (!provider.hasInternet) {
-                /// Offline: no shimmer, show friendly offline placeholder
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.wifi_off_rounded,
-                          size: 40,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'You are offline. Profile will appear when data is available.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: _rs(context, 13)),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton(
-                          onPressed: () =>
-                              provider.fetchUserProfile(forceRefresh: true),
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-              if (provider.isLoading) {
+              if (provider.isLoading && provider.hasInternet) {
                 return ListShimmer.buildListShimmer(
                   context,
                   itemCount: 1,
                   type: ShimmerType.profile,
                 );
               }
-              return const Center(child: Text('No profile data available'));
+              return ConnectionStatusWidget(
+                error: provider.loadError,
+                serverUnreachable: true,
+                onRetry: () => provider.fetchUserProfile(forceRefresh: true),
+              );
             }
 
             final userData = provider.userData!;

@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/services/session_service.dart';
+import 'package:mobo_employees/core/utils/odoo_binary_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -12,6 +14,7 @@ class ProfileProvider extends ChangeNotifier {
   Map<String, dynamic>? _userData;
   Uint8List? _userAvatar;
   String? _error;
+  Object? _loadError;
   bool _hasInternet = true;
   List<Map<String, dynamic>> _countries = [];
   List<Map<String, dynamic>> _states = [];
@@ -32,6 +35,10 @@ class ProfileProvider extends ChangeNotifier {
   Map<String, dynamic>? get userData => _userData;
   Uint8List? get userAvatar => _userAvatar;
   String? get error => _error;
+
+  /// The error the last [fetchUserProfile] failed with, for the screen's
+  /// error state; null after a successful read.
+  Object? get loadError => _loadError;
   bool get hasInternet => _hasInternet;
   List<Map<String, dynamic>> get countries => _countries;
   List<Map<String, dynamic>> get states => _states;
@@ -276,12 +283,41 @@ class ProfileProvider extends ChangeNotifier {
         return desc is Map && desc['readonly'] == true;
       }
 
-      _hasJobTitleField = info.containsKey('job_title');
-      _hasWorkPhoneField = info.containsKey('work_phone');
-      _hasEmployeeIdField = info.containsKey('employee_id');
+      /// `fields_get` only says a field exists. Some related HR fields also
+      /// need a group to *read* (on Odoo 19 the `private_*` address fields
+      /// require HR Officer), and requesting one the user can't read fails
+      /// the whole profile read — so confirm readability per group too.
+      final session = await OdooSessionManager.getCurrentSession();
+      final uid = session?.userId;
+      Future<bool> readable(List<String> fields) async {
+        if (uid == null) return true;
+        try {
+          await OdooSessionManager.callKwWithCompany({
+            'model': 'res.users',
+            'method': 'read',
+            'args': [
+              [uid],
+              fields,
+            ],
+            'kwargs': {},
+          });
+          return true;
+        } catch (e) {
+          if (_isAccessError(e)) return false;
+          rethrow;
+        }
+      }
+
+      _hasJobTitleField =
+          info.containsKey('job_title') && await readable(['job_title']);
+      _hasWorkPhoneField =
+          info.containsKey('work_phone') && await readable(['work_phone']);
+      _hasEmployeeIdField =
+          info.containsKey('employee_id') && await readable(['employee_id']);
       _jobTitleWritableViaUsers = _hasJobTitleField && !isReadonly('job_title');
       _hasPrivateAddressFields =
-          _privateAddressFieldNames.every(info.containsKey);
+          _privateAddressFieldNames.every(info.containsKey) &&
+          await readable(_privateAddressFieldNames);
       _hrFieldsResolved = true;
       await _saveHrFieldsCache();
     } catch (_) {
@@ -326,14 +362,12 @@ class ProfileProvider extends ChangeNotifier {
       /// Ensure keys are normalized before any processing
       final normalized = _normalizePartnerUpdates(updates);
 
-      /// Offline-first: if no internet, queue changes and apply locally
-      if (!_hasInternet) {
-        _mergeInto(_pendingPartnerUpdates, normalized);
-        await _savePendingUpdates();
-        await _applyLocalUserUpdates(normalized);
-        return;
-      }
-
+      /// Always attempt the real write first rather than pre-guessing
+      /// offline status — a local server (LAN/emulator-only Odoo, no
+      /// public-internet route) can be perfectly reachable while a generic
+      /// "do I have internet" probe reports false, which used to skip the
+      /// write and silently queue it forever. Genuine connectivity failures
+      /// are still caught below and queued exactly the same way.
       final toSend = await _preparePartnerUpdatesForServer(normalized);
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.partner',
@@ -345,7 +379,7 @@ class ProfileProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
-      await fetchUserProfile(forceRefresh: true);
+      await _refreshAfterWrite(normalized);
     } catch (e) {
       if (!_isConnectivityError(e)) {
         _error = 'Failed to update profile: $e';
@@ -367,7 +401,26 @@ class ProfileProvider extends ChangeNotifier {
     await loadCountries();
   }
 
+  /// Loads the profile if nothing is in memory yet. `ClearProviders` wipes
+  /// this provider on app entry and on company/account changes, and the
+  /// full [initialize] used to run only when the Profile screen opened, so
+  /// the appbar avatar and dashboard greeting card fell back to "?"/initials
+  /// until the user visited Profile. App shells call this on start.
+  Future<void> ensureLoaded() async {
+    _startConnectivityListener();
+    /// Show the cached copy immediately when memory was wiped, so a slow or
+    /// failed network read doesn't leave the avatar/name blank.
+    if (_userData == null) {
+      await loadCachedUser();
+      await _loadPendingUpdates();
+    }
+    await fetchUserProfile();
+  }
+
   void _startConnectivityListener() {
+    /// Idempotent: initialize()/ensureLoaded() run on every Profile visit
+    /// and shell start, and each call used to stack another listener.
+    if (_connectivitySub != null) return;
     _connectivitySub = Connectivity().onConnectivityChanged.listen((
       results,
     ) async {
@@ -386,21 +439,40 @@ class ProfileProvider extends ChangeNotifier {
     });
   }
 
-  Future<bool> _checkInternet() async {
-    try {
-      final result = await InternetAddress.lookup('one.one.one.one');
-      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
+  /// Delegates to the shared [ConnectivityService] (same check used by
+  /// session/offline handling elsewhere in the app) instead of a private
+  /// DNS lookup against a single external host, purely so the "You are
+  /// offline" banner and the "Sync" action reflect the same notion of
+  /// connectivity as the rest of the app.
+  ///
+  /// This is informational only now — no save path branches on it anymore.
+  /// It used to gate every write ("if no internet, queue locally instead of
+  /// calling Odoo"), which is the wrong check for this purpose: a generic
+  /// "do I have internet" probe can report false against a perfectly
+  /// reachable local/LAN-only Odoo server (no public-internet route at
+  /// all), and — since it was only re-evaluated on a
+  /// `Connectivity().onConnectivityChanged` event, not before each save —
+  /// a single false negative anywhere in the session latched every later
+  /// edit into the offline-only local queue, so saves looked successful
+  /// while nothing ever reached the server. Every write below now always
+  /// attempts the real RPC first and queues only when that attempt itself
+  /// fails with a genuine connectivity error (see `_isConnectivityError`).
+  Future<bool> _checkInternet() =>
+      ConnectivityService.instance.hasInternetAccess();
 
   Future<void> loadCachedUser() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString(_cacheKeyUser);
       if (cached != null && cached.isNotEmpty) {
-        final data = jsonDecode(cached) as Map<String, dynamic>;
+        final data =
+            normalizeOdooBinaries(jsonDecode(cached)) as Map<String, dynamic>;
+        final session = await OdooSessionManager.getCurrentSession();
+        if (session != null && !_belongsTo(data, session.userId)) {
+          /// Left behind by a different account — never show it as this one.
+          await prefs.remove(_cacheKeyUser);
+          return;
+        }
         _userData = data;
         final img = data['image_1920'];
         if (img != null && img is String && img.isNotEmpty && img != 'false') {
@@ -423,13 +495,98 @@ class ProfileProvider extends ChangeNotifier {
     return (s.isEmpty || s == 'false') ? null : s;
   }
 
-  Future<void> fetchUserProfile({bool forceRefresh = false}) async {
+  /// Whether [data] is the profile of user [uid]. The cache is one
+  /// SharedPreferences slot, so without this check a profile left behind by
+  /// a previous account was shown (and edited) as the current user's.
+  bool _belongsTo(Map<String, dynamic>? data, int uid) =>
+      data != null && data['id']?.toString() == uid.toString();
+
+  bool _isAccessError(Object e) {
+    final s = e.toString();
+    return s.contains('AccessError') ||
+        s.contains('do not have enough rights');
+  }
+
+  List<String> _userReadFields() => [
+        'name',
+        'login',
+        'email',
+        /// phone/mobile live on res.partner; fetched from the partner below
+        'website',
+        'function',
+        if (_hasJobTitleField) 'job_title',
+        if (_hasWorkPhoneField) 'work_phone',
+        if (_hasEmployeeIdField) 'employee_id',
+        if (_hasPrivateAddressFields) ..._privateAddressFieldNames,
+        'image_1920',
+        'company_id',
+        'partner_id',
+      ];
+
+  /// If [e] is an AccessError on one of the optional HR fields, stops
+  /// requesting that field (group) and returns true so the read can retry.
+  bool _dropDeniedOptionalField(Object e) {
+    if (!_isAccessError(e)) return false;
+    final field =
+        RegExp(r'access the field "([a-zA-Z0-9_]+)"').firstMatch(e.toString())?.group(1);
+    if (field == 'job_title' && _hasJobTitleField) {
+      _hasJobTitleField = false;
+      _jobTitleWritableViaUsers = false;
+      return true;
+    }
+    if (field == 'work_phone' && _hasWorkPhoneField) {
+      _hasWorkPhoneField = false;
+      return true;
+    }
+    if (field == 'employee_id' && _hasEmployeeIdField) {
+      _hasEmployeeIdField = false;
+      return true;
+    }
+    if (field != null &&
+        _privateAddressFieldNames.contains(field) &&
+        _hasPrivateAddressFields) {
+      _hasPrivateAddressFields = false;
+      return true;
+    }
+    return false;
+  }
+
+  /// Reads the user's own row, dropping any optional HR field the user isn't
+  /// allowed to read (e.g. `private_street` needs HR Officer on Odoo 19)
+  /// instead of failing the whole profile read, which left the screen stuck
+  /// on stale cached data.
+  Future<dynamic> _readUserRow(int userId) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await OdooSessionManager.callKwWithCompany({
+          'model': 'res.users',
+          'method': 'read',
+          'args': [
+            [userId],
+            _userReadFields(),
+          ],
+          'kwargs': {},
+        });
+      } catch (e) {
+        if (attempt >= 4 || !_dropDeniedOptionalField(e)) rethrow;
+        await _saveHrFieldsCache();
+      }
+    }
+  }
+
+  /// Returns true only when fresh data was actually read from the server, so
+  /// a save can tell "saved and re-read" apart from "saved, but the re-read
+  /// failed and the screen would still show the old values".
+  Future<bool> fetchUserProfile({bool forceRefresh = false}) async {
+    var refreshed = false;
+    int? currentUid;
     /// Only show loading state if we have no cached data
     /// This allows silent background refresh when data exists
     if (_userData == null) {
       _isLoading = true;
     }
     _error = null;
+    _loadError = null;
     notifyListeners();
 
     try {
@@ -437,7 +594,7 @@ class ProfileProvider extends ChangeNotifier {
       if (session == null || session.userId == null) {
         _isLoading = false;
         notifyListeners();
-        return;
+        return false;
       }
 
       /// Must run before the read below: requesting HR fields unconditionally
@@ -445,30 +602,10 @@ class ProfileProvider extends ChangeNotifier {
       await _resolveHrFields();
       await _resolveServerVersion();
 
+      currentUid = session.userId;
+
       /// Read basic user fields from res.users (exclude unsupported fields like 'mobile')
-      final res = await OdooSessionManager.callKwWithCompany({
-        'model': 'res.users',
-        'method': 'read',
-        'args': [
-          [session.userId],
-          [
-            'name',
-            'login',
-            'email',
-            /// phone/mobile live on res.partner; we will fetch them from partner below
-            'website',
-            'function',
-            if (_hasJobTitleField) 'job_title',
-            if (_hasWorkPhoneField) 'work_phone',
-            if (_hasEmployeeIdField) 'employee_id',
-            if (_hasPrivateAddressFields) ..._privateAddressFieldNames,
-            'image_1920',
-            'company_id',
-            'partner_id',
-          ],
-        ],
-        'kwargs': {},
-      });
+      final res = await _readUserRow(session.userId);
 
       if (res is List && res.isNotEmpty) {
         final data = res.first as Map<String, dynamic>;
@@ -562,13 +699,53 @@ class ProfileProvider extends ChangeNotifier {
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_cacheKeyUser, jsonEncode(data));
+        refreshed = true;
+
+        /// Keep the saved-accounts list (switch accounts) showing the same
+        /// name/photo as the server.
+        final rawImage = data['image_1920'];
+        await SessionService.instance.updateStoredAccountProfile(
+          userId: session.userId,
+          serverUrl: session.serverUrl,
+          database: session.database,
+          name: _val(data['name']),
+          imageBase64: rawImage is String && rawImage != 'false'
+              ? rawImage
+              : null,
+        );
       }
     } catch (e) {
       _error = 'Failed to fetch user profile: $e';
+      _loadError = e;
+      debugPrint('[ProfileProvider] $_error');
+      /// Falling back to the in-memory copy is only valid for the same user.
+      if (currentUid != null && !_belongsTo(_userData, currentUid)) {
+        _userData = null;
+        _userAvatar = null;
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+    return refreshed;
+  }
+
+  /// Maps server field names in a just-written update onto the keys the UI
+  /// reads (`fetchUserProfile` folds `work_phone` into `phone` and
+  /// `job_title` into `function`), so a local apply shows up on screen.
+  Map<String, dynamic> _toDisplayKeys(Map<String, dynamic> updates) {
+    final out = Map<String, dynamic>.from(updates);
+    if (updates.containsKey('work_phone')) out['phone'] = updates['work_phone'];
+    if (updates.containsKey('job_title')) out['function'] = updates['job_title'];
+    return out;
+  }
+
+  /// After a successful write: re-read from the server, and if that re-read
+  /// fails, apply what was written locally so the app never keeps showing
+  /// the pre-edit values for data the server has already accepted.
+  Future<void> _refreshAfterWrite(Map<String, dynamic> written) async {
+    if (await fetchUserProfile(forceRefresh: true)) return;
+    await _applyLocalUserUpdates(_toDisplayKeys(written));
   }
 
   Future<void> loadCountries() async {
@@ -640,22 +817,9 @@ class ProfileProvider extends ChangeNotifier {
       final session = await OdooSessionManager.getCurrentSession();
       if (session == null || session.userId == null) return;
 
-      /// Offline-first: queue and apply locally
-      if (!_hasInternet) {
-        _pendingUserUpdates['image_1920'] = base64Image;
-        await _savePendingUpdates();
-        /// Apply locally for instant UI
-        try {
-          _userAvatar = base64Decode(base64Image);
-        } catch (_) {}
-        _userData ??= {};
-        _userData!['image_1920'] = base64Image;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_cacheKeyUser, jsonEncode(_userData));
-        notifyListeners();
-        return;
-      }
-
+      /// Always attempt the real write first — see the note in
+      /// [updatePartnerFields]; the catch block below queues on a genuine
+      /// connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
         'method': 'write',
@@ -753,17 +917,9 @@ class ProfileProvider extends ChangeNotifier {
       final userAddressUpdates =
           _hasPrivateAddressFields ? _toPrivateAddressUpdates(addressData) : null;
 
-      /// Offline-first: queue and apply locally if no internet
-      if (!_hasInternet) {
-        _mergeInto(_pendingPartnerUpdates, addressData);
-        if (userAddressUpdates != null) {
-          _mergeInto(_pendingUserUpdates, userAddressUpdates);
-        }
-        await _savePendingUpdates();
-        await _applyLocalUserUpdates(addressData);
-        return;
-      }
-
+      /// Always attempt the real write first — see the note in
+      /// [updatePartnerFields]; the catch block below queues on a genuine
+      /// connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.partner',
         'method': 'write',
@@ -789,7 +945,7 @@ class ProfileProvider extends ChangeNotifier {
         }
       }
 
-      await fetchUserProfile(forceRefresh: true);
+      await _refreshAfterWrite(addressData);
     } catch (e) {
       if (!_isConnectivityError(e)) {
         _error = 'Failed to update address: $e';
@@ -810,7 +966,7 @@ class ProfileProvider extends ChangeNotifier {
   /// `canWriteEmployeeJobTitle`). Failure is swallowed, not surfaced.
   Future<void> writeEmployeeJobTitleBestEffort(String value) async {
     try {
-      if (_userData == null || !_hasInternet) return;
+      if (_userData == null) return;
       final employeeId = _userData!['employee_id'];
       if (employeeId is! List || employeeId.isEmpty || employeeId[0] == null) {
         return;
@@ -826,7 +982,7 @@ class ProfileProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
-      await fetchUserProfile(forceRefresh: true);
+      await _refreshAfterWrite({'job_title': value});
     } catch (_) {
       /// Most commonly an AccessError for a non-HR-officer account.
     }
@@ -834,19 +990,25 @@ class ProfileProvider extends ChangeNotifier {
 
   /// Update multiple profile fields at once (on res.users)
   Future<void> updateProfileFields(Map<String, dynamic> updates) async {
+    /// Name and email are mandatory: refuse blanks here too, so they can
+    /// neither reach Odoo nor sit in the offline queue to be sent later.
+    for (final entry in const {'name': 'Name', 'email': 'Email'}.entries) {
+      if (!updates.containsKey(entry.key)) continue;
+      final value = updates[entry.key];
+      if (value == null || value.toString().trim().isEmpty) {
+        throw Exception('${entry.value} is required');
+      }
+    }
+
     try {
       final session = await OdooSessionManager.getCurrentSession();
       if (session == null || session.userId == null) {
         throw Exception('No active session');
       }
 
-      if (!_hasInternet) {
-        _mergeInto(_pendingUserUpdates, updates);
-        await _savePendingUpdates();
-        await _applyLocalUserUpdates(updates);
-        return;
-      }
-
+      /// Always attempt the real write first — see the note in
+      /// [updatePartnerFields]; the catch block below queues on a genuine
+      /// connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
         'method': 'write',
@@ -857,7 +1019,7 @@ class ProfileProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
-      await fetchUserProfile(forceRefresh: true);
+      await _refreshAfterWrite(updates);
     } catch (e) {
       if (!_isConnectivityError(e)) {
         _error = 'Failed to update profile: $e';
@@ -997,6 +1159,7 @@ class ProfileProvider extends ChangeNotifier {
     _userData = null;
     _userAvatar = null;
     _error = null;
+    _loadError = null;
     _hasInternet = true;
     _countries = [];
     _states = [];
@@ -1021,18 +1184,10 @@ class ProfileProvider extends ChangeNotifier {
   /// ---------- Offline helpers ----------
 
   /// True only for genuine connectivity failures (dropped connection, DNS,
-  /// timeout). Determines whether a failed save is queued for retry or
-  /// surfaced as a real error.
-  bool _isConnectivityError(Object e) {
-    if (e is SocketException || e is TimeoutException) return true;
-    final s = e.toString().toLowerCase();
-    return s.contains('socketexception') ||
-        s.contains('timeout') ||
-        s.contains('connection refused') ||
-        s.contains('network is unreachable') ||
-        s.contains('failed host lookup') ||
-        s.contains('connection reset');
-  }
+  /// timeout, server down). Determines whether a failed save is queued for
+  /// retry or surfaced as a real error.
+  bool _isConnectivityError(Object e) =>
+      ConnectivityService.isConnectivityError(e);
 
   void _mergeInto(Map<String, dynamic> target, Map<String, dynamic> src) {
     for (final e in src.entries) {

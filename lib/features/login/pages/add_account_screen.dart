@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:mobo_employees/core/exceptions/odoo_error_mapper.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
@@ -121,7 +122,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to add account: ${e.toString()}';
+        _errorMessage = OdooErrorMapper.authMessage(e);
         _isLoading = false;
       });
     }
@@ -220,12 +221,14 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
                 return null;
               },
               suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.black54,
-                  size: 20,
+                icon: Transform.scale(
+                  scale: 20 / 24.0,
+                  child: HugeIcon(
+                    icon: _obscurePassword
+                        ? HugeIcons.strokeRoundedViewOff
+                        : HugeIcons.strokeRoundedView,
+                    color: Colors.black54,
+                  ),
                 ),
                 onPressed: () {
                   setState(() {

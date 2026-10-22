@@ -43,6 +43,11 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
   int? _vehicleId;
   int? _activityTabIndex;
 
+  /// Bumped on a company switch: the tab on screen is rebuilt from scratch,
+  /// so it reloads for the new company like on first open. (Clearing the
+  /// providers alone left e.g. Attendance loading forever.)
+  int _companyGeneration = 0;
+
   static const List<String> appBarTitles = [
     'Dashboard',
     'Attendance',
@@ -57,7 +62,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
     _activityTabIndex = widget.activityTabIndex;
     if (widget.isTest) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileProvider>().fetchUserProfile();
+      context.read<ProfileProvider>().ensureLoaded();
     });
   }
 
@@ -98,7 +103,10 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
         ),
         actions: _buildProfileActions(context),
       ),
-      body: screens[_currentIndex],
+      body: KeyedSubtree(
+        key: ValueKey(_companyGeneration),
+        child: screens[_currentIndex],
+      ),
       bottomNavigationBar: SnakeNavigationBar.color(
         backgroundColor: isDarkTheme
             ? AppColors.greyShade900Color
@@ -115,12 +123,15 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
         currentIndex: _currentIndex,
         onTap: _onItemTapped,
         snakeShape: SnakeShape.indicator,
+        height: 70,
+        elevation: 8,
+        shadowColor: isDarkTheme ? Colors.black26 : Colors.grey[200]!,
         selectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
         unselectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
         items: [
@@ -155,12 +166,16 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
           final provider = context.read<CompanyProvider>();
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
-          await context.read<ProfileProvider>().fetchUserProfile(
-            forceRefresh: true,
-          );
-
-          ClearProviders.clearAllProviders(context);
+          /// Clear first, then reload: clearing resets ProfileProvider, so
+          /// fetching before it (as this used to) left the avatar/name empty.
+          await ClearProviders.clearAllProviders(context);
+          if (!mounted) return;
+          await context.read<ProfileProvider>().ensureLoaded();
+          if (!mounted) return;
           await context.read<BottomNavProvider>().refreshAll(context);
+          if (!mounted) return;
+          /// After the dashboard reload: Attendance needs its employee id.
+          setState(() => _companyGeneration++);
           CustomSnackbar.showSuccess(context, 'Switched to $companyName');
         },
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mobo_employees/features/employee/leave/widget/my_calender_widget.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../widgets/managers/index_click_common_widget/page_index_click.dart';
@@ -40,9 +41,14 @@ class _LeavePageState extends State<LeavePage> {
         context,
         listen: false,
       );
-      await leaveProvider.loadInitialOfMyCalender();
-      await leaveProvider.fetchUserUnusualDays();
-      await leaveProvider.fetchMyTimeOff();
+      if (leaveProvider.isInitialLoadDone && leaveProvider.loadError == null) {
+        /// Coming back to the page: pick up requests approved/refused or
+        /// added in Odoo meanwhile, without flashing the loader.
+        await leaveProvider.refreshInPlace();
+      } else {
+        /// First visit, or the last load failed: load everything again.
+        await leaveProvider.loadInitialOfMyCalender(isRefresh: true);
+      }
     } catch (e) {}
   }
 
@@ -92,6 +98,12 @@ class _LeavePageState extends State<LeavePage> {
   Widget buildAdministratorSelectedView() {
     return Consumer<LeavePageProvider>(
       builder: (context, provider, _) {
+        if (provider.loadError != null) {
+          return ConnectionStatusWidget(
+            error: provider.loadError,
+            onRetry: provider.refreshMyCalender,
+          );
+        }
         if (provider.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -127,7 +139,9 @@ class _LeavePageState extends State<LeavePage> {
 
               return WidgetMyTimeOffPage(
                 leaveName: item.leaveTypeName ?? "",
-                status: item.state == 'cancel'
+                status: item.state == 'draft'
+                    ? "To Submit"
+                    : item.state == 'cancel'
                     ? "Cancelled"
                     : item.state == 'confirm'
                     ? "To Approve"

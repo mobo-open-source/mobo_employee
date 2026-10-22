@@ -3,10 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/provider/manager_attendance_provider.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/service/manager_attendance_data_service.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 import '../../../../shared/widgets/filters/filter_status_row.dart';
 import '../../../../shared/widgets/search/mobo_search_bar.dart';
 import '../model/model_manager_attendance_data.dart';
+import '../../../../widgets/snackbar_widgets.dart';
+import '../widgets/attendance_create_sheet.dart';
 import '../widgets/attendance_filter_sheet.dart';
 import '../widgets/widget_shimmer_attendance_page.dart';
 
@@ -23,11 +26,25 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
   void initState() {
     super.initState();
     final provider = context.read<ManagerAttendanceProvider>();
-    if (!provider.initialLoadDone) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!provider.initialLoadDone) {
         await provider.initialLoad();
-      });
-    }
+      } else {
+        /// Returning to the tab: re-read so attendances created or edited
+        /// in the Odoo backend meanwhile are shown.
+        await provider.refreshPage();
+      }
+    });
+  }
+
+  Future<void> _createAttendance(ManagerAttendanceProvider provider) async {
+    final created = await AttendanceCreateSheet.show(
+      context,
+      canSeeAllEmployees: provider.canSeeAllAttendances,
+    );
+    if (!created || !mounted) return;
+    CustomSnackbar.showSuccess(context, "Attendance created");
+    await provider.refreshPage();
   }
 
   @override
@@ -35,6 +52,21 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      floatingActionButton: Consumer<ManagerAttendanceProvider>(
+        builder: (context, provider, _) {
+          if (!provider.canCreateAttendance) return const SizedBox.shrink();
+          return FloatingActionButton(
+            tooltip: "New Attendance",
+            backgroundColor: AppColors.appColor,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            onPressed: () => _createAttendance(provider),
+            child: const Icon(Icons.add),
+          );
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -58,6 +90,12 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
             Expanded(
               child: Consumer<ManagerAttendanceProvider>(
                 builder: (context, provider, _) {
+                  if (provider.loadError != null) {
+                    return ConnectionStatusWidget(
+                      error: provider.loadError,
+                      onRetry: provider.refreshPage,
+                    );
+                  }
                   if (provider.isFirstLoad) {
                     return const WidgetShimmerAttendancePage();
                   }
@@ -93,7 +131,9 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
                       const SizedBox(height: 10),
                       Expanded(
                         child: Card(
-                          color: Colors.white,
+                          color: isDarkTheme
+                              ? AppColors.greyShade800Color
+                              : Colors.white,
                           elevation: 1,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -180,6 +220,7 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (widget.level >= widget.groupOrder.length) {
       final data = widget.provider.getGroupAttendance(widget.accumulatedDomain);
 
@@ -251,7 +292,10 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.colorE5E7EB, width: 1),
+            border: Border.all(
+              color: isDark ? Colors.white12 : AppColors.colorE5E7EB,
+              width: 1,
+            ),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Theme(
@@ -267,7 +311,7 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
                   fontWeight: FontWeight.bold,
                   color: expandedIndexes.contains(index)
                       ? AppColors.appColor
-                      : AppColors.color000000,
+                      : (isDark ? Colors.white : AppColors.color000000),
                 ),
               ),
 
@@ -320,12 +364,21 @@ class AttendanceTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelStyle = GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: isDark ? Colors.white : AppColors.color000000,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.colorF9FAFB,
+        color: isDark ? Colors.grey[700] : AppColors.colorF9FAFB,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AppColors.colorE5E7EB, width: 1),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.colorE5E7EB,
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
@@ -333,33 +386,21 @@ class AttendanceTableHeader extends StatelessWidget {
             flex: 6,
             child: Text(
               'Employee',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.color000000,
-              ),
+              style: labelStyle,
             ),
           ),
           Expanded(
             flex: 3,
             child: Text(
               'Check In',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.color000000,
-              ),
+              style: labelStyle,
             ),
           ),
           Expanded(
             flex: 3,
             child: Text(
               'Check Out',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.color000000,
-              ),
+              style: labelStyle,
             ),
           ),
           Expanded(
@@ -367,11 +408,7 @@ class AttendanceTableHeader extends StatelessWidget {
             child: Text(
               'Worked',
               textAlign: TextAlign.right,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.color000000,
-              ),
+              style: labelStyle,
             ),
           ),
         ],
@@ -386,8 +423,24 @@ class _MonthAttendanceList extends StatelessWidget {
 
   const _MonthAttendanceList({required this.records, required this.provider});
 
+  /// Whether [r] was checked out on a later day than it was checked in
+  /// (an overnight shift), so the check-out needs its own date.
+  bool _endsOnLaterDay(AttendanceRecord r) {
+    final checkIn = r.checkIn;
+    final checkOut = r.checkOut;
+    if (checkIn == null || checkOut == null) return false;
+    return DateUtils.dateOnly(checkOut).isAfter(DateUtils.dateOnly(checkIn));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.color000000;
+    final dateStyle = GoogleFonts.manrope(
+      fontSize: 10,
+      fontWeight: FontWeight.w500,
+      color: isDark ? Colors.white70 : AppColors.color6A7282,
+    );
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -460,12 +513,22 @@ class _MonthAttendanceList extends StatelessWidget {
 
                 Expanded(
                   flex: 5,
-                  child: Text(
-                    name,
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      /// The day of the attendance, so records of different
+                      /// days can be told apart.
+                      Text(provider.formatDate(r.checkIn), style: dateStyle),
+                    ],
                   ),
                 ),
 
@@ -473,15 +536,30 @@ class _MonthAttendanceList extends StatelessWidget {
                   flex: 3,
                   child: Text(
                     provider.formatTimeAMPM(r.checkIn),
-                    style: GoogleFonts.manrope(fontSize: 11),
+                    style: GoogleFonts.manrope(fontSize: 11, color: textColor),
                   ),
                 ),
 
                 Expanded(
                   flex: 3,
-                  child: Text(
-                    provider.formatTimeAMPM(r.checkOut),
-                    style: GoogleFonts.manrope(fontSize: 11),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        provider.formatTimeAMPM(r.checkOut),
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          color: textColor,
+                        ),
+                      ),
+                      if (_endsOnLaterDay(r)) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          provider.formatDate(r.checkOut, pattern: 'MMM dd'),
+                          style: dateStyle,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
 
@@ -493,6 +571,7 @@ class _MonthAttendanceList extends StatelessWidget {
                     style: GoogleFonts.manrope(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
+                      color: textColor,
                     ),
                   ),
                 ),

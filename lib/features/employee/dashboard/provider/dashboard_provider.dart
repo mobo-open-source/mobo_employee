@@ -4,10 +4,12 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/employee/dashboard/model/model_dashboard_data.dart';
 import 'package:mobo_employees/features/employee/dashboard/model/model_hr_leave_dashboard.dart';
 import 'package:mobo_employees/features/employee/dashboard/service/administrator_dashboard_service.dart';
+import 'package:mobo_employees/shared/services/payslip_service.dart';
 import 'package:odoo_rpc/odoo_rpc.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +26,10 @@ class DashboardProvider extends ChangeNotifier {
   bool _initialized = false;
   bool isCheckInOutLoading = false;
   bool isInitialized = false;
+
+  /// Set when the last full load failed (e.g. server unreachable); the page
+  /// shows it in place of the shimmer until a retry succeeds.
+  Object? loadError;
 
   HrLeave? recentLeave;
 
@@ -42,12 +48,28 @@ class DashboardProvider extends ChangeNotifier {
 
   String userName = "";
   String greetings = "";
+
+  /// Date of the next public holiday ("Today" while one is on), and its name.
   String? nextLeaveDate;
+  String? nextHolidayName;
   String? checkInn;
   String? checkOut;
   String currentTime = "";
 
   DateTime? checkInDateTime;
+  DateTime? checkOutDateTime;
+
+  /// Payslip figures, or null when Payroll isn't installed or the user may
+  /// not read payslips (the dashboard hides its payslip cards then).
+  EmployeePayslipSummary? payslipSummary;
+
+  /// Whether the employee's last attendance was checked out today.
+  bool get isCheckedOutToday {
+    final out = checkOutDateTime;
+    if (isAttendanceCheckedIn || out == null) return false;
+    final now = DateTime.now();
+    return out.year == now.year && out.month == now.month && out.day == now.day;
+  }
   double workedHoursTillNow = 0;
 
   Timer? _timer;
@@ -115,11 +137,15 @@ class DashboardProvider extends ChangeNotifier {
     await fetchUserDetails(session!.userId!);
     setGreetings();
 
-    await fetchNextLeaveDate();
+    await fetchNextPublicHoliday();
     await fetchLeaveBalance(session.userId!);
     await fetchLeaveRequestCount();
     await fetchYesterdayWorkingHours();
     await fetchRecentLeave();
+    /// Reconcile the locally cached check-in flag with the server's actual
+    /// attendance state — it may have changed from another device/admin
+    /// action while the app was closed.
+    await getAttendeeState();
 
     buildDashboardModel();
 
@@ -133,15 +159,19 @@ class DashboardProvider extends ChangeNotifier {
 
     _recentLeaveTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       if (employeeId == null) return;
-      final latest = await AdministratorDashboardService.fetchLatestLeave(
-        employeeId: employeeId,
-      );
-      if (latest == null) return;
-      if (_lastRecentLeaveId != latest.id) {
-        recentLeave = latest;
-        _lastRecentLeaveId = latest.id;
-        buildDashboardModel();
-        safeNotify();
+      try {
+        final latest = await AdministratorDashboardService.fetchLatestLeave(
+          employeeId: employeeId,
+        );
+        if (latest == null) return;
+        if (_lastRecentLeaveId != latest.id) {
+          recentLeave = latest;
+          _lastRecentLeaveId = latest.id;
+          buildDashboardModel();
+          safeNotify();
+        }
+      } catch (_) {
+        /// Background poll; the next tick tries again.
       }
     });
   }
@@ -195,23 +225,32 @@ class DashboardProvider extends ChangeNotifier {
         }
         await prefs.setBool(_attendanceKey, true);
       } else if (state == "checked_out") {
-        final lastCheckInStr = response['last_check_in'];
         isAttendanceCheckedIn = false;
         await prefs.setBool(_attendanceKey, false);
-        if (lastCheckInStr != null) {
-          final lastCheckIn = DateTime.parse("${lastCheckInStr}Z").toLocal();
-          checkInDateTime = lastCheckIn;
-          checkOut = DateFormat("hh:mm a").format(lastCheckIn);
-          currentTime = checkOut!;
+        /// The response only carries the last check-in, which used to be
+        /// shown as the check-out time; read the real one.
+        final lastCheckOut = employeeId == null
+            ? null
+            : await AdministratorDashboardService.fetchLastCheckOut(
+                employeeId!,
+              );
+        checkOutDateTime = lastCheckOut;
+        if (lastCheckOut != null) {
+          checkOut = DateFormat("hh:mm a").format(lastCheckOut);
           /// Save exact local time
           await prefs.setString(
             _checkOutTimeKey,
-            lastCheckIn.toIso8601String(),
+            lastCheckOut.toIso8601String(),
           );
-          notifyListeners();
+        } else {
+          checkOut = null;
+          await prefs.remove(_checkOutTimeKey);
         }
+        notifyListeners();
       }
-    } catch (e) {}
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+    }
   }
 
   /// Check In function
@@ -220,6 +259,17 @@ class DashboardProvider extends ChangeNotifier {
     try {
       isCheckInOutLoading = true;
       safeNotify();
+
+      /// The check-in/out endpoint only toggles whatever state the server
+      /// is currently in, so a stale local flag could make this call
+      /// actually check the user OUT. Re-sync from the server first and
+      /// bail out if we're already checked in rather than blindly toggling.
+      await getAttendeeState();
+      if (isAttendanceCheckedIn) {
+        CustomSnackbar.showError(context, "You are already checked in.");
+        return;
+      }
+
       final success = await AdministratorDashboardService.checkIn(employeeId!);
       if (success) {
         final prefs = await SharedPreferences.getInstance();
@@ -233,6 +283,7 @@ class DashboardProvider extends ChangeNotifier {
           checkInDateTime!.toIso8601String(),
         );
         await prefs.remove(_checkOutTimeKey);
+        checkOutDateTime = null;
         CustomSnackbar.showSuccess(context, "Checked Inn at $checkInn");
       }
     } catch (e) {
@@ -281,6 +332,7 @@ class DashboardProvider extends ChangeNotifier {
 
     if (checkOutStored != null) {
       final outTime = DateTime.parse(checkOutStored);
+      checkOutDateTime = outTime;
       checkOut = DateFormat('hh:mm a').format(outTime);
     }
 
@@ -310,12 +362,21 @@ class DashboardProvider extends ChangeNotifier {
       isCheckInOutLoading = true;
       safeNotify();
 
+      /// See performCheckIn: re-sync from the server before toggling so a
+      /// stale local flag can't cause this call to actually check-in.
+      await getAttendeeState();
+      if (!isAttendanceCheckedIn) {
+        CustomSnackbar.showError(context, "You are not currently checked in.");
+        return;
+      }
+
       final success = await AdministratorDashboardService.checkOut(employeeId!);
       if (success) {
         final prefs = await SharedPreferences.getInstance();
 
         isAttendanceCheckedIn = false;
-        checkOut = DateFormat("hh:mm a").format(DateTime.now());
+        checkOutDateTime = DateTime.now();
+        checkOut = DateFormat("hh:mm a").format(checkOutDateTime!);
         currentTime = checkOut!;
 
         await prefs.setBool(_attendanceKey, false);
@@ -357,6 +418,16 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
+  /// Pushes a profile edit (name/photo) made elsewhere in the app into the
+  /// dashboard's greeting card, which otherwise keeps the values it fetched
+  /// once at load time until the next full dashboard refresh.
+  void applyProfileChange({String? name, Uint8List? imageBytes}) {
+    if (name != null && name.trim().isNotEmpty) userName = name.trim();
+    if (imageBytes != null) userImageBytes = imageBytes;
+    buildDashboardModel();
+    safeNotify();
+  }
+
   /// Fetch user details
   Future<void> fetchUserDetails(int userId) async {
     final List users = await _callKw({
@@ -386,50 +457,46 @@ class DashboardProvider extends ChangeNotifier {
         "00:00:00";
   }
 
-  /// Fetch Next Leave Date
-  Future<void> fetchNextLeaveDate() async {
+  /// Next public holiday, from the holidays set in Odoo (Working Schedules →
+  /// Public Holidays). `hr.leave.get_unusual_days`, used before, flags every
+  /// non-working day, so the card mostly showed the coming weekend.
+  Future<void> fetchNextPublicHoliday() async {
     try {
-      final now = DateTime.now();
-      final fromDate = formatOdooDateTime(now);
-      final toDate = formatOdooDateTime(
-        DateTime(now.year + 1, now.month, now.day),
+      final holiday = await AdministratorDashboardService.fetchNextPublicHoliday(
+        employeeId: employeeId,
       );
-      final result = await _callKw({
-        'model': 'hr.leave',
-        'method': 'get_unusual_days',
-        'args': [fromDate, toDate],
-        'kwargs': {},
-      });
-      if (result == null || result is! Map) {
+      if (holiday == null) {
         nextLeaveDate = null;
-        safeNotify();
-        return;
-      }
-
-      final today = DateTime(now.year, now.month, now.day);
-      final Map<String, bool> unusualDays = result.map(
-        (key, value) => MapEntry(key.toString(), value == true),
-      );
-
-      final sortedDates =
-          unusualDays.keys
-              .map(DateTime.parse)
-              .where((d) => d.isAfter(today))
-              .toList()
-            ..sort();
-      nextLeaveDate = null;
-      for (final date in sortedDates) {
-        final key = formatDate(date);
-        if (unusualDays[key] == true) {
-          nextLeaveDate = formatToMonthDay(key);
-          break;
-        }
+        nextHolidayName = null;
+      } else {
+        final today = DateTime.now();
+        final startDay = DateTime(
+          holiday.start.year,
+          holiday.start.month,
+          holiday.start.day,
+        );
+        nextLeaveDate =
+            startDay.isAfter(DateTime(today.year, today.month, today.day))
+            ? DateFormat('MMM dd').format(startDay)
+            : 'Today';
+        nextHolidayName = holiday.name.isEmpty ? null : holiday.name;
       }
       safeNotify();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       nextLeaveDate = null;
+      nextHolidayName = null;
       safeNotify();
     }
+  }
+
+  /// Payslip cards' figures; see [payslipSummary].
+  Future<void> fetchPayslipSummary() async {
+    final id = employeeId;
+    payslipSummary = id == null
+        ? null
+        : await PayslipService.fetchEmployeeSummary(id);
+    safeNotify();
   }
 
   /// Recent Leave Status
@@ -441,6 +508,7 @@ class DashboardProvider extends ChangeNotifier {
       _lastRecentLeaveId = recentLeave?.id;
       safeNotify();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       recentLeave = null;
     }
   }
@@ -451,6 +519,7 @@ class DashboardProvider extends ChangeNotifier {
           await AdministratorDashboardService.fetchLeaveRequestCount();
       safeNotify();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       leaveRequestCount = 0;
       safeNotify();
     }
@@ -522,45 +591,83 @@ class DashboardProvider extends ChangeNotifier {
 
       safeNotify();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       leaveBalance = 0;
       safeNotify();
     }
   }
 
 
+  /// Re-reads the leave figures on the dashboard — pending request count,
+  /// latest request, balance — in place, without the loading shimmer, so a
+  /// request submitted, approved or refused since the last visit shows up.
+  Future<void> refreshLeaveStats() async {
+    final session = await OdooSessionManager.getCurrentSession();
+    final userId = session?.userId;
+    if (userId == null) return;
+
+    try {
+      await Future.wait([
+        fetchLeaveRequestCount(),
+        fetchRecentLeave(),
+        fetchLeaveBalance(userId),
+      ]);
+    } catch (_) {
+      /// In-place refresh: figures that couldn't be re-read (server
+      /// unreachable) keep their last loaded values.
+    }
+    buildDashboardModel();
+    safeNotify();
+  }
+
   /// Refresh Dashboard
+  ///
+  /// The first call loads everything behind the shimmer. Later non-forced
+  /// calls (returning to the dashboard tab) only refresh the leave figures
+  /// via [refreshLeaveStats]; pull-to-refresh passes [isRefresh] to reload
+  /// it all. After a failed load, every call retries the full load.
   Future<void> refreshDashboard({bool isRefresh = false}) async {
     if (isRefresh == false) {
-      if (isDashboardNewDataLoading) return;
+      if (isDashboardNewDataLoading && loadError == null) {
+        await refreshLeaveStats();
+        return;
+      }
     }
 
     isDashboardLoading = true;
     isDashboardNewDataLoading = true;
+    loadError = null;
     dashboard = DashboardModel.initial();
     safeNotify();
 
     clearDashboard();
 
-    final session = await OdooSessionManager.getCurrentSession();
-    if (session?.userId != null) {
-      await fetchUserDetails(session!.userId!);
-      setGreetings();
+    try {
+      final session = await OdooSessionManager.getCurrentSession();
+      if (session?.userId != null) {
+        await fetchUserDetails(session!.userId!);
+        setGreetings();
+        safeNotify();
+        await fetchNextPublicHoliday();
+        await fetchPayslipSummary();
+        await fetchLeaveBalance(session.userId!);
+        await fetchYesterdayWorkingHours();
+
+        await fetchLeaveRequestCount();
+
+        await fetchYesterdayWorkingHours();
+        await fetchRecentLeave();
+        await getAttendeeState();
+        buildDashboardModel();
+        startClock();
+      }
+    } catch (e) {
+      loadError = e;
+    } finally {
+      isDashboardLoading = false;
+      isDashboardNewDataLoading = true;
       safeNotify();
-      await fetchNextLeaveDate();
-      await fetchLeaveBalance(session.userId!);
-      await fetchYesterdayWorkingHours();
-
-      await fetchLeaveRequestCount();
-
-      await fetchYesterdayWorkingHours();
-      await fetchRecentLeave();
-      await getAttendeeState();
-      buildDashboardModel();
-      startClock();
     }
-    isDashboardLoading = false;
-    isDashboardNewDataLoading = true;
-    safeNotify();
   }
 
   ///Productive Hours
@@ -619,6 +726,7 @@ class DashboardProvider extends ChangeNotifier {
       notifyListeners();
       safeNotify();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       yesterdayWorkingHours = 0;
       safeNotify();
     }
@@ -682,6 +790,7 @@ class DashboardProvider extends ChangeNotifier {
     _recentLeaveTimer = null;
     employeeId = null;
     dashboard = DashboardModel.initial();
+    loadError = null;
 
     isDashboardLoading = false;
     isDashboardNewDataLoading = false;
@@ -694,6 +803,7 @@ class DashboardProvider extends ChangeNotifier {
     userImageBytes = null;
 
     checkInDateTime = null;
+    checkOutDateTime = null;
     checkInn = null;
     checkOut = null;
     currentTime = "";
@@ -703,6 +813,8 @@ class DashboardProvider extends ChangeNotifier {
     leaveRequestCount = 0;
     yesterdayWorkingHours = 0;
     nextLeaveDate = null;
+    nextHolidayName = null;
+    payslipSummary = null;
     recentLeave = null;
     _lastRecentLeaveId = null;
     final prefs = await SharedPreferences.getInstance();

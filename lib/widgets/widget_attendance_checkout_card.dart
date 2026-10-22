@@ -11,11 +11,11 @@ class WidgetAttendanceCheckoutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
-
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.whiteColor,
+            color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -41,7 +41,7 @@ class WidgetAttendanceCheckoutCard extends StatelessWidget {
                   child: HugeIcon(
                     icon: HugeIcons.strokeRoundedCheckmarkCircle04,
                     size: 22,
-                    color: AppColors.color000000,
+                    color: isDark ? Colors.white : AppColors.color000000,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -57,6 +57,7 @@ class WidgetAttendanceCheckoutCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : AppColors.color101828,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -95,8 +96,14 @@ class WidgetAttendanceCheckoutCard extends StatelessWidget {
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.color000000,
-                            side: BorderSide(color: AppColors.color000000),
+                            foregroundColor: isDark
+                                ? Colors.white
+                                : AppColors.color000000,
+                            side: BorderSide(
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.color000000,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -112,8 +119,12 @@ class WidgetAttendanceCheckoutCard extends StatelessWidget {
                           icon: const Icon(Icons.login),
                           label: const Text("Check In"),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.color000000,
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark
+                                ? Colors.white
+                                : AppColors.color000000,
+                            foregroundColor: isDark
+                                ? Colors.black87
+                                : Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),

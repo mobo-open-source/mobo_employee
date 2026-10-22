@@ -286,8 +286,8 @@ class _MoboTypeaheadFieldState<T> extends State<MoboTypeaheadField<T>> {
       decorationBuilder: (ctx, child) => Material(
         key: _popupKey,
         type: MaterialType.card,
-        elevation: 6,
-        borderRadius: BorderRadius.circular(12),
+        elevation: 4,
+        borderRadius: BorderRadius.circular(16),
         color: isDark ? AppColors.popupDark : Colors.white,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: widget.popupMaxHeight),

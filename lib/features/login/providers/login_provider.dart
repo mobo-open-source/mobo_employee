@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:mobo_employees/core/exceptions/app_exceptions.dart';
 import 'package:mobo_employees/core/models/appsession.dart';
+import 'package:mobo_employees/core/models/database_expiry.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
 import 'package:mobo_employees/core/utils/server_url_utils.dart';
@@ -13,7 +15,20 @@ import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
-enum LoginResult { success, twoFactorRequired, invalidCredentials, networkError }
+enum LoginResult {
+  success,
+  twoFactorRequired,
+  invalidCredentials,
+  networkError,
+
+  /// The database's subscription has expired; [LoginProvider.errorMessage]
+  /// says so.
+  databaseExpired,
+
+  /// The database lacks the Employee, Attendance or Time Off module;
+  /// [LoginProvider.errorMessage] names the missing ones.
+  modulesMissing,
+}
 
 class LoginProvider with ChangeNotifier {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -260,6 +275,10 @@ class LoginProvider with ChangeNotifier {
     required String sessionId,
   }) async {
     try {
+      /// Also reached after 2FA and when switching accounts, where the
+      /// session came from `get_session_info` rather than a password login.
+      DatabaseExpiry.ensureActive(sessionInfo);
+
       final Map<String, dynamic> userCompanies =
           sessionInfo['user_companies'] as Map<String, dynamic>;
 
@@ -659,6 +678,12 @@ class LoginProvider with ChangeNotifier {
       }
       errorMessage = 'Login failed. Please check your credentials.';
       return LoginResult.invalidCredentials;
+    } on DatabaseExpiredException catch (e) {
+      errorMessage = e.message;
+      return LoginResult.databaseExpired;
+    } on RequiredModulesMissingException catch (e) {
+      errorMessage = e.message;
+      return LoginResult.modulesMissing;
     } on SocketException catch (e) {
       if (e.toString().contains('Network is unreachable')) {
         errorMessage =

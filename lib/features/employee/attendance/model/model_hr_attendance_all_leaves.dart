@@ -27,7 +27,9 @@ class ModelHrAttendanceAllLeaves {
       displayName: json['display_name'] ?? '',
       dateFrom: DateTime.parse(json['date_from']),
       dateTo: DateTime.parse(json['date_to']),
-      leaveType: ModelAllLeaveType.fromList(json['holiday_status_id']),
+      leaveType: ModelAllLeaveType.fromList(
+        json['holiday_status_id'] ?? json['work_entry_type_id'],
+      ),
       state: json['state'] ?? "",
       color: json['color'] ?? 0,
       flags: ModelAllLeaveFlags(
@@ -78,10 +80,13 @@ class ModelAllRequestUnit {
   });
 
   factory ModelAllRequestUnit.fromJson(Map<String, dynamic> json) {
+    /// Odoo 20 dropped request_unit_half/hours; derive them from the type's
+    /// request unit the same way Odoo 19 computed them.
+    final unit = json['work_entry_type_request_unit'];
     return ModelAllRequestUnit(
-      halfDay: json['request_unit_half'],
-      hours: json['request_unit_hours'],
-      fromPeriod: json['request_date_from_period'],
+      halfDay: json['request_unit_half'] ?? unit == 'half_day',
+      hours: json['request_unit_hours'] ?? unit == 'hour',
+      fromPeriod: json['request_date_from_period'] ?? "",
       toPeriod: json['request_date_to_period'] ?? "",
     );
   }

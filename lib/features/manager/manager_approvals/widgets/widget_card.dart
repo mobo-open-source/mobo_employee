@@ -9,6 +9,7 @@ class DashboardStatCard extends StatelessWidget {
   final String count;
   final String title;
   final String subtitle;
+  final int titleMaxLines;
 
   const DashboardStatCard({
     super.key,
@@ -17,10 +18,12 @@ class DashboardStatCard extends StatelessWidget {
     required this.color,
     required this.title,
     required this.subtitle,
+    this.titleMaxLines = 1,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -32,9 +35,11 @@ class DashboardStatCard extends StatelessWidget {
             spreadRadius: -3,
           ),
         ],
-        color: AppColors.whiteColor,
+        color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.colorEDEDEB),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
@@ -51,7 +56,7 @@ class DashboardStatCard extends StatelessWidget {
                 style: GoogleFonts.manrope(
                   fontSize: 20,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.color000000,
+                  color: isDark ? Colors.white : AppColors.color000000,
                 ),
               ),
             ],
@@ -59,12 +64,12 @@ class DashboardStatCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             title,
-            maxLines: 1,
+            maxLines: titleMaxLines,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.manrope(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.color616161,
+              color: isDark ? Colors.white70 : AppColors.color616161,
             ),
           ),
           const SizedBox(height: 6),
@@ -74,7 +79,7 @@ class DashboardStatCard extends StatelessWidget {
             style: GoogleFonts.manrope(
               fontSize: 10,
               fontWeight: FontWeight.w400,
-              color: AppColors.Color4E4E4E,
+              color: isDark ? Colors.white60 : AppColors.Color4E4E4E,
             ),
           ),
         ],

@@ -272,18 +272,41 @@ class LoginTextField extends StatelessWidget {
           fontWeight: FontWeight.w400,
           color: Colors.black.withOpacity(.4),
         ),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: HugeIcon(icon: prefixIcon, size: 20),
+        prefixIcon: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: Transform.scale(
+              scale: 20 / 24.0,
+              child: HugeIcon(icon: prefixIcon, color: Colors.black54),
+            ),
+          ),
         ),
         prefixIconColor: WidgetStateColor.resolveWith(
           (states) => states.contains(WidgetState.disabled)
               ? Colors.black26
               : Colors.black54,
         ),
+        // Built like the prefix above: a 48x48 box with the glyph centred in
+        // it, so the error icon comes out the same size as the prefix
+        // instead of whatever size `InputDecoration` gives a bare icon.
         suffixIcon: hasError
-            ? Icon(Icons.error_outline, color: Colors.red, size: 20)
+            ? SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlertCircle,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ),
+              )
             : suffixIcon,
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 48,
+          minHeight: 48,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -500,14 +523,28 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
                   isEmpty: (effectiveValue == null || effectiveValue.isEmpty),
                   decoration: InputDecoration(
                     enabled: isEnabled,
-                    prefixIcon: Icon(Icons.storage, size: 20),
-                    prefixIconColor: WidgetStateColor.resolveWith(
-                      (states) => states.contains(WidgetState.disabled)
-                          ? Colors.black26
-                          : Colors.black54,
+                    prefixIcon: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: HugeIcon(
+                          icon: HugeIcons.strokeRoundedDatabase,
+                          color: isEnabled ? Colors.black54 : Colors.black26,
+                        ),
+                      ),
                     ),
                     suffixIcon: showErrorIcon
-                        ? Icon(Icons.error, color: Colors.red[900], size: 20)
+                        ? SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedAlertCircle,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                            ),
+                          )
                         : InkWell(
                             borderRadius: BorderRadius.circular(20),
                             onTap: () {
@@ -517,14 +554,22 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
                                 _hideDropdown();
                               }
                             },
-                            child: Icon(
-                              _overlayEntry == null
-                                  ? Icons.keyboard_arrow_down
-                                  : Icons.keyboard_arrow_up,
-                              size: 20,
-                              color: isEnabled
-                                  ? Colors.black54
-                                  : Colors.black26,
+                            child: SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: Center(
+                                child: Transform.scale(
+                                  scale: 20 / 24.0,
+                                  child: HugeIcon(
+                                    icon: _overlayEntry == null
+                                        ? HugeIcons.strokeRoundedArrowDown01
+                                        : HugeIcons.strokeRoundedArrowUp01,
+                                    color: isEnabled
+                                        ? Colors.black54
+                                        : Colors.black26,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                     border: OutlineInputBorder(
@@ -569,35 +614,42 @@ class LoginErrorDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        child: error != null
-            ? Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error, color: Colors.white, size: 18),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        error!,
-                        style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
+    /// At least 40 high, so the form below doesn't jump when a short message
+    /// appears, but free to grow: a longer one (e.g. "This database has
+    /// expired …") used to overflow the old fixed 40 and get clipped.
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 320),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: error != null
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error, color: Colors.white, size: 18),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          error!,
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              )
-            : const SizedBox.shrink(),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }
@@ -607,7 +659,7 @@ class LoginErrorDisplay extends StatelessWidget {
 class LoginUrlTextField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
-  final IconData prefixIcon;
+  final dynamic prefixIcon;
   final bool enabled;
   final String? Function(String?)? validator;
   final bool hasError;
@@ -781,10 +833,13 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
             /// Server icon
             Padding(
               padding: const EdgeInsets.only(left: 12, right: 8),
-              child: Icon(
-                widget.prefixIcon,
-                size: 20,
-                color: widget.enabled ? Colors.black54 : Colors.black26,
+              child: Transform.scale(
+                scale: 20 / 24.0,
+                child: HugeIcon(
+                  icon: widget.prefixIcon,
+                  size: 20,
+                  color: widget.enabled ? Colors.black54 : Colors.black26,
+                ),
               ),
             ),
             /// Protocol dropdown
@@ -839,8 +894,20 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
           ],
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        // Centred in a fixed box: `InputDecoration` forces the suffix to at
+        // least 48x48, and a bare `HugeIcon` SVG stretches to fill that.
         suffixIcon: widget.hasError
-            ? Icon(Icons.error_outline, color: Colors.red, size: 20)
+            ? SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlertCircle,
+                    color: Colors.red,
+                    size: 18,
+                  ),
+                ),
+              )
             : widget.isLoading
             ? Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -876,6 +943,7 @@ class LoginButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool isLoading;
   final Widget? loadingWidget;
+  final bool isEnabled;
 
   const LoginButton({
     super.key,
@@ -883,14 +951,17 @@ class LoginButton extends StatelessWidget {
     this.onPressed,
     this.isLoading = false,
     this.loadingWidget,
+    this.isEnabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isInteractive = isEnabled && !isLoading && onPressed != null;
+
     return SizedBox(
-      height: 48,
+      height: 52,
       child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
+        onPressed: isInteractive ? onPressed : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
@@ -899,6 +970,7 @@ class LoginButton extends StatelessWidget {
           overlayColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -908,8 +980,9 @@ class LoginButton extends StatelessWidget {
             : Text(
                 text,
                 style: GoogleFonts.manrope(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
                 ),
               ),
       ),

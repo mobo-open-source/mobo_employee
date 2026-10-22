@@ -50,6 +50,8 @@ class CommonDialog extends StatelessWidget {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      elevation: 0,
+      shadowColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -175,25 +177,27 @@ class CommonDialog extends StatelessWidget {
               children: [
                 if (secondaryLabel != null && onSecondary != null) ...[
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: onSecondary,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: onSecondary,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+                          ),
+                          backgroundColor: isDark
+                              ? const Color(0xFF1E1E1E)
+                              : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        backgroundColor: isDark
-                            ? const Color(0xFF1E1E1E)
-                            : Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      child: Text(
-                        secondaryLabel!,
-                        style: TextStyle(
-                          color: isDark ? Colors.grey[300] : Colors.black87,
+                        child: Text(
+                          secondaryLabel!,
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[300] : Colors.black87,
+                          ),
                         ),
                       ),
                     ),
@@ -201,19 +205,22 @@ class CommonDialog extends StatelessWidget {
                   const SizedBox(width: 12),
                 ],
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: onPrimary,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryBg,
-                      foregroundColor: primaryFg,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: onPrimary,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryBg,
+                        foregroundColor: primaryFg,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      child: Text(primaryLabel),
                     ),
-                    child: Text(primaryLabel),
                   ),
                 ),
               ],

@@ -5,6 +5,7 @@ import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 
 class WidgetManagerTimeOffViewPage extends StatelessWidget {
@@ -13,6 +14,14 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (provider.timeOffLoadError != null) {
+      return ConnectionStatusWidget(
+        error: provider.timeOffLoadError,
+        onRetry: provider.fetchTimeOffDetails,
+      );
+    }
 
     /// Initial load for TimeOff
     if (provider.isTimeOffLoading) {
@@ -48,7 +57,7 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
                     "No Timeoff Records Found",
                     style: TextStyle(
                       fontSize: 18,
-                      color: AppColors.blackColor,
+                      color: isDark ? Colors.white : AppColors.blackColor,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0,
                     ),
@@ -93,7 +102,7 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
               : item.state == "refuse"
               ? "Refused"
               : 'To Approve',
-          actionName: majorVersion == 19
+          actionName: majorVersion >= 19
               ? "Validate"
               : item.state == "validate1"
               ? "Validate"

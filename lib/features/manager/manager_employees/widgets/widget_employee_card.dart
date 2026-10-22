@@ -20,10 +20,12 @@ class WidgetEmployeeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final detailColor = isDark ? Colors.white70 : AppColors.color6A7282;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.greyShade800Color : Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -85,7 +87,7 @@ class WidgetEmployeeCard extends StatelessWidget {
                     HugeIcon(
                       icon: HugeIcons.strokeRoundedCall02,
                       size: 11,
-                      color: AppColors.color6A7282,
+                      color: detailColor,
                     ),
                     SizedBox(width: 6),
                     Text(
@@ -93,7 +95,7 @@ class WidgetEmployeeCard extends StatelessWidget {
                       style: GoogleFonts.manrope(
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
-                        color: AppColors.color6A7282,
+                        color: detailColor,
                       ),
                     ),
                   ],
@@ -105,7 +107,7 @@ class WidgetEmployeeCard extends StatelessWidget {
                     HugeIcon(
                       icon: HugeIcons.strokeRoundedMail01,
                       size: 11,
-                      color: AppColors.color6A7282,
+                      color: detailColor,
                     ),
                     SizedBox(width: 6),
                     Expanded(
@@ -114,7 +116,7 @@ class WidgetEmployeeCard extends StatelessWidget {
                         style: GoogleFonts.manrope(
                           fontSize: 11,
                           fontWeight: FontWeight.w400,
-                          color: AppColors.color6A7282,
+                          color: detailColor,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

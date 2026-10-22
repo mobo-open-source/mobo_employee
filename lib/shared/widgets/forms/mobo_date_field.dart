@@ -15,6 +15,9 @@ class MoboDateField extends StatelessWidget {
   final bool isDark;
   final bool clearable;
 
+  /// Validation message shown under the field; also outlines it in red.
+  final String? errorText;
+
   const MoboDateField({
     super.key,
     required this.label,
@@ -24,6 +27,7 @@ class MoboDateField extends StatelessWidget {
     this.isRequired = false,
     this.hintText = 'Select date',
     this.clearable = false,
+    this.errorText,
   });
 
   Future<void> _pick(BuildContext context) async {
@@ -42,6 +46,17 @@ class MoboDateField extends StatelessWidget {
         _buildLabel(),
         const SizedBox(height: 8),
         _buildDateBox(context),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText!,
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.error,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -81,6 +96,9 @@ class MoboDateField extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.inputFill(isDark),
           borderRadius: BorderRadius.circular(12),
+          border: errorText != null
+              ? Border.all(color: AppColors.error)
+              : null,
         ),
         child: Row(
           children: [

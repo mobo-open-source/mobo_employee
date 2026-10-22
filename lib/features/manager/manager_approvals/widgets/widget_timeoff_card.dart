@@ -37,10 +37,13 @@ class WidgetTimeOffCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lowerCaseStatus = status.toLowerCase();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.color000000;
+    final detailColor = isDark ? Colors.white70 : AppColors.color6A7282;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.greyShade800Color : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -55,7 +58,7 @@ class WidgetTimeOffCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           /// ───── Profile Image ─────
-          _profileImage(imageBytes: imageBytes),
+          _profileImage(imageBytes: imageBytes, isDark: isDark),
 
           const SizedBox(width: 12),
 
@@ -79,7 +82,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.color000000,
+                              color: titleColor,
                             ),
                           ),
                           const SizedBox(height: 3),
@@ -91,7 +94,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
-                              color: AppColors.color000000,
+                              color: titleColor,
                             ),
                           ),
                         ],
@@ -110,7 +113,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                   style: GoogleFonts.manrope(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
-                    color: AppColors.color6A7282,
+                    color: detailColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -125,7 +128,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
-                          color: AppColors.color6A7282,
+                          color: detailColor,
                         ),
                       ),
                       TextSpan(
@@ -133,7 +136,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                         style: GoogleFonts.manrope(
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
-                          color: AppColors.color6A7282,
+                          color: detailColor,
                         ),
                       ),
                     ],
@@ -203,6 +206,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   elevation: 0,
+                                  shadowColor: Colors.transparent,
                                 ),
                                 child: isValidating
                                     ? const SizedBox(
@@ -234,34 +238,41 @@ class WidgetTimeOffCard extends StatelessWidget {
     );
   }
 
-  Widget _profileImage({required Uint8List? imageBytes}) {
+  Widget _profileImage({
+    required Uint8List? imageBytes,
+    required bool isDark,
+  }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 50,
         height: 60,
-        color: AppColors.colorEDEDEB,
+        color: isDark ? Colors.grey[700] : AppColors.colorEDEDEB,
         child: imageBytes != null
             ? Image.memory(
                 imageBytes!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallbackAvatar(),
+                errorBuilder: (_, __, ___) => _fallbackAvatar(isDark),
               )
-            : _fallbackAvatar(),
+            : _fallbackAvatar(isDark),
       ),
     );
   }
 
-  Widget _fallbackAvatar() {
+  Widget _fallbackAvatar(bool isDark) {
     return Container(
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: AppColors.colorEDEDEB,
+        color: isDark ? Colors.grey[700] : AppColors.colorEDEDEB,
         borderRadius: BorderRadius.circular(15),
       ),
       alignment: Alignment.center,
-      child: Icon(Icons.person, size: 26, color: AppColors.color000000),
+      child: Icon(
+        Icons.person,
+        size: 26,
+        color: isDark ? Colors.white : AppColors.color000000,
+      ),
     );
   }
 

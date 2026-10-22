@@ -276,7 +276,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                 borderRadius: BorderRadius.circular(4),
               ),
               elevation: 0,
-              shadowColor: AppTheme.primaryColor.withAlpha((0.3 * 255).toInt()),
+              shadowColor: Colors.transparent,
             ),
             child: Text(
               'Get Started',

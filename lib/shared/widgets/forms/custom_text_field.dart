@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:mobo_employees/core/const/all_design.dart';
+
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String labelText;
@@ -85,13 +87,11 @@ class CustomTextField extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
                 color: Theme.of(context).primaryColor,
-                width: 1,
+                width: 2,
               ),
             ),
             filled: true,
-            fillColor: isDark
-                ? const Color(0xFF2A2A2A)
-                : const Color(0xffF8FAFB),
+            fillColor: AppColors.inputFill(isDark),
           ),
           validator: validator,
         ),

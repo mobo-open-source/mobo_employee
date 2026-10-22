@@ -1,4 +1,5 @@
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/utils/odoo_binary_utils.dart';
 
 /// Service for fetching products with pagination and search
 /// Used by ProductSelectorBottomSheet for API-based product loading
@@ -58,7 +59,8 @@ class ProductSearchService {
         },
       });
 
-      final products = (result as List).cast<Map<String, dynamic>>();
+      final products = (normalizeOdooBinaries(result) as List)
+          .cast<Map<String, dynamic>>();
 
       return products;
     } catch (e) {

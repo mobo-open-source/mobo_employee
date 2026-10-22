@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/themeData.dart';
 
 /// Common search field + filter button, used instead of ad-hoc per-screen
 /// search bars so every list view looks and behaves the same.
@@ -32,14 +33,7 @@ class MoboSearchBar extends StatefulWidget {
 }
 
 class _MoboSearchBarState extends State<MoboSearchBar> {
-  static final List<BoxShadow> _designShadow = [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.04),
-      offset: const Offset(3, 11),
-      blurRadius: 8.5,
-      spreadRadius: -3,
-    ),
-  ];
+  static const List<BoxShadow> _designShadow = [AppShadows.searchShadow];
 
   static const double _height = 48;
   static const double _radius = 12;

@@ -79,7 +79,11 @@ class HrLeave {
       employeeId = employee[0] ?? 0;
       employeeName = employee[1]?.toString() ?? '';
     }
-    final holiday = json['holiday_status_id'];
+    final holiday = json['holiday_status_id'] ?? json['work_entry_type_id'];
+    /// Odoo 20 renamed leave_type_request_unit and dropped
+    /// request_unit_half/hours (Odoo 19 derived them from the unit).
+    final requestUnit =
+        json['leave_type_request_unit'] ?? json['work_entry_type_request_unit'];
     int holidayStatusId = 0;
     String holidayStatusName = '';
 
@@ -96,9 +100,9 @@ class HrLeave {
       employeeId: employeeId,
       employeeName: employeeName,
 
-      leaveTypeRequestUnit: json['leave_type_request_unit'] ?? '',
-      requestUnitHours: json['request_unit_hours'] ?? false,
-      requestUnitHalf: json['request_unit_half'] ?? false,
+      leaveTypeRequestUnit: requestUnit ?? '',
+      requestUnitHours: json['request_unit_hours'] ?? requestUnit == 'hour',
+      requestUnitHalf: json['request_unit_half'] ?? requestUnit == 'half_day',
 
       requestDateFrom: json['request_date_from'] != null
           ? DateTime.tryParse(json['request_date_from'])
@@ -123,7 +127,9 @@ class HrLeave {
       requestDateToPeriod: json['request_date_to_period'] ?? '',
 
       holidayStatusRequiresAllocation:
-          json['holiday_status_requires_allocation'] ?? false,
+          json['holiday_status_requires_allocation'] ??
+          json['work_entry_type_requires_allocation'] ??
+          false,
 
       holidayStatusId: holidayStatusId,
       holidayStatusName: holidayStatusName,

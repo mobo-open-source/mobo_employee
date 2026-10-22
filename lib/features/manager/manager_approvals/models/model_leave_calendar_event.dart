@@ -25,8 +25,14 @@ class LeaveCalendarEvent {
 
   /// ONLY fromJson
   factory LeaveCalendarEvent.fromJson(Map<String, dynamic> json) {
-    final DateTime? from = _parseOdooDate(json['start_datetime']);
-    final DateTime? to = _parseOdooDate(json['stop_datetime']);
+    /// Odoo 20 replaced start/stop_datetime with the request's start/end
+    /// dates (the end date is inclusive).
+    final DateTime? from = _parseOdooDate(
+      json['start_datetime'] ?? json['request_date_from'],
+    );
+    final DateTime? to = _parseOdooDate(
+      json['stop_datetime'] ?? json['request_date_to'],
+    );
 
     return LeaveCalendarEvent(
       id: json['id'] ?? 0,
@@ -85,9 +91,20 @@ class LeaveCalendarEvent {
     return text;
   }
 
+  /// Odoo sends datetimes as naive UTC strings ("2026-10-25 18:30:00").
+  /// Parsed as-is they read as local time, so a leave starting at local
+  /// midnight (18:30 UTC the day before, e.g. Odoo 20's full-day requests)
+  /// landed on the previous day in the calendar.
   static DateTime? _parseOdooDate(dynamic v) {
     if (v == null || v == false) return null;
-    return DateTime.tryParse(v.toString())?.toLocal();
+    final raw = v.toString().trim();
+    if (raw.isEmpty) return null;
+    /// Date-only values have no clock to shift; Dart can't parse "…Z" on them.
+    final needsUtcMarker =
+        raw.contains(':') &&
+        !raw.endsWith('Z') &&
+        !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(raw);
+    return DateTime.tryParse(needsUtcMarker ? '${raw}Z' : raw)?.toLocal();
   }
 
   static String _formatDate(DateTime? d) {

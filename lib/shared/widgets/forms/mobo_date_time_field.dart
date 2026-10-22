@@ -1,0 +1,166 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:intl/intl.dart';
+import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/widgets/mobo_date_picker.dart';
+
+/// Labeled date + time field: tapping opens [MoboDatePicker], then the time
+/// picker. Matches [MoboDateField]'s look, for datetime fields such as an
+/// attendance's check-in/check-out.
+class MoboDateTimeField extends StatelessWidget {
+  final String label;
+  final bool isRequired;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onChanged;
+  final String hintText;
+  final bool isDark;
+  final bool clearable;
+
+  /// Validation message shown under the field; also outlines it in red.
+  final String? errorText;
+
+  const MoboDateTimeField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.isDark = false,
+    this.isRequired = false,
+    this.hintText = 'Select date & time',
+    this.clearable = false,
+    this.errorText,
+  });
+
+  Future<void> _pick(BuildContext context) async {
+    final initial = value ?? DateTime.now();
+    final date = await MoboDatePicker.show(
+      context: context,
+      initialDate: initial,
+    );
+    if (date == null || !context.mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      builder: (context, child) {
+        final base = Theme.of(context);
+        return Theme(
+          data: base.copyWith(
+            colorScheme: base.colorScheme.copyWith(
+              primary: AppColors.appColor,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (time == null) return;
+
+    onChanged(
+      DateTime(date.year, date.month, date.day, time.hour, time.minute),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: label,
+            style: GoogleFonts.manrope(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : const Color(0xFF7F7F7F),
+            ),
+            children: isRequired
+                ? [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: AppColors.error,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildBox(context),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText!,
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.error,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBox(BuildContext context) {
+    final hasValue = value != null;
+    return InkWell(
+      onTap: () => _pick(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppColors.inputFill(isDark),
+          borderRadius: BorderRadius.circular(12),
+          border: errorText != null ? Border.all(color: AppColors.error) : null,
+        ),
+        child: Row(
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedClock01,
+              size: 20,
+              color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hasValue
+                    ? DateFormat('MMM dd, yyyy  hh:mm a').format(value!)
+                    : hintText,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.manrope(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: hasValue
+                      ? (isDark ? Colors.white : Colors.black)
+                      : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
+                  fontStyle: hasValue ? FontStyle.normal : FontStyle.italic,
+                ),
+              ),
+            ),
+            if (clearable && hasValue)
+              GestureDetector(
+                onTap: () => onChanged(null),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedCancel01,
+                  size: 18,
+                  color: isDark ? Colors.grey[500]! : Colors.grey[400]!,
+                ),
+              )
+            else
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedArrowDown01,
+                size: 18,
+                color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

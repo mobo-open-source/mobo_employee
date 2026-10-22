@@ -145,6 +145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
                   style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
                     backgroundColor: Colors.orange[700],
                   ),
                   child: const Text('Clear Cache'),

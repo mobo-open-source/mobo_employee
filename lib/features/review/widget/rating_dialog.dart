@@ -1,184 +1,176 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../services/review_service.dart';
+
+/// In-app rating prompt.
+///
+/// A rating of 4-5 hands off to the store review flow and stops asking;
+/// 1-3 collects the score by email and backs off for six months. "Skip for
+/// Now" persists nothing, so the prompt returns on the next launch.
+const Color _dark = Color(0xFF101010);
+const Color _darkSurface = Color(0xFF1E1E1E);
+const Color _ratingStar = Color(0xFFFFC107);
+
+Color _secondaryLabelColor(bool isDark) =>
+    isDark ? Colors.grey[400]! : Colors.grey[600]!;
 
 class CustomRatingDialog extends StatefulWidget {
   final Function(double, String) onGoodReview;
   final Function(double, String) onBadReview;
 
   const CustomRatingDialog({
-    Key? key,
+    super.key,
     required this.onGoodReview,
     required this.onBadReview,
-  }) : super(key: key);
+  });
 
   @override
-  _CustomRatingDialogState createState() => _CustomRatingDialogState();
+  State<CustomRatingDialog> createState() => _CustomRatingDialogState();
 
   static Future<void> show(BuildContext context) {
     return showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => CustomRatingDialog(
-        onGoodReview: (rating, comment) async {
-          Navigator.pop(context);
-          await ReviewService().neverAskAgain();
-          ReviewService().forceRequestReview();
-        },
-        onBadReview: (rating, comment) async {
-          if (context.mounted) Navigator.pop(context);
-          await ReviewService().markFeedbackGiven();
-          ReviewService().sendEmailFeedback(rating, comment);
-        },
-      ),
+      builder: (context) {
+        return CustomRatingDialog(
+          /// 4-5 stars — hand off to the store review flow and stop asking.
+          onGoodReview: (rating, comment) async {
+            Navigator.pop(context);
+            await ReviewService().neverAskAgain();
+            await ReviewService().forceRequestReview();
+          },
+
+          /// 1-3 stars — collect the feedback by email and back off 6 months.
+          onBadReview: (rating, comment) async {
+            Navigator.pop(context);
+            await ReviewService().postponeReview(const Duration(days: 180));
+            await ReviewService().sendEmailFeedback(rating, comment);
+          },
+        );
+      },
     );
   }
 }
 
 class _CustomRatingDialogState extends State<CustomRatingDialog> {
   double _rating = 5.0;
-  final TextEditingController _commentController = TextEditingController();
 
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
+  void _submit() {
+    if (_rating >= 4) {
+      widget.onGoodReview(_rating, '');
+    } else {
+      widget.onBadReview(_rating, '');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).primaryColor;
+
+    /// The action button inverts in dark mode — a near-black fill would
+    /// disappear against the dark card.
+    final Color actionBackground = isDark ? Colors.white : _dark;
+    final Color actionForeground = isDark ? _dark : Colors.white;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "How's your experience?",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.manrope(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      backgroundColor: isDark ? _darkSurface : Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "How's your experience ?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : _dark,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Your feedback helps us improve\nand serve you better.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+                color: _secondaryLabelColor(isDark),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            /// Filled stars are solid gold; the remainder are gold outlines.
+            RatingBar(
+              initialRating: _rating,
+              minRating: 1,
+              itemCount: 5,
+              itemSize: 42,
+              allowHalfRating: false,
+              glow: false,
+              itemPadding: const EdgeInsets.symmetric(horizontal: 2),
+              ratingWidget: RatingWidget(
+                full: const Icon(
+                  Icons.star_rounded,
+                  color: _ratingStar,
+                ),
+                half: const Icon(
+                  Icons.star_half_rounded,
+                  color: _ratingStar,
+                ),
+                empty: const Icon(
+                  Icons.star_border_rounded,
+                  color: _ratingStar,
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                "Your feedback helps us improve\nand serve you better.",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.manrope(
-                  fontSize: 16,
-                  color: isDark ? Colors.white70 : Colors.grey[600],
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 32),
+              onRatingUpdate: (rating) => setState(() => _rating = rating),
+            ),
+            const SizedBox(height: 28),
 
-              RatingBar.builder(
-                initialRating: 5,
-                minRating: 1,
-                direction: Axis.horizontal,
-                allowHalfRating: false,
-                itemCount: 5,
-                itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
-                unratedColor: Colors.grey[200],
-                itemSize: 45,
-                itemBuilder: (context, _) =>
-                    const Icon(Icons.star_rounded, color: Color(0xFFFFC107)),
-                onRatingUpdate: (rating) {
-                  setState(() => _rating = rating);
-                },
-              ),
-
-              AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                child: Visibility(
-                  visible: _rating < 4,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: TextField(
-                      controller: _commentController,
-                      maxLines: 3,
-                      style: GoogleFonts.manrope(fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: 'Any comments or feedback? (Optional)',
-                        hintStyle: GoogleFonts.manrope(color: Colors.grey),
-                        filled: true,
-                        fillColor: isDark ? Colors.grey[850] : Colors.grey[50],
-                        contentPadding: const EdgeInsets.all(16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: primaryColor,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  backgroundColor: actionBackground,
+                  foregroundColor: actionForeground,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 32),
-
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_rating >= 4) {
-                      widget.onGoodReview(_rating, _commentController.text);
-                    } else {
-                      widget.onBadReview(_rating, _commentController.text);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Submit',
-                    style: GoogleFonts.manrope(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
+                child: const Text(
+                  'Submit',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
-              const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 4),
 
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Skip for Now',
-                  style: GoogleFonts.manrope(
-                    fontSize: 16,
-                    color: Colors.grey[500],
-                    fontWeight: FontWeight.w500,
-                  ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: _secondaryLabelColor(isDark),
+              ),
+              child: Text(
+                'Skip for Now',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  decoration: TextDecoration.underline,
+                  decorationColor: _secondaryLabelColor(isDark),
+                  color: _secondaryLabelColor(isDark),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

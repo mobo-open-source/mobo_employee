@@ -7,12 +7,12 @@ class AttendancePageShimmer extends StatelessWidget {
   const AttendancePageShimmer({super.key, this.isDarkTheme = false});
 
   Color get _baseColor =>
-      isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade300;
+      isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade200;
 
   Color get _highlightColor =>
-      isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade100;
+      isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade50;
 
-  Widget _box({double height = 20, double width = double.infinity}) {
+  Widget _box({double height = 20, double width = double.infinity, double radius = 16}) {
     return Shimmer.fromColors(
       baseColor: _baseColor,
       highlightColor: _highlightColor,
@@ -21,7 +21,7 @@ class AttendancePageShimmer extends StatelessWidget {
         width: width,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(radius),
         ),
       ),
     );
@@ -42,7 +42,7 @@ class AttendancePageShimmer extends StatelessWidget {
             const SizedBox(height: 12),
             _box(height: 90), /// clock timeline
             const SizedBox(height: 12),
-            _box(height: 20, width: 180), /// title
+            _box(height: 20, width: 180, radius: 6), /// title
             const SizedBox(height: 10),
             _box(height: 120), /// monthly overview
           ],

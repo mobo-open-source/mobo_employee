@@ -21,6 +21,11 @@ class ModuleMissingError extends StatelessWidget {
         errorMessage.contains('Required App') ||
         errorMessage.contains('not installed');
 
+    final semanticColor = isMissingModule ? Colors.orange : Colors.red;
+    final semanticShade = isMissingModule
+        ? Colors.orange.shade700
+        : Colors.red.shade700;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -28,12 +33,31 @@ class ModuleMissingError extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             /// Icon
-            Icon(
-              isMissingModule ? Icons.extension_off : Icons.error_outline,
-              size: 80,
-              color: isMissingModule ? Colors.orange : Colors.red,
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 600),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: semanticColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isMissingModule
+                          ? Icons.extension_off_rounded
+                          : Icons.error_outline_rounded,
+                      size: 60,
+                      color: semanticShade,
+                    ),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
             /// Title
             Text(
@@ -48,23 +72,26 @@ class ModuleMissingError extends StatelessWidget {
 
             /// Error message
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isMissingModule
-                    ? Colors.orange.withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isMissingModule
-                      ? Colors.orange.withOpacity(0.3)
-                      : Colors.red.withOpacity(0.3),
+                  color: semanticColor.withOpacity(0.2),
                   width: 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Text(
                 errorMessage,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.8),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
@@ -73,10 +100,12 @@ class ModuleMissingError extends StatelessWidget {
             const SizedBox(height: 32),
 
             /// Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
               children: [
-                if (onRetry != null) ...[
+                if (onRetry != null)
                   OutlinedButton.icon(
                     onPressed: onRetry,
                     icon: const Icon(Icons.refresh),
@@ -84,12 +113,11 @@ class ModuleMissingError extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
-                        vertical: 12,
+                        vertical: 14,
                       ),
+                      side: BorderSide(color: theme.colorScheme.primary),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                ],
                 if (onContactAdmin != null)
                   ElevatedButton.icon(
                     onPressed: onContactAdmin,
@@ -98,8 +126,10 @@ class ModuleMissingError extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
-                        vertical: 12,
+                        vertical: 14,
                       ),
+                      backgroundColor: semanticShade,
+                      foregroundColor: Colors.white,
                     ),
                   ),
               ],

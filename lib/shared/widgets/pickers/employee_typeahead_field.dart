@@ -24,6 +24,10 @@ class EmployeeTypeaheadField<T> extends StatelessWidget {
   final String? label;
   final bool isRequired;
 
+  /// Disables the field and shows a spinner while the caller is still
+  /// loading [employees].
+  final bool isLoading;
+
   const EmployeeTypeaheadField({
     super.key,
     required this.employees,
@@ -36,6 +40,7 @@ class EmployeeTypeaheadField<T> extends StatelessWidget {
     this.hintText = 'Search employee...',
     this.label,
     this.isRequired = false,
+    this.isLoading = false,
   });
 
   Future<List<T>> _search(String pattern) async {
@@ -66,6 +71,7 @@ class EmployeeTypeaheadField<T> extends StatelessWidget {
       compareFn: compareFn,
       label: label,
       isRequired: isRequired,
+      isLoading: isLoading,
       suggestionsCallback: _search,
       unselectedLeadingIcon: Icon(Icons.person_outline_rounded,
           size: 17, color: isDark ? Colors.white38 : Colors.black38),

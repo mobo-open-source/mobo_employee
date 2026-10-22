@@ -68,7 +68,10 @@ class ManagerOverviewModel {
 
 class ManagerTodayReportModel {
   final int lateCheckIns;
-  final int payslipsGenerated;
+
+  /// Team payslips for the current month; null when Payroll isn't installed
+  /// or the user may not read payslips.
+  final int? payslipsGenerated;
   final int newLeaveRequestsForToday;
 
   ManagerTodayReportModel({
@@ -80,7 +83,7 @@ class ManagerTodayReportModel {
   factory ManagerTodayReportModel.empty() {
     return ManagerTodayReportModel(
       lateCheckIns: 0,
-      payslipsGenerated: 0,
+      payslipsGenerated: null,
       newLeaveRequestsForToday: 0,
     );
   }

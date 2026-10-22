@@ -115,7 +115,7 @@ class _MoboFormFieldState extends State<MoboFormField> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _isFocused ? AppColors.appColor : Colors.transparent,
-          width: 1.5,
+          width: 2,
         ),
       ),
       child: Stack(

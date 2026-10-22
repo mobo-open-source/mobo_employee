@@ -11,6 +11,9 @@ class WidgetRecentActivity extends StatelessWidget {
   final List<List<dynamic>> icon;
   final bool isDarkTheme;
 
+  /// Opens the screen behind this report; shows a chevron when set.
+  final VoidCallback? onTap;
+
   const WidgetRecentActivity({
     super.key,
     required this.title,
@@ -20,11 +23,12 @@ class WidgetRecentActivity extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.isDarkTheme,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
         borderRadius: BorderRadius.circular(16),
@@ -101,8 +105,23 @@ class WidgetRecentActivity extends StatelessWidget {
                 ),
               ),
             ),
+          if (onTap != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: isDarkTheme ? Colors.white54 : AppColors.color6A7282,
+              ),
+            ),
         ],
       ),
+    );
+    if (onTap == null) return card;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: card,
     );
   }
 }

@@ -10,7 +10,9 @@ class TimeOffDashboardModel {
   factory TimeOffDashboardModel.fromJson(Map<String, dynamic> json) {
     return TimeOffDashboardModel(
       hasAccrualAllocation: json['has_accrual_allocation'] ?? false,
-      allocationRequestAmount: json['allocation_request_amount'] ?? 0,
+      /// Odoo 20 renamed allocation_request_amount to allocations_number
+      allocationRequestAmount:
+          json['allocation_request_amount'] ?? json['allocations_number'] ?? 0,
     );
   }
 }

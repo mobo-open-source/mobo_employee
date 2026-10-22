@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/app/app_entry.dart';
+import 'package:mobo_employees/core/exceptions/odoo_error_mapper.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/biometric_context_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
@@ -158,6 +159,13 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
             inlineError = 'Network error';
           });
           break;
+
+        case LoginResult.databaseExpired:
+        case LoginResult.modulesMissing:
+          await HapticFeedback.heavyImpact();
+          if (!mounted) return;
+          setState(() => inlineError = provider.errorMessage);
+          break;
       }
     }
   }
@@ -298,7 +306,7 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
         return true;
       }
 
-      provider.errorMessage = 'Failed to add account: ${e.toString()}';
+      provider.errorMessage = OdooErrorMapper.authMessage(e);
       return false;
     }
   }
@@ -421,12 +429,14 @@ class _CredentialsScreenState extends State<CredentialsScreen> {
                         return null;
                       },
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          provider.obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: Colors.black54,
-                          size: 20,
+                        icon: Transform.scale(
+                          scale: 20 / 24.0,
+                          child: HugeIcon(
+                            icon: provider.obscurePassword
+                                ? HugeIcons.strokeRoundedViewOff
+                                : HugeIcons.strokeRoundedView,
+                            color: Colors.black54,
+                          ),
                         ),
                         onPressed: provider.togglePasswordVisibility,
                       ),

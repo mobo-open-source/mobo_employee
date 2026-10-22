@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_employees.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_time_off_type.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
@@ -34,6 +35,7 @@ class _WidgetManagerTimeOffAddPageState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Consumer<ManagerApprovalsProvider>(
       builder: (context, provider, _) {
         return Padding(
@@ -44,9 +46,9 @@ class _WidgetManagerTimeOffAddPageState
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Container(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.darkSurface : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -61,7 +63,7 @@ class _WidgetManagerTimeOffAddPageState
                         style: GoogleFonts.manrope(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.color000000,
+                          color: isDark ? Colors.white : AppColors.color000000,
                         ),
                       ),
                       InkWell(
@@ -72,12 +74,14 @@ class _WidgetManagerTimeOffAddPageState
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.colorF3F3F5,
+                            color: isDark
+                                ? AppColors.inputFillDark
+                                : AppColors.colorF3F3F5,
                             shape: BoxShape.circle,
                           ),
                           child: HugeIcon(
                             icon: HugeIcons.strokeRoundedCancel01,
-                            color: AppColors.color000000,
+                            color: isDark ? Colors.white : AppColors.color000000,
                             size: 18,
                           ),
                         ),
@@ -88,6 +92,9 @@ class _WidgetManagerTimeOffAddPageState
                   EmployeeTypeaheadField<Employee>(
                     label: "Employee",
                     isRequired: true,
+                    isDark: isDark,
+                    isLoading: provider.isEmployeesLoading &&
+                        provider.employees.isEmpty,
                     employees: provider.employees,
                     selectedEmployee: provider.employees
                         .where((e) => e.id == provider.selectedEmployeeId)
@@ -116,6 +123,7 @@ class _WidgetManagerTimeOffAddPageState
                   MoboFormField(
                     label: "Department",
                     readOnly: true,
+                    isDark: isDark,
                     controller: provider.departmentController,
                     hintText: "Auto-filled from employee",
                   ),
@@ -123,6 +131,7 @@ class _WidgetManagerTimeOffAddPageState
                   MoboTypeaheadField<ModelTimeOffAddTimeOffType>(
                     label: "Time Off Type",
                     isRequired: true,
+                    isDark: isDark,
                     selectedItem: provider.leaveTypes
                         .where((lt) => lt.name == provider.leaveTypeController.text)
                         .firstOrNull,
@@ -148,10 +157,18 @@ class _WidgetManagerTimeOffAddPageState
                         backgroundColor: Colors.blue.shade100,
                         child: Text(
                           lt.name.isNotEmpty ? lt.name[0].toUpperCase() : '?',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.black87 : null,
+                          ),
                         ),
                       ),
-                      title: Text(lt.name),
+                      title: Text(
+                        lt.name,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : null,
+                        ),
+                      ),
                     ),
                     onChanged: (lt) {
                       provider.leaveTypeController.text = lt?.name ?? '';
@@ -160,11 +177,13 @@ class _WidgetManagerTimeOffAddPageState
                   ),
                   const SizedBox(height: 10),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: MoboDateField(
                           label: "From Date",
                           isRequired: true,
+                          isDark: isDark,
                           value: provider.fromDate,
                           onChanged: (date) {
                             if (date != null) provider.setFromDate(date);
@@ -176,7 +195,9 @@ class _WidgetManagerTimeOffAddPageState
                         child: MoboDateField(
                           label: "To Date",
                           isRequired: true,
+                          isDark: isDark,
                           value: provider.toDate,
+                          errorText: provider.dateRangeError,
                           onChanged: (date) {
                             if (date != null) provider.setToDate(date);
                           },
@@ -187,6 +208,7 @@ class _WidgetManagerTimeOffAddPageState
                   const SizedBox(height: 10),
                   MoboFormField(
                     label: "Description",
+                    isDark: isDark,
                     controller: provider.descriptionController,
                     hintText: "Enter description here...",
                     maxLines: 4,
@@ -203,7 +225,9 @@ class _WidgetManagerTimeOffAddPageState
                               style: GoogleFonts.manrope(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w400,
-                                color: AppColors.color6A7282,
+                                color: isDark
+                                    ? Colors.white70
+                                    : AppColors.color6A7282,
                               ),
                             ),
 
@@ -218,22 +242,26 @@ class _WidgetManagerTimeOffAddPageState
                                       vertical: 10,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.colorF3F3F5,
+                                      color: isDark
+                                          ? AppColors.inputFillDark
+                                          : AppColors.colorF3F3F5,
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.insert_drive_file,
                                           size: 18,
+                                          color: isDark ? Colors.white : null,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             provider.attachedFileName!,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 13,
+                                              color: isDark ? Colors.white : null,
                                             ),
                                           ),
                                         ),
@@ -257,7 +285,9 @@ class _WidgetManagerTimeOffAddPageState
                             Container(
                               height: 45,
                               decoration: BoxDecoration(
-                                color: AppColors.colorEEEEEE,
+                                color: isDark
+                                    ? AppColors.inputFillDark
+                                    : AppColors.colorEEEEEE,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: InkWell(
@@ -274,7 +304,9 @@ class _WidgetManagerTimeOffAddPageState
                                         icon:
                                             HugeIcons.strokeRoundedAttachment01,
                                         size: 18,
-                                        color: AppColors.color000000,
+                                        color: isDark
+                                            ? Colors.white
+                                            : AppColors.color000000,
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
@@ -282,7 +314,9 @@ class _WidgetManagerTimeOffAddPageState
                                         style: GoogleFonts.manrope(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w500,
-                                          color: AppColors.color000000,
+                                          color: isDark
+                                              ? Colors.white
+                                              : AppColors.color000000,
                                         ),
                                       ),
                                     ],
@@ -305,7 +339,9 @@ class _WidgetManagerTimeOffAddPageState
                             Navigator.pop(context);
                           },
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.whiteColor,
+                            backgroundColor: isDark
+                                ? Colors.transparent
+                                : AppColors.whiteColor,
                             side: BorderSide(color: AppColors.appColor),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -351,8 +387,11 @@ class _WidgetManagerTimeOffAddPageState
                           style: ElevatedButton.styleFrom(
                             backgroundColor: provider.isSubmitEnabled
                                 ? AppColors.colorC03355
-                                : AppColors.colorD1D5DC,
+                                : (isDark
+                                    ? Colors.grey[700]!
+                                    : AppColors.colorD1D5DC),
                             elevation: 0,
+                            shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),

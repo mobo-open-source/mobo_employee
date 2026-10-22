@@ -12,6 +12,8 @@ class WidgetLeaveCalendar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dayColor = isDark ? Colors.white : AppColors.blackColor;
     final currentMonth = provider.currentMonth;
     final days = const ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
     final monthLabel = DateFormat.yMMMM().format(currentMonth);
@@ -66,9 +68,11 @@ class WidgetLeaveCalendar extends StatelessWidget {
             spreadRadius: -3,
           ),
         ],
-        color: Colors.white,
+        color: isDark ? AppColors.greyShade800Color : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.colorEDEDEB),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
+        ),
       ),
       child: Column(
         children: [
@@ -80,13 +84,14 @@ class WidgetLeaveCalendar extends StatelessWidget {
                 _navButton(
                   icon: Icons.chevron_left,
                   onTap: provider.goToPreviousMonth,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     decoration: BoxDecoration(
-                      color: AppColors.colorF3F3F5,
+                      color: isDark ? Colors.grey[700] : AppColors.colorF3F3F5,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -95,7 +100,7 @@ class WidgetLeaveCalendar extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
-                        color: AppColors.color000000,
+                        color: isDark ? Colors.white : AppColors.color000000,
                       ),
                     ),
                   ),
@@ -104,6 +109,7 @@ class WidgetLeaveCalendar extends StatelessWidget {
                 _navButton(
                   icon: Icons.chevron_right,
                   onTap: provider.goToNextMonth,
+                  isDark: isDark,
                 ),
               ],
             ),
@@ -115,11 +121,11 @@ class WidgetLeaveCalendar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _legendDot(AppColors.color007AFF, "Validated"),
+              _legendDot(AppColors.color007AFF, "Validated", dayColor),
               const SizedBox(width: 20),
-              _legendDot(AppColors.colorFFAA00, "To Approve"),
+              _legendDot(AppColors.colorFFAA00, "To Approve", dayColor),
               const SizedBox(width: 20),
-              _legendDot(AppColors.ColorF90000, "Refused"),
+              _legendDot(AppColors.ColorF90000, "Refused", dayColor),
             ],
           ),
 
@@ -128,7 +134,9 @@ class WidgetLeaveCalendar extends StatelessWidget {
           /// ───── Weekdays ─────
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.colorF8F9FA),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[700] : AppColors.colorF8F9FA,
+            ),
             child: Row(
               children: days
                   .map(
@@ -139,7 +147,9 @@ class WidgetLeaveCalendar extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.color6A7282,
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.color6A7282,
                           ),
                         ),
                       ),
@@ -221,23 +231,6 @@ class WidgetLeaveCalendar extends StatelessWidget {
                     }).toList();
                   }
 
-                  Color _eventColor(LeaveCalendarEvent e) {
-                    switch (e.state) {
-                      case 'refuse':
-                      case 'cancel':
-                        return AppColors.ColorF90000;
-                      case 'confirm':
-                        return AppColors.colorFFAA00;
-                      case 'validate':
-                        return AppColors.color007AFF;
-                      case 'validate1':
-                        return AppColors.colorFFAA00;
-
-                      default:
-                        return AppColors.greyShade500Color;
-                    }
-                  }
-
                   final eventsForDay = _eventsForDate(
                     normalizedDate,
                     provider.calendarEvents,
@@ -262,7 +255,7 @@ class WidgetLeaveCalendar extends StatelessWidget {
                                 width: 28,
                                 height: 28,
                                 decoration: BoxDecoration(
-                                  color: _isSelected(normalizedDate)
+                                  color: _isSelected(normalizedDate) && !isDark
                                       ? AppColors.white
                                       : Colors.transparent,
                                   border: Border.all(
@@ -282,10 +275,10 @@ class WidgetLeaveCalendar extends StatelessWidget {
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     color: _isToday(normalizedDate)
-                                        ? AppColors.blackColor
+                                        ? dayColor
                                         : isUnusual
                                         ? AppColors.greyShade500Color
-                                        : AppColors.blackColor,
+                                        : dayColor,
                                   ),
                                 ),
                               ),
@@ -302,7 +295,7 @@ class WidgetLeaveCalendar extends StatelessWidget {
                                 height: 6,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: _eventColor(e),
+                                  color: eventColor(e.state),
                                 ),
                               );
                             }).toList(),
@@ -333,23 +326,61 @@ class WidgetLeaveCalendar extends StatelessWidget {
 
   /// ───── Helpers ─────
 
+  /// Legend color of a time off in [state] (Odoo `hr.leave.state`).
+  static Color eventColor(String state) {
+    switch (state) {
+      case 'refuse':
+      case 'cancel':
+        return AppColors.ColorF90000;
+      case 'confirm':
+      case 'validate1':
+        return AppColors.colorFFAA00;
+      case 'validate':
+        return AppColors.color007AFF;
+      default:
+        return AppColors.greyShade500Color;
+    }
+  }
+
+  /// Label for [state], worded as in the legend.
+  static String eventStatusLabel(String state) {
+    switch (state) {
+      case 'refuse':
+        return 'Refused';
+      case 'cancel':
+        return 'Cancelled';
+      case 'confirm':
+        return 'To Approve';
+      case 'validate1':
+        return 'Second Approval';
+      case 'validate':
+        return 'Validated';
+      default:
+        return state;
+    }
+  }
+
   static Widget _navButton({
     required IconData icon,
     required VoidCallback onTap,
+    required bool isDark,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.colorF3F3F5,
+        color: isDark ? Colors.grey[700] : AppColors.colorF3F3F5,
         borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(
-        icon: Icon(icon, color: AppColors.color000000),
+        icon: Icon(
+          icon,
+          color: isDark ? Colors.white : AppColors.color000000,
+        ),
         onPressed: onTap,
       ),
     );
   }
 
-  static Widget _legendDot(Color color, String label) {
+  static Widget _legendDot(Color color, String label, Color labelColor) {
     return Row(
       children: [
         Container(
@@ -360,7 +391,11 @@ class WidgetLeaveCalendar extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w400),
+          style: GoogleFonts.manrope(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: labelColor,
+          ),
         ),
       ],
     );

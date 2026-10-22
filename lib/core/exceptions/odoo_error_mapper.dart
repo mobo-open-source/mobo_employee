@@ -1,4 +1,7 @@
+import 'package:odoo_rpc/odoo_rpc.dart';
+
 import '../services/connectivity_service.dart';
+import 'app_exceptions.dart';
 
 /// Maps raw Odoo exceptions to user-friendly messages.
 ///
@@ -6,6 +9,64 @@ import '../services/connectivity_service.dart';
 /// surface as stringified exceptions from the HTTP layer (werkzeug NotFound,
 /// KeyError on model names, etc.).
 class OdooErrorMapper {
+  /// Returns the message Odoo itself would show the user for a failed
+  /// create/write/action call — the text of the `ValidationError`,
+  /// `UserError`, `AccessError` or SQL constraint that was raised.
+  ///
+  /// `odoo_rpc` keeps the raw JSON-RPC error map on [OdooException.error];
+  /// the human-readable text lives at `error.data.message`. Falls back to
+  /// [fallback] when the error isn't an Odoo server error.
+  static String serverMessage(
+    Object error, {
+    String fallback = 'Something went wrong. Please try again.',
+  }) {
+    if (error is NoInternetException || error is ServerUnreachableException) {
+      return toUserMessage(error);
+    }
+    if (error is OdooException) {
+      final raw = error.error;
+      if (raw is Map) {
+        final data = raw['data'];
+        final message = data is Map ? data['message'] : null;
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      }
+    }
+    return fallback;
+  }
+
+  /// Standard message for a failed sign-in — logging in, adding an account
+  /// or switching to one. Never the raw exception, which for a wrong
+  /// password is a dump like `OdooException: {code: 0, message: Odoo Server
+  /// Error, data: {name: odoo.exceptions.AccessDenied, ...}}`.
+  static String authMessage(Object error) {
+    if (error is NoInternetException || error is ServerUnreachableException) {
+      return toUserMessage(error);
+    }
+    if (error is DatabaseExpiredException) return error.message;
+    if (error is RequiredModulesMissingException) return error.message;
+    final raw = error.toString().toLowerCase();
+    if (raw.contains('access denied') ||
+        raw.contains('accessdenied') ||
+        raw.contains('wrong login/password') ||
+        raw.contains('invalid login') ||
+        raw.contains('authentication failed')) {
+      return 'Incorrect email or password. Please check your login credentials.';
+    }
+    if (raw.contains('database') &&
+        (raw.contains('not exist') || raw.contains('not found'))) {
+      return 'Database not found. Please verify your database name and server configuration.';
+    }
+    if (raw.contains('timeout') ||
+        raw.contains('timed out') ||
+        raw.contains('socketexception') ||
+        raw.contains('connection')) {
+      return 'Unable to connect to the server. Please check your internet connection and try again.';
+    }
+    return 'Login failed. Please check your credentials and try again.';
+  }
+
   static String toUserMessage(Object error) {
     final raw = error.toString();
 

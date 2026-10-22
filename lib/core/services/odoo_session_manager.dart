@@ -6,11 +6,16 @@ import 'package:flutter/foundation.dart';
 import 'package:odoo_rpc/odoo_rpc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
+import '../exceptions/app_exceptions.dart';
 import '../models/appsession.dart';
+import '../models/database_expiry.dart';
+import '../utils/odoo_binary_utils.dart';
 import '../utils/server_url_utils.dart';
 import 'secure_storage_service.dart';
 import 'connectivity_service.dart';
 import 'odoo_metadata_service.dart';
+import 'required_modules_service.dart';
 
 enum LoginStatus { success, twoFactorEnabled, failed }
 
@@ -33,6 +38,21 @@ class OdooSessionManager {
   static const int _maxRetries = 3;
   static const Duration _baseDelay = Duration(milliseconds: 500);
   static const Duration _sessionCacheValidDuration = Duration(minutes: 5);
+
+  /// Without a connection timeout, a request to a server whose host is
+  /// down (no TCP reset) waits on the OS default of ~2 minutes before
+  /// failing, keeping screens on their loading shimmer the whole time.
+  /// This bounds only connection setup, not slow responses.
+  static const Duration _connectionTimeout = Duration(seconds: 12);
+
+  static OdooClient _newClient(String serverUrl, {OdooSession? sessionId}) {
+    final httpClient = HttpClient()..connectionTimeout = _connectionTimeout;
+    return OdooClient(
+      serverUrl,
+      sessionId: sessionId,
+      httpClient: IOClient(httpClient),
+    );
+  }
 
   /// Callbacks for session events
   static Function(AppSessionData)? _onSessionUpdated;
@@ -71,7 +91,7 @@ class OdooSessionManager {
       await ConnectivityService.instance.ensureServerReachable(saved.serverUrl);
 
       /// Create client using stored session ID (no invalid casts)
-      final OdooClient client = OdooClient(
+      final OdooClient client = _newClient(
         saved.serverUrl,
         sessionId: saved.odooSession,
       );
@@ -151,7 +171,7 @@ class OdooSessionManager {
       }
 
       /// Re-authenticate to get fresh session
-      final client = OdooClient(saved.serverUrl);
+      final client = _newClient(saved.serverUrl);
       final odooSession = await client.authenticate(
         saved.database,
         saved.userLogin,
@@ -217,7 +237,7 @@ class OdooSessionManager {
 
     OdooClient client;
     if (!otp) {
-      client = OdooClient(normalizedUrl);
+      client = _newClient(normalizedUrl);
     } else {
       client = odooClient!;
     }
@@ -236,7 +256,7 @@ class OdooSessionManager {
           /// A 2FA-enabled user gets a NEW client above (carrying the
           /// pending-MFA session cookie) rather than mutating the existing
           /// one, since OdooClient exposes no public session setter.
-          client = OdooClient(client.baseURL, sessionId: odooSession);
+          client = _newClient(client.baseURL, sessionId: odooSession);
         } else {
           odooSession = client.sessionId!;
         }
@@ -302,6 +322,13 @@ class OdooSessionManager {
       } catch (e) {
         if (e is MfaRequiredException) {
           return LoginStatus.twoFactorEnabled;
+        }
+
+        /// An expired database or a missing module is a verdict, not a
+        /// transient failure: don't retry it or fold it into "login failed".
+        if (e is DatabaseExpiredException ||
+            e is RequiredModulesMissingException) {
+          rethrow;
         }
 
         /// Handle HTML response error
@@ -433,7 +460,68 @@ class OdooSessionManager {
       }
     }
 
+    /// Refuse an expired database here, before any caller can save the
+    /// session: this is the one point every password sign-in passes through.
+    /// The server's own clock (Date header) decides, not the device's.
+    try {
+      DatabaseExpiry.ensureActive(sessionInfo, now: _serverTime(response));
+    } on DatabaseExpiredException {
+      await discardServerSession(client.baseURL, session.id);
+      rethrow;
+    }
+
+    /// Likewise refuse a database without the Employee, Attendance or Time
+    /// Off modules: the app has nothing to show for it. Needs the session
+    /// just opened, so it can only run after the credentials were accepted.
+    try {
+      await RequiredModules.ensureInstalled(
+        serverUrl: client.baseURL,
+        sessionId: session.id,
+      );
+    } on RequiredModulesMissingException {
+      await discardServerSession(client.baseURL, session.id);
+      rethrow;
+    }
+
     return session;
+  }
+
+  /// The server's current time from a response's `Date` header, or null.
+  static DateTime? _serverTime(http.Response response) {
+    final raw = response.headers['date'];
+    if (raw == null) return null;
+    try {
+      return HttpDate.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ends a server-side session that was opened but must not be used (an
+  /// expired database), so no authenticated session is left behind. Best
+  /// effort: the sign-in is already refused whether or not this succeeds.
+  static Future<void> discardServerSession(
+    String serverUrl,
+    String sessionId,
+  ) async {
+    if (sessionId.isEmpty) return;
+    try {
+      await http
+          .post(
+            Uri.parse('$serverUrl/web/session/destroy'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': 'session_id=$sessionId',
+            },
+            body: jsonEncode({
+              'jsonrpc': '2.0',
+              'method': 'call',
+              'params': const {},
+              'id': DateTime.now().microsecondsSinceEpoch,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
   /// Authenticate without saving (for account switching)
@@ -457,7 +545,7 @@ class OdooSessionManager {
     await ConnectivityService.instance.ensureInternetOrThrow();
     await ConnectivityService.instance.ensureServerReachable(normalizedUrl);
 
-    final client = OdooClient(normalizedUrl);
+    final client = _newClient(normalizedUrl);
 
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
@@ -485,6 +573,11 @@ class OdooSessionManager {
 
         return sessionData;
       } catch (e) {
+        if (e is DatabaseExpiredException ||
+            e is RequiredModulesMissingException) {
+          rethrow;
+        }
+
         if (e is FormatException && e.toString().contains('<html>')) {
           throw Exception(
             'Server returned HTML instead of JSON. Please check server URL.',
@@ -544,7 +637,7 @@ class OdooSessionManager {
           session.serverUrl,
         );
 
-        final client = OdooClient(session.serverUrl);
+        final client = _newClient(session.serverUrl);
         final newOdooSession = await client.authenticate(
           session.database,
           session.userLogin,
@@ -600,7 +693,7 @@ class OdooSessionManager {
       final refreshed = await refreshSession();
       if (!refreshed) {
         if (_client == null) {
-          _client = OdooClient(session.serverUrl);
+          _client = _newClient(session.serverUrl);
         }
         return _client!;
       }
@@ -624,9 +717,9 @@ class OdooSessionManager {
       OdooClient client;
       final saved = await AppSessionData.fromPrefs();
       if (saved != null) {
-        client = OdooClient(session.serverUrl, sessionId: session.odooSession);
+        client = _newClient(session.serverUrl, sessionId: session.odooSession);
       } else {
-        client = OdooClient(session.serverUrl);
+        client = _newClient(session.serverUrl);
 
         /// Retry authentication on transient failures
         for (int attempt = 1; attempt <= _maxRetries; attempt++) {
@@ -656,42 +749,73 @@ class OdooSessionManager {
       await updatedSession.saveToPrefs();
 
       return client;
-    } on NoInternetException catch (e) {
-      final client = OdooClient(session.serverUrl);
-      _client = client;
-      return client;
-    } on ServerUnreachableException catch (e) {
-      final client = OdooClient(session.serverUrl);
-      _client = client;
-      return client;
+    } on NoInternetException {
+      return _uncachedClient(session);
+    } on ServerUnreachableException {
+      return _uncachedClient(session);
     }
   }
 
-  /// Execute action with auto session refresh on auth errors
+  /// Client returned when the reachability probes fail: the request still
+  /// gets to try with the saved session, since an on-premise server can be
+  /// reachable without public internet, and if the server really is down
+  /// the request fails and [callWithSession] reports it. Not stored in
+  /// [_client], so it can't outlive the outage; it used to be stored
+  /// without the session id, which turned every call after recovery into
+  /// a "session expired" re-authentication.
+  static OdooClient _uncachedClient(AppSessionData session) =>
+      _newClient(session.serverUrl, sessionId: session.odooSession);
+
+  /// Execute action with auto session refresh on auth errors.
+  ///
+  /// Connectivity failures (see [ConnectivityService.isConnectivityError])
+  /// are rethrown as [NoInternetException] or [ServerUnreachableException]
+  /// so screens can show a "can't reach the server" state instead of
+  /// loading indefinitely.
   static Future<T> callWithSession<T>(
+    Future<T> Function(OdooClient client) action,
+  ) async {
+    try {
+      final result = await _callWithAuthRetry(action);
+      ConnectivityService.instance.reportServerReachable(true);
+      return result;
+    } catch (e, stack) {
+      if (!ConnectivityService.isConnectivityError(e)) rethrow;
+      final mapped = await ConnectivityService.instance.toConnectivityException(
+        e,
+      );
+      Error.throwWithStackTrace(mapped, stack);
+    }
+  }
+
+  static Future<T> _callWithAuthRetry<T>(
     Future<T> Function(OdooClient client) action,
   ) async {
     final client = await getClientEnsured();
 
     try {
-      return await action(client);
+      return _normalizeBinaries(await action(client));
     } catch (e) {
       /// Don't retry on connectivity issues
-      if (e is NoInternetException || e is ServerUnreachableException) {
-        rethrow;
-      }
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
 
       /// Retry once on auth errors
       if (_isAuthError(e)) {
         final refreshed = await refreshSession();
         if (refreshed) {
           final newClient = await getClientEnsured();
-          return await action(newClient);
+          return _normalizeBinaries(await action(newClient));
         } else {}
       }
 
       rethrow;
     }
+  }
+
+  /// Converts Odoo 20 binary maps in RPC results to base64 strings in place.
+  static T _normalizeBinaries<T>(T result) {
+    normalizeOdooBinaries(result);
+    return result;
   }
 
   /// Safe wrapper for callKw with automatic company context injection
@@ -906,12 +1030,39 @@ class OdooSessionManager {
     _onSessionUpdated?.call(updatedSession);
   }
 
+  /// The `allowed_company_ids` to send: [allowed] without duplicates, with
+  /// [active] included (added last when missing) and, when [activeFirst],
+  /// moved to the front, where Odoo reads the current company from.
+  static List<int> orderAllowedCompanies(
+    List<int> allowed,
+    int active, {
+    required bool activeFirst,
+  }) {
+    final ids = <int>[...allowed];
+    if (!ids.contains(active)) ids.add(active);
+    if (activeFirst) {
+      ids
+        ..remove(active)
+        ..insert(0, active);
+    }
+    return <int>{...ids}.toList();
+  }
+
   /// Call Odoo method with company context
   /// Automatically injects company_id and allowed_company_ids into the request context
+  ///
+  /// Odoo's current company (`env.company`) is the FIRST entry of
+  /// `allowed_company_ids`, and per-user data such as "my employee" is
+  /// resolved against it. The saved list keeps companies in the order they
+  /// were ticked, with the active one often last, so a call that reads the
+  /// user's own records (their time off balance, say) should pass
+  /// [activeCompanyFirst] or it gets the data of whichever company happens
+  /// to head the list — typically none.
   static Future<dynamic> callKwWithCompany(
     Map<String, dynamic> payload, {
     int? companyId,
     List<int>? allowedCompanyIds,
+    bool activeCompanyFirst = false,
   }) async {
     final map = Map<String, dynamic>.from(payload);
 
@@ -942,14 +1093,11 @@ class OdooSessionManager {
     if (selectedCompany != null) {
       ctx['company_id'] = selectedCompany;
 
-      /// Ensure selected company is in allowed companies
-      List<int> finalAllowed = [...(allowed ?? [])];
-      if (!finalAllowed.contains(selectedCompany)) {
-        finalAllowed.add(selectedCompany);
-      }
-
-      /// Deduplicate and set
-      ctx['allowed_company_ids'] = <int>{...finalAllowed}.toList();
+      ctx['allowed_company_ids'] = orderAllowedCompanies(
+        allowed ?? const [],
+        selectedCompany,
+        activeFirst: activeCompanyFirst,
+      );
     }
 
     kwargs['context'] = ctx;

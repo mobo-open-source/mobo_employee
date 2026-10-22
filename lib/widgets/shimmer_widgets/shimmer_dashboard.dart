@@ -10,16 +10,16 @@ class DashboardShimmer extends StatelessWidget {
   const DashboardShimmer({super.key, required this.isDarkTheme});
 
   Color get _baseColor =>
-      isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade300;
+      isDarkTheme ? Colors.grey.shade700 : Colors.grey.shade200;
 
   Color get _highlightColor =>
-      isDarkTheme ? Colors.grey.shade600 : Colors.grey.shade100;
+      isDarkTheme ? Colors.grey.shade600 : Colors.grey.shade50;
 
-  /// Tinted pink so the placeholder blocks stay legible against the welcome
-  /// card's solid `AppColors.appColor` background.
-  Color get _onAccentBase => const Color(0xFFD98CA1);
+  /// White with reduced opacity so the placeholder blocks stay legible
+  /// against the welcome card's solid `AppColors.appColor` background.
+  Color get _onAccentBase => Colors.white.withOpacity(0.25);
 
-  Color get _onAccentHighlight => const Color(0xFFF0C6D2);
+  Color get _onAccentHighlight => Colors.white.withOpacity(0.5);
 
   Widget _line({
     required double width,

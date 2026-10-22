@@ -16,9 +16,10 @@ class LoadingDialog {
           child: IntrinsicWidth(
             child: Card(
               color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              elevation: 8,
+              elevation: 0,
+              shadowColor: Colors.transparent,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(

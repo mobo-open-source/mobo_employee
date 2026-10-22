@@ -50,8 +50,11 @@ class FilterStatusRow extends StatelessWidget {
                 : Text(
                     'No filters applied',
                     style: TextStyle(
-                      fontSize: 12.5,
-                      color: Colors.grey[700],
+                      fontSize: 12,
+                      color: isDark
+                          ? Colors.white70
+                          : Theme.of(context).colorScheme.onSurface
+                              .withOpacity(0.7),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -82,11 +85,13 @@ class _ActiveFilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.transparent,
         border: Border.all(
-          color: isDark ? Colors.grey[400]! : Colors.black,
+          color: isDark
+              ? Colors.white.withOpacity(0.2)
+              : Colors.black.withOpacity(0.1),
         ),
         borderRadius: BorderRadius.circular(20),
       ),

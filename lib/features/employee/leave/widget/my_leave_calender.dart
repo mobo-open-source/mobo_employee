@@ -201,10 +201,11 @@ class MyLeaveCalender extends StatelessWidget {
                   case 'cancel':
                     return Colors.transparent;
 
-                  case 'confirm':
+                  /// Still awaiting approval: "To Approve" and "Second Approval".
+                  case 'confirm' || 'validate1':
                     return AppColors.colorFFAA00;
 
-                  case 'validate' || 'validate1':
+                  case 'validate':
                     return AppColors.color007AFF;
 
                   default:

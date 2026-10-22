@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import '../../../../shared/widgets/forms/mobo_date_field.dart';
 import '../../../../shared/widgets/forms/mobo_form_field.dart';
 import '../../../../shared/widgets/pickers/mobo_typeahead_field.dart';
@@ -30,6 +31,7 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Consumer<LeavePageProvider>(
       builder: (context, provider, _) {
         return Padding(
@@ -40,9 +42,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Container(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.darkSurface : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -57,7 +59,7 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                         style: GoogleFonts.manrope(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.color000000,
+                          color: isDark ? Colors.white : AppColors.color000000,
                         ),
                       ),
                       InkWell(
@@ -65,12 +67,14 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.colorF3F3F5,
+                            color: isDark
+                                ? AppColors.inputFillDark
+                                : AppColors.colorF3F3F5,
                             shape: BoxShape.circle,
                           ),
                           child: HugeIcon(
                             icon: HugeIcons.strokeRoundedCancel01,
-                            color: AppColors.color000000,
+                            color: isDark ? Colors.white : AppColors.color000000,
                             size: 18,
                           ),
                         ),
@@ -83,6 +87,7 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                     label: "Leave Type",
                     isRequired: true,
                     selectedItem: provider.modelTimeOffType,
+                    isDark: isDark,
                     hintText: "Select Leave Type",
                     emptyText: "No leave types found",
                     displayText: (item) => item.displayName,
@@ -93,7 +98,11 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                       dense: true,
                       title: Text(
                         item.displayName,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : null,
+                        ),
                       ),
                     ),
                     onChanged: (item) {
@@ -104,11 +113,13 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                   ),
                   const SizedBox(height: 10),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: MoboDateField(
                           label: "From Date",
                           isRequired: true,
+                          isDark: isDark,
                           value: provider.fromDate,
                           onChanged: (date) {
                             if (date != null) provider.setFromDate(date);
@@ -120,7 +131,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                         child: MoboDateField(
                           label: "To Date",
                           isRequired: true,
+                          isDark: isDark,
                           value: provider.toDate,
+                          errorText: provider.dateRangeError,
                           onChanged: (date) {
                             if (date != null) provider.setToDate(date);
                           },
@@ -131,6 +144,7 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                   const SizedBox(height: 10),
                   MoboFormField(
                     label: "Description",
+                    isDark: isDark,
                     controller: provider.descriptionController,
                     hintText: "Enter description here...",
                     maxLines: 4,
@@ -147,7 +161,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                               style: GoogleFonts.manrope(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w400,
-                                color: AppColors.color6A7282,
+                                color: isDark
+                                    ? Colors.white70
+                                    : AppColors.color6A7282,
                               ),
                             ),
                             if (provider.attachedFileName != null)
@@ -161,22 +177,26 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                                       vertical: 10,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.colorF3F3F5,
+                                      color: isDark
+                                          ? AppColors.inputFillDark
+                                          : AppColors.colorF3F3F5,
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.insert_drive_file,
                                           size: 18,
+                                          color: isDark ? Colors.white : null,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             provider.attachedFileName!,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 13,
+                                              color: isDark ? Colors.white : null,
                                             ),
                                           ),
                                         ),
@@ -197,7 +217,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                             Container(
                               height: 45,
                               decoration: BoxDecoration(
-                                color: AppColors.colorEEEEEE,
+                                color: isDark
+                                    ? AppColors.inputFillDark
+                                    : AppColors.colorEEEEEE,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: InkWell(
@@ -216,7 +238,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                                         icon:
                                             HugeIcons.strokeRoundedAttachment01,
                                         size: 18,
-                                        color: AppColors.color000000,
+                                        color: isDark
+                                            ? Colors.white
+                                            : AppColors.color000000,
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
@@ -224,7 +248,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                                         style: GoogleFonts.manrope(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w500,
-                                          color: AppColors.color000000,
+                                          color: isDark
+                                              ? Colors.white
+                                              : AppColors.color000000,
                                         ),
                                       ),
                                     ],
@@ -246,7 +272,9 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                             Navigator.pop(context);
                           },
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: AppColors.whiteColor,
+                            backgroundColor: isDark
+                                ? Colors.transparent
+                                : AppColors.whiteColor,
                             side: BorderSide(color: AppColors.appColor),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -318,8 +346,11 @@ class _MyTimeOffAddState extends State<MyTimeOffAdd> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: provider.isSubmitEnabled
                                 ? AppColors.colorC03355
-                                : AppColors.colorD1D5DC,
+                                : (isDark
+                                    ? Colors.grey[700]!
+                                    : AppColors.colorD1D5DC),
                             elevation: 0,
+                            shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),

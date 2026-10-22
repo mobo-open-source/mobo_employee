@@ -121,12 +121,19 @@ class CommonErrorWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: config.backgroundColor.withOpacity(0.1),
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: config.borderColor.withOpacity(0.3),
+                  color: config.borderColor.withOpacity(0.2),
                   width: 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -224,7 +231,30 @@ class CommonErrorWidget extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) {
         /// Fallback to icon if animation fails to load
         final config = _getErrorConfig();
-        return Icon(config.fallbackIcon, size: 100, color: config.primaryColor);
+        return Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: config.primaryColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    config.fallbackIcon,
+                    size: 60,
+                    color: config.primaryColor,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
       },
     );
   }

@@ -4,6 +4,7 @@ import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 
 class WidgetManagerAllocationViewPage extends StatelessWidget {
@@ -12,6 +13,13 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (provider.allocationLoadError != null) {
+      return ConnectionStatusWidget(
+        error: provider.allocationLoadError,
+        onRetry: provider.fetchAllocationDetails,
+      );
+    }
     if (provider.isAllocationLoading) {
       return ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -41,7 +49,7 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
                     "No Allocation Records Found",
                     style: TextStyle(
                       fontSize: 18,
-                      color: AppColors.blackColor,
+                      color: isDark ? Colors.white : AppColors.blackColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
