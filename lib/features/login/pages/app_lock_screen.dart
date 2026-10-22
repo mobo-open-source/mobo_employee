@@ -297,6 +297,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
               elevation: 0,
+              shadowColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),

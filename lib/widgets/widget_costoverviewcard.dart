@@ -10,6 +10,9 @@ class WidgetQuickOverview extends StatelessWidget {
   final List<List<dynamic>> icon;
   final bool isDarkTheme;
 
+  /// Opens the screen behind this figure; shows a chevron when set.
+  final VoidCallback? onTap;
+
   const WidgetQuickOverview({
     super.key,
     required this.count,
@@ -18,11 +21,12 @@ class WidgetQuickOverview extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.isDarkTheme,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
@@ -84,16 +88,35 @@ class WidgetQuickOverview extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(isDarkTheme ? 0.22 : 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: HugeIcon(icon: icon, color: color, size: 24),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(isDarkTheme ? 0.22 : 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: HugeIcon(icon: icon, color: color, size: 24),
+              ),
+              if (onTap != null) ...[
+                const SizedBox(height: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: isDarkTheme ? Colors.white54 : AppColors.color6A7282,
+                ),
+              ],
+            ],
           ),
         ],
       ),
+    );
+    if (onTap == null) return card;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: card,
     );
   }
 }

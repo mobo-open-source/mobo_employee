@@ -10,10 +10,10 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
-    final highlightColor = isDark ? Colors.grey.shade600 : Colors.grey.shade100;
-    const onAccentBase = Color(0xFFD98CA1);
-    const onAccentHighlight = Color(0xFFF0C6D2);
+    final baseColor = isDark ? Colors.grey.shade700 : Colors.grey.shade200;
+    final highlightColor = isDark ? Colors.grey.shade600 : Colors.grey.shade50;
+    final onAccentBase = Colors.white.withOpacity(0.25);
+    final onAccentHighlight = Colors.white.withOpacity(0.5);
 
     Widget line({
       required double width,

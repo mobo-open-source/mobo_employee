@@ -7,6 +7,7 @@ import 'package:mobo_employees/features/manager/manager_employees/widgets/widget
 import 'package:mobo_employees/features/manager/manager_employees/widgets/widget_employee_card_shimmer.dart';
 import 'package:mobo_employees/features/manager/manager_employees/model/model_fetch_manager_employee_details.dart'
     show ModelFetchManagerEmployeeDetails;
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 import '../../../../shared/widgets/filters/filter_status_row.dart';
 import '../../../../shared/widgets/search/mobo_search_bar.dart';
@@ -69,7 +70,12 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
 
             const SizedBox(height: 10),
             Expanded(
-              child: provider.isLoading || provider.initialLoading == false
+              child: provider.loadError != null
+                  ? ConnectionStatusWidget(
+                      error: provider.loadError,
+                      onRetry: provider.fetchEmployees,
+                    )
+                  : provider.isLoading || provider.initialLoading == false
                   ? ListView.separated(
                       itemCount: 12, /// shimmer count
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -94,7 +100,9 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
                             "No Employee Records Found",
                             style: TextStyle(
                               fontSize: 18,
-                              color: AppColors.blackColor,
+                              color: isDarkTheme
+                                  ? Colors.white
+                                  : AppColors.blackColor,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -220,15 +228,20 @@ class _AvatarFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 56,
       width: 56,
-      color: Colors.grey.shade300,
+      color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
       alignment: Alignment.center,
       child: name.isNotEmpty
           ? Text(
               name[0].toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: isDark ? Colors.white : Colors.black,
+              ),
             )
           : const Icon(Icons.person, size: 28, color: Colors.grey),
     );

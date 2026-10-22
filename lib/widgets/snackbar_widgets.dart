@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 enum SnackbarType { info, success, warning, error }
@@ -32,29 +34,24 @@ class CustomSnackbar {
 
       final colors = _getColorsForType(type, isDark);
 
+      /// Started once: the builder runs again whenever the route rebuilds.
+      Timer? autoDismiss;
+
       showDialog(
         context: context,
         barrierDismissible: true,
         barrierColor: Colors.black.withOpacity(0.1),
         builder: (dialogContext) {
-          Future.delayed(duration, () {
-            if (dialogContext.mounted) {
-              try {
-                Navigator.of(dialogContext).pop();
-              } catch (e) {}
-            }
-          });
+          final route = ModalRoute.of(dialogContext);
+          void dismiss() => _dismissOwnRoute(route);
+          autoDismiss ??= Timer(duration, dismiss);
 
           return Align(
             alignment: Alignment.bottomCenter,
             child: Dismissible(
               key: UniqueKey(),
               direction: DismissDirection.horizontal,
-              onDismissed: (direction) {
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-              },
+              onDismissed: (direction) => dismiss(),
               child: Material(
                 type: MaterialType.transparency,
                 child: Container(
@@ -119,11 +116,7 @@ class CustomSnackbar {
                       ),
 
                       GestureDetector(
-                        onTap: () {
-                          if (dialogContext.mounted) {
-                            Navigator.of(dialogContext).pop();
-                          }
-                        },
+                        onTap: dismiss,
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           child: Icon(
@@ -140,8 +133,23 @@ class CustomSnackbar {
             ),
           );
         },
-      );
+      ).whenComplete(() => autoDismiss?.cancel());
     } catch (e) {}
+  }
+
+  /// Closes this snackbar's own dialog route and nothing else. The timer, the
+  /// close button and a swipe can each fire after the dialog was already
+  /// closed (e.g. by a barrier tap) or while another route is on top; a
+  /// plain `Navigator.pop()` then closed that route instead — down to the
+  /// page itself, leaving a black screen.
+  static void _dismissOwnRoute(Route<dynamic>? route) {
+    final navigator = route?.navigator;
+    if (route == null || navigator == null || !route.isActive) return;
+    if (route.isCurrent) {
+      navigator.pop();
+    } else {
+      navigator.removeRoute(route);
+    }
   }
 
   static _SnackbarColors _getColorsForType(SnackbarType type, bool isDark) {

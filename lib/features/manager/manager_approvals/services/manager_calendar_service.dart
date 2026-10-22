@@ -1,17 +1,51 @@
 import 'dart:convert';
 
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_allocation_data.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_leave_calendar_event.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_employees.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_time_off_type.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_timeoff_data.dart';
+import 'package:mobo_employees/shared/services/time_off_type_service.dart';
 
 /// Service class for managing calendar and leave-related operations for managers.
 ///
 /// This service provides methods to fetch leave summaries, calendar events,
 /// allocation details, and perform approval actions through the Odoo backend.
 class ManagerCalendarService {
+  /// Whether [userId] holds the HR Officer or HR Manager group. Such users
+  /// are legitimate approvers company-wide under Odoo's own permission
+  /// model — not just for their literal direct reports — so approval
+  /// listings below skip the direct-reports domain restriction for them (and
+  /// the manager dashboard's leave cards follow the same rule).
+  static Future<bool> isHrManagerOrOfficer(int userId) async {
+    try {
+      final isHrManager = await OdooSessionManager.callKwWithCompany({
+        'model': 'res.users',
+        'method': 'has_group',
+        'args': [
+          [userId],
+          'hr.group_hr_manager',
+        ],
+        'kwargs': {},
+      });
+      final isHrOfficer = await OdooSessionManager.callKwWithCompany({
+        'model': 'res.users',
+        'method': 'has_group',
+        'args': [
+          [userId],
+          'hr.group_hr_user',
+        ],
+        'kwargs': {},
+      });
+      return isHrManager == true || isHrOfficer == true;
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+      return false;
+    }
+  }
+
   /// Fetches the time-off dashboard summary for the current user from Odoo.
   ///
   /// Returns a [dynamic] containing dashboard data such as leave balances and request counts.
@@ -31,244 +65,6 @@ class ManagerCalendarService {
 
       return result;
     } catch (e) {}
-  }
-
-  /// Fetches a summary of time-off balances (PTO and Compensatory) from Odoo.
-  ///
-  /// Handles logic for different Odoo versions (19, 18, and older).
-  /// Returns a [Map<String, double>] with keys like 'virtual_remaining_leaves',
-  /// 'max_leaves', 'pending_leaves', etc.
-  static Future<Map<String, double>> fetchTimeOffSummary() async {
-    final session = await OdooSessionManager.getCurrentSession();
-    final client = await OdooSessionManager.getClient();
-    final String serverVersionString = client!.sessionId!.serverVersion;
-    final int majorVersion = int.parse(serverVersionString.split('.').first);
-
-    /// ---------------- ODOO 19 ----------------
-    if (majorVersion >= 19) {
-      final result = await OdooSessionManager.callKwWithCompany(
-        {
-          'model': 'hr.employee',
-          'method': 'get_time_off_dashboard_data',
-          'args': [],
-          'kwargs': {},
-        },
-        allowedCompanyIds: [session!.companyId],
-      );
-      final allocationData = result['allocation_data'] as List<dynamic>?;
-
-      double ptoRemaining = 0;
-      double ptoMax = 0;
-      double ptoPending = 0;
-      double compRemaining = 0;
-      double compMaxLeaves = 0;
-
-      final double allocationRequestAmount =
-          (result['allocation_request_amount'] as num?)?.toDouble() ?? 0;
-
-      if (allocationData != null) {
-        for (var item in allocationData) {
-          final String leaveType = item[0];
-          final Map<String, dynamic> data = item[1];
-
-          if (leaveType == 'Paid Time Off') {
-            ptoRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-
-            ptoMax = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-
-            ptoPending = (data['leaves_requested'] as num?)?.toDouble() ?? 0;
-          }
-
-          if (leaveType == 'Compensatory Days') {
-            compRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-
-            compMaxLeaves = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-          }
-        }
-      }
-
-      return {
-        'virtual_remaining_leaves': ptoRemaining,
-        'max_leaves': ptoMax,
-        'pending_leaves': ptoPending,
-        'compensatory_leaves': compRemaining,
-        'compensatory_max_leaves': compMaxLeaves,
-        'allocation_request_amount': allocationRequestAmount,
-      };
-    }
-    /// ---------------- ODOO 18 ----------------
-    else if (majorVersion == 18) {
-      final result = await OdooSessionManager.callKwWithCompany(
-        {
-          'model': 'hr.leave.type',
-          'method': 'search_read',
-          'args': [],
-          'kwargs': {'fields': []},
-        },
-        allowedCompanyIds: [session!.companyId],
-      );
-      final requestCount = await fetchPendingAllocationRequestCount(
-        session.companyId,
-      );
-
-      double ptoRemaining = 0;
-      double ptoMax = 0;
-      double compRemaining = 0;
-      double compMaxLeaves = 0;
-
-      if (result is List) {
-        for (var item in result) {
-          final data = Map<String, dynamic>.from(item);
-          final name = data['name'];
-
-          if (name == "Paid Time Off") {
-            ptoRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-
-            ptoMax = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-          }
-
-          if (name == "Compensatory Days") {
-            compRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-            compMaxLeaves = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-          }
-        }
-      }
-
-      return {
-        'virtual_remaining_leaves': ptoRemaining,
-        'max_leaves': ptoMax,
-        'pending_leaves': 0,
-        'compensatory_leaves': compRemaining,
-        'compensatory_max_leaves': compMaxLeaves,
-        'allocation_request_amount': requestCount.toDouble(),
-      };
-    } else {
-      final result = await OdooSessionManager.callKwWithCompany(
-        {
-          'model': 'hr.leave.type',
-          'method': 'search_read',
-          'args': [],
-          'kwargs': {
-            'fields': [
-              'name',
-              'virtual_remaining_leaves',
-              'max_leaves',
-              'allocation_count',
-            ],
-          },
-        },
-        allowedCompanyIds: [session!.companyId],
-      );
-
-      double ptoRemaining = 0;
-      double ptoMax = 0;
-      double compRemaining = 0;
-      double compMaxLeaves = 0;
-
-      if (result is List) {
-        for (var item in result) {
-          final data = Map<String, dynamic>.from(item);
-          final name = data['name'];
-
-          if (name == "Paid Time Off") {
-            ptoRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-
-            ptoMax = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-          }
-
-          if (name == "Compensatory Days") {
-            compRemaining =
-                (data['virtual_remaining_leaves'] as num?)?.toDouble() ?? 0;
-
-            compMaxLeaves = (data['max_leaves'] as num?)?.toDouble() ?? 0;
-          }
-        }
-      }
-
-      final requestCount = await fetchPendingAllocationRequestCount(
-        session.companyId,
-      );
-
-      return {
-        'virtual_remaining_leaves': ptoRemaining,
-        'max_leaves': ptoMax,
-        'pending_leaves': 0,
-        'compensatory_leaves': compRemaining,
-        'compensatory_max_leaves': compMaxLeaves,
-        'allocation_request_amount': requestCount.toDouble(),
-      };
-    }
-  }
-
-  /// Fetches the count of pending leave allocation requests for the current user.
-  ///
-  /// Specifically used for Odoo versions where a direct dashboard API might not be available.
-  static Future<int> fetchPendingAllocationRequestCount(int companyIDs) async {
-    final odooClient = await OdooSessionManager.callKwWithCompany;
-    final session = await OdooSessionManager.getCurrentSession();
-    final userId = session?.userId;
-
-    int pendingAllocations = 0;
-
-    final userResponse = await odooClient(
-      {
-        'model': 'res.users',
-        'method': 'search_read',
-        'args': [
-          [
-            ['id', '=', userId],
-          ],
-        ],
-        'kwargs': {
-          'fields': ['employee_id'],
-        },
-      },
-      allowedCompanyIds: [companyIDs],
-    );
-
-    if (userResponse is! List || userResponse.isEmpty) {
-      return 0;
-    }
-
-    final employeeId = userResponse.first['employee_id']?[0];
-
-    if (employeeId == null) {
-      return 0;
-    }
-
-    /// 2️⃣ Fetch allocations for that employee
-    final allocations = await odooClient(
-      {
-        'model': 'hr.leave.allocation',
-        'method': 'search_read',
-        'args': [],
-        'kwargs': {
-          'domain': [
-            ['employee_id', '=', employeeId],
-          ],
-          'fields': [],
-        },
-      },
-      allowedCompanyIds: [companyIDs],
-    );
-
-    /// 3️⃣ Count pending allocations
-    if (allocations is List) {
-      for (var a in allocations) {
-        final state = a['state'];
-
-        if (state == 'confirm' || state == 'validate1') {
-          pendingAllocations++;
-        }
-      }
-    }
-
-    return pendingAllocations;
   }
 
   /// Fetches the base64-encoded profile image of an employee by their user ID.
@@ -343,6 +139,7 @@ class ManagerCalendarService {
       final odooClient = await OdooSessionManager.callKwWithCompany;
       final session = await OdooSessionManager.getCurrentSession();
       final userId = session?.userId.toInt();
+      final majorVersion = await OdooSessionManager.getServerMajorVersion();
       final response = await odooClient({
         'model': 'hr.leave',
         'method': 'search_read',
@@ -359,7 +156,8 @@ class ManagerCalendarService {
             'state',
             'date_from',
             'date_to',
-            'holiday_status_id',
+            /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+            majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'activity_state',
           ],
           'context': {'uid': userId},
@@ -389,13 +187,20 @@ class ManagerCalendarService {
       final int majorVersion = int.parse(serverVersionString.split('.').first);
       final userId = session?.userId.toInt();
 
+      /// Odoo 20 dropped start_datetime/stop_datetime from the calendar
+      /// report; filter and read the stored request dates instead.
       final response = await odooClient({
         'model': 'hr.leave.report.calendar',
         'method': 'search_read',
         'args': [
           [
-            ['start_datetime', '<=', _formatOdooDateTime(to)],
-            ['stop_datetime', '>=', _formatOdooDateTime(from)],
+            if (majorVersion >= 20) ...[
+              ['request_date_from', '<=', _formatOdooDate(to)],
+              ['request_date_to', '>=', _formatOdooDate(from)],
+            ] else ...[
+              ['start_datetime', '<=', _formatOdooDateTime(to)],
+              ['stop_datetime', '>=', _formatOdooDateTime(from)],
+            ],
             ['state', '!=', 'cancel'],
           ],
         ],
@@ -404,11 +209,23 @@ class ManagerCalendarService {
             'id',
             'name',
             'state',
-            'start_datetime',
-            'stop_datetime',
+            /// Plain dates: Odoo 20's request_date_hour_from/to are
+            /// timezone-shifted and end at the *next* midnight, which put
+            /// full-day leaves one day off in the calendar.
+            if (majorVersion >= 20) ...[
+              'request_date_from',
+              'request_date_to',
+            ] else ...[
+              'start_datetime',
+              'stop_datetime',
+            ],
             'display_name',
             if (majorVersion >= 19) 'duration_display',
-            if (majorVersion >= 18) 'holiday_status_id',
+            /// The report's time off type (holiday_status_id on 18/19,
+            /// work_entry_type_id on 20) is readable by Time Off Officers
+            /// only: asking for it made the whole read fail with an
+            /// AccessError for any other approver, leaving the calendar
+            /// empty. The event reads the type from display_name instead.
           ],
           'context': {'uid': userId},
         },
@@ -420,8 +237,15 @@ class ManagerCalendarService {
           .map((e) => LeaveCalendarEvent.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } catch (e, stackTrace) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       return [];
     }
+  }
+
+  /// Formats a [DateTime] into an Odoo-compatible date string.
+  static String _formatOdooDate(DateTime d) {
+    return "${d.year}-${d.month.toString().padLeft(2, '0')}-"
+        "${d.day.toString().padLeft(2, '0')}";
   }
 
   /// Formats a [DateTime] into an Odoo-compatible date-time string.
@@ -431,8 +255,14 @@ class ManagerCalendarService {
   }
 
   /// Fetches detailed time-off request records, optionally filtered by a [domain].
+  ///
+  /// [restrictToTeam] scopes plain line managers to their direct reports for
+  /// the approvals queue. Pass `false` for a user's own requests ("My Time
+  /// Off"): those are already limited by [domain], and the team scope would
+  /// hide them unless the user happened to be their own manager.
   static Future<List<ModelTimeOffData>> fetchLeaveTimeOffDetails({
     List<dynamic>? domain,
+    bool restrictToTeam = true,
   }) async {
     try {
       final odooClient = await OdooSessionManager.callKwWithCompany;
@@ -443,12 +273,34 @@ class ManagerCalendarService {
 
       final userId = session?.userId.toInt();
 
+      /// A plain line manager must only ever see their own direct reports'
+      /// leave requests here. An HR Officer/Manager is a legitimate
+      /// company-wide approver under Odoo's own permission model, so the
+      /// restriction is skipped for them — otherwise a request whose
+      /// employee doesn't have this HR user set as their literal reporting
+      /// manager (parent_id) would wrongly disappear from their queue.
+      final passedDomain = domain ?? [];
+      final canSeeCompanyWide =
+          !restrictToTeam ||
+          (userId != null && await isHrManagerOrOfficer(userId));
+      final scopedDomain = (userId == null || canSeeCompanyWide)
+          ? passedDomain
+          : (passedDomain.isEmpty
+                ? [
+                    ['employee_id.parent_id.user_id', '=', userId],
+                  ]
+                : [
+                    '&',
+                    ['employee_id.parent_id.user_id', '=', userId],
+                    ...passedDomain,
+                  ]);
+
       final result = await odooClient({
         'model': 'hr.leave',
         'method': 'search_read',
         'args': [],
         'kwargs': {
-          'domain': domain,
+          'domain': scopedDomain,
           'fields': [
             'id',
             'name',
@@ -456,12 +308,13 @@ class ManagerCalendarService {
             'date_from',
             'date_to',
             majorVersion >= 18 ? 'duration_display' : 'number_of_days_display',
-            'holiday_status_id',
+            /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+            majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'employee_id',
             'department_id',
             'can_approve',
-            if (majorVersion == 19) 'can_validate',
-            if (majorVersion == 19) 'can_refuse',
+            if (majorVersion >= 19) 'can_validate',
+            if (majorVersion >= 19) 'can_refuse',
             'create_date',
           ],
           'order': 'date_from DESC',
@@ -477,7 +330,8 @@ class ManagerCalendarService {
             (e) => ModelTimeOffData.fromJson(Map<String, dynamic>.from(e)),
           )
           .toList();
-    } catch (_) {
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       return [];
     }
   }
@@ -513,10 +367,12 @@ class ManagerCalendarService {
   /// Validates a specific leave request.
   static Future<void> actionValidate(int leaveId) async {
     final odooClient = await OdooSessionManager.callKwWithCompany;
+    final majorVersion = await OdooSessionManager.getServerMajorVersion();
 
     await odooClient({
       'model': 'hr.leave',
-      'method': 'action_validate',
+      /// Odoo 20 dropped action_validate; action_approve does both steps
+      'method': majorVersion >= 20 ? 'action_approve' : 'action_validate',
       'args': [
         [leaveId],
       ],
@@ -525,14 +381,19 @@ class ManagerCalendarService {
   }
 
   /// Fetches a list of employees for the manager to potentially add time off for.
-  static Future<List<Employee>> fetchManagerAddTimeOffEmployees() async {
+  ///
+  /// [domain] narrows the list further (e.g. to the employees an attendance
+  /// officer manages); Odoo's record rules always apply on top.
+  static Future<List<Employee>> fetchManagerAddTimeOffEmployees({
+    List<dynamic> domain = const [],
+  }) async {
     try {
       final response = await OdooSessionManager.callKwWithCompany({
         'model': 'hr.employee',
         'method': 'search_read',
         'args': [],
         'kwargs': {
-          'domain': [],
+          'domain': domain,
           'fields': [
             'id',
             'name',
@@ -568,6 +429,22 @@ class ManagerCalendarService {
       final session = await OdooSessionManager.getCurrentSession();
 
       final version = session!.odooSession.serverVersion;
+
+      /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+      if (await OdooSessionManager.getServerMajorVersion() >= 20) {
+        final records = await TimeOffTypeService.fetchSelectableTypes(
+          employeeId: employeeId,
+          query: query,
+        );
+        return records
+            .map(
+              (map) => ModelTimeOffAddTimeOffType(
+                id: map['id'] ?? 0,
+                name: map['display_name'] ?? '',
+              ),
+            )
+            .toList();
+      }
 
       final response = await odooClient({
         'model': 'hr.leave.type',
@@ -618,6 +495,56 @@ class ManagerCalendarService {
     }
   }
 
+  /// Allocation states still awaiting approval: Odoo's "To Approve" and
+  /// "Second Approval".
+  static const List<String> pendingAllocationStates = ['confirm', 'validate1'];
+
+  /// [domain] narrowed to the allocations [userId] approves.
+  ///
+  /// A plain line manager must only ever see their own direct reports'
+  /// allocations. An HR Officer/Manager is a legitimate company-wide approver
+  /// under Odoo's own permission model, so the restriction is skipped for
+  /// them (see [fetchLeaveTimeOffDetails]). The one scope behind the
+  /// Allocation tab and the Calendar tab's "Pending" card, so the two agree.
+  static Future<List<dynamic>> _allocationDomain(
+    List<dynamic> domain,
+    int? userId,
+  ) async {
+    final canSeeCompanyWide =
+        userId != null && await isHrManagerOrOfficer(userId);
+    if (userId == null || canSeeCompanyWide) return domain;
+    return domain.isEmpty
+        ? [
+            ['employee_id.parent_id.user_id', '=', userId],
+          ]
+        : [
+            '&',
+            ['employee_id.parent_id.user_id', '=', userId],
+            ...domain,
+          ];
+  }
+
+  /// Number of allocation requests awaiting approval in the Allocation tab:
+  /// the ones the manager can act on, not just their own.
+  ///
+  /// Odoo's own dashboard figure (`get_allocations_number`) counts only the
+  /// current employee's requests, which is why the "Pending" card read 0
+  /// while the tab listed requests from the team.
+  static Future<int> fetchPendingAllocationCount() async {
+    final session = await OdooSessionManager.getCurrentSession();
+    final domain = await _allocationDomain([
+      ['state', 'in', pendingAllocationStates],
+    ], session?.userId.toInt());
+
+    final count = await OdooSessionManager.callKwWithCompany({
+      'model': 'hr.leave.allocation',
+      'method': 'search_count',
+      'args': [domain],
+      'kwargs': {},
+    });
+    return count is int ? count : 0;
+  }
+
   /// Fetches leave allocation records, optionally filtered by [domain].
   static Future<List<ModelAllocationData>>
   fetchManagerLeaveAllocationDetailsView({List<dynamic>? domain}) async {
@@ -626,11 +553,13 @@ class ManagerCalendarService {
       final session = await OdooSessionManager.getCurrentSession();
       final userId = session?.userId.toInt();
 
+      final scopedDomain = await _allocationDomain(domain ?? [], userId);
+
       final result = await odooClient({
         'model': 'hr.leave.allocation',
         'method': 'search_read',
         'args': [],
-        'kwargs': {'domain': domain ?? [], 'fields': []},
+        'kwargs': {'domain': scopedDomain, 'fields': []},
         'context': {'uid': userId},
       });
 
@@ -641,9 +570,117 @@ class ManagerCalendarService {
             (e) => ModelAllocationData.fromJson(Map<String, dynamic>.from(e)),
           )
           .toList();
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+      return [];
+    }
+  }
+
+  /// Time off types an allocation can be created for — those Odoo's
+  /// allocation form offers a Time Off Officer: types requiring allocation.
+  static Future<List<ModelTimeOffAddTimeOffType>>
+  fetchAllocatableLeaveTypes() async {
+    try {
+      final majorVersion = await OdooSessionManager.getServerMajorVersion();
+
+      /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+      if (majorVersion >= 20) {
+        final response = await OdooSessionManager.callKwWithCompany({
+          'model': 'hr.work.entry.type',
+          'method': 'search_read',
+          'args': [],
+          'kwargs': {
+            'domain': [
+              ['requires_allocation', '=', true],
+              ['time_off_selectable', '=', true],
+            ],
+            'fields': ['id', 'display_name'],
+            'order': 'sequence ASC, id ASC',
+          },
+        });
+        if (response is! List) return [];
+        return response
+            .map(
+              (e) => ModelTimeOffAddTimeOffType(
+                id: e['id'] ?? 0,
+                name: e['display_name'] ?? '',
+              ),
+            )
+            .toList();
+      }
+
+      /// `requires_allocation` is Selection('yes'/'no') up to 18 and boolean
+      /// afterwards, so filter client-side to support both.
+      final response = await OdooSessionManager.callKwWithCompany({
+        'model': 'hr.leave.type',
+        'method': 'search_read',
+        'args': [],
+        'kwargs': {
+          'domain': [],
+          'fields': ['id', 'display_name', 'requires_allocation'],
+          'order': 'sequence ASC, id ASC',
+        },
+      });
+      if (response is! List) return [];
+      return response
+          .where(
+            (e) =>
+                e['requires_allocation'] == true ||
+                e['requires_allocation'] == 'yes',
+          )
+          .map(
+            (e) => ModelTimeOffAddTimeOffType(
+              id: e['id'] ?? 0,
+              name: e['display_name'] ?? '',
+            ),
+          )
+          .toList();
     } catch (_) {
       return [];
     }
+  }
+
+  /// Creates an `hr.leave.allocation`, as Odoo's Allocations > New form does
+  /// for a Time Off Officer. Odoo decides the resulting state (To Approve,
+  /// or Approved for types needing no validation) and enforces its
+  /// constraints, raising the message the caller should show.
+  static Future<int> createAllocation({
+    required int employeeId,
+    required int leaveTypeId,
+    required double numberOfDays,
+    required DateTime dateFrom,
+    DateTime? dateTo,
+    String description = '',
+  }) async {
+    final majorVersion = await OdooSessionManager.getServerMajorVersion();
+    final values = <String, dynamic>{
+      'employee_id': employeeId,
+
+      /// On 17, `employee_id` is computed from `employee_ids`, which
+      /// otherwise defaults to the *current user's* employee.
+      if (majorVersion < 18) 'holiday_type': 'employee',
+      if (majorVersion < 18)
+        'employee_ids': [
+          [
+            6,
+            0,
+            [employeeId],
+          ],
+        ],
+      TimeOffTypeService.typeField(majorVersion): leaveTypeId,
+      'number_of_days': numberOfDays,
+      'date_from': _formatOdooDate(dateFrom),
+      'date_to': dateTo == null ? false : _formatOdooDate(dateTo),
+      if (description.trim().isNotEmpty) 'name': description.trim(),
+    };
+
+    final result = await OdooSessionManager.callKwWithCompany({
+      'model': 'hr.leave.allocation',
+      'method': 'create',
+      'args': [values],
+      'kwargs': {},
+    });
+    return result as int;
   }
 
   /// Approves a specific leave allocation request.

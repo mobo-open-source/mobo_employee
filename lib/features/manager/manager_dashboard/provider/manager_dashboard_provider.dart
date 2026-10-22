@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/manager/manager_dashboard/model/model_manager_dashboard.dart';
 import 'package:mobo_employees/features/manager/manager_dashboard/service/manager_dashboard_data_service.dart';
+import 'package:mobo_employees/shared/services/payslip_service.dart';
 import 'package:provider/provider.dart';
 
 class ManagerDashboardProvider extends ChangeNotifier {
@@ -16,7 +17,16 @@ class ManagerDashboardProvider extends ChangeNotifier {
   bool _initialized = false;
   bool isInitialized = false;
 
+  /// Set when the last full load failed (e.g. server unreachable); the page
+  /// shows it in place of the shimmer until a retry succeeds.
+  Object? loadError;
+
   int? employeeId;
+
+  /// The logged-in manager's own user id, which the dashboard queries are
+  /// scoped by (see [ManagerDashboardScope]). Set by [fetchUserDetails].
+  int? currentUserId;
+
   int leaveRequestCount = 0;
   int totalEmployeeCount = 0;
   int todayAttendanceCount = 0;
@@ -24,6 +34,9 @@ class ManagerDashboardProvider extends ChangeNotifier {
   int totalTodayLeaves = 0;
   int totalLeaveRequestsCountForToday = 0;
   int lateCheckInCount = 0;
+
+  /// See [ManagerTodayReportModel.payslipsGenerated].
+  int? payslipsGenerated;
 
   int get totalEmployees => dashboard.overview.totalEmployees;
   int get todayAttendance => dashboard.overview.todayAttendance;
@@ -40,97 +53,12 @@ class ManagerDashboardProvider extends ChangeNotifier {
   String currentTime = "";
 
 
-  List<Map<String, dynamic>> todayCalendarStartHours = [];
-  List<Map<String, dynamic>> attendanceWithDayInfo = [];
-  List<Map<String, dynamic>> employeesWithCalendar = [];
+  /// Who the cards count (direct reports or everyone); read once per
+  /// session, since the user's groups don't change while they're logged in.
+  ManagerDashboardScope? _scope;
 
-  bool isCalendarStartHourLoading = false;
-  bool isAttendanceWithDayInfoLoading = false;
-
-  Future<void> fetchTodayCalendarStartHours() async {
-    isCalendarStartHourLoading = true;
-    safeNotify();
-
-    try {
-      todayCalendarStartHours =
-          await ManagerDashboardDataService.fetchTodayCalendarStartHours();
-    } catch (e) {
-      todayCalendarStartHours = [];
-    }
-
-    isCalendarStartHourLoading = false;
-    safeNotify();
-  }
-
-  Future<void> fetchAttendanceWithDayInfo() async {
-    isAttendanceWithDayInfoLoading = true;
-    safeNotify();
-
-    try {
-      attendanceWithDayInfo =
-          await ManagerDashboardDataService.fetchAttendanceWithDayInfo();
-    } catch (e) {
-      attendanceWithDayInfo = [];
-    }
-
-    isAttendanceWithDayInfoLoading = false;
-    safeNotify();
-  }
-
-  Future<void> fetchEmployeesWithCalendar() async {
-    try {
-      employeesWithCalendar =
-          await ManagerDashboardDataService.fetchEmployeesWithCalendar();
-    } catch (e) {
-      employeesWithCalendar = [];
-    }
-  }
-
-  Future<void> calculateLateCheckInsForToday() async {
-    int lateCount = 0;
-
-    /// calendarId -> startHour
-    final Map<int, double> calendarStartHourMap = {
-      for (final c in todayCalendarStartHours) c['calendar_id']: c['hour_from'],
-    };
-
-    /// employeeId -> first check-in hour
-    final Map<int, double> employeeFirstCheckInMap = {};
-
-    for (final a in attendanceWithDayInfo) {
-      final int empId = a['employee_id'];
-      final String time = a['check_in_time']; /// HH:mm
-
-      final h = int.parse(time.split(':')[0]);
-      final m = int.parse(time.split(':')[1]);
-
-      final hourValue = h + (m / 60);
-
-      /// because records are ASC, first entry = first check-in
-      employeeFirstCheckInMap.putIfAbsent(empId, () => hourValue);
-    }
-
-    for (final emp in employeesWithCalendar) {
-      final int empId = emp['employee_id'];
-      final int? calendarId = emp['calendar_id'];
-
-      if (calendarId == null) continue;
-      if (!calendarStartHourMap.containsKey(calendarId)) continue;
-      if (!employeeFirstCheckInMap.containsKey(empId)) continue;
-
-      final double startHour = calendarStartHourMap[calendarId]!;
-      final double checkInHour = employeeFirstCheckInMap[empId]!;
-
-      final bool isLate = checkInHour > startHour;
-
-      if (isLate) lateCount++;
-    }
-
-    lateCheckInCount = lateCount;
-
-    safeNotify();
-  }
-
+  /// Set while [refreshTodayCounts] runs, so ticks don't overlap.
+  bool _isRefreshingCounts = false;
 
   final today = DateTime.now();
 
@@ -173,22 +101,7 @@ class ManagerDashboardProvider extends ChangeNotifier {
 
 
     await fetchUserDetails(session!.userId!);
-
-    totalEmployeeCount =
-        await ManagerDashboardDataService.fetchTotalEmployeeCount();
-    todayAttendanceCount =
-        await ManagerDashboardDataService.fetchTodayAttendanceCount();
-    totalLeaveRequests =
-        await ManagerDashboardDataService.fetchLeaveRequestCount();
-    totalTodayLeaves =
-        await ManagerDashboardDataService.fetchTodayLeavesTotalCount();
-    totalLeaveRequestsCountForToday =
-        await ManagerDashboardDataService.fetchLeaveRequestCountForToday();
-    lateCheckInCount = 0;
-    await fetchTodayCalendarStartHours();
-    await fetchAttendanceWithDayInfo();
-    await fetchEmployeesWithCalendar();
-    await calculateLateCheckInsForToday();
+    await _loadCounts(currentUserId!);
 
     setGreetings();
 
@@ -200,6 +113,52 @@ class ManagerDashboardProvider extends ChangeNotifier {
     isInitialized = true; /// SET HERE (AFTER EVERYTHING)
 
     safeNotify();
+  }
+
+  /// Reads the figures of the cards and Today's Reports — everything that
+  /// moves during the day. Assigns them only once all have been read, so a
+  /// failure part-way never leaves a mix of old and new values.
+  Future<void> _loadCounts(int userId) async {
+    final scope = _scope ??= await ManagerDashboardDataService.resolveScope(
+      userId,
+    );
+    final counts = await Future.wait<int>([
+      ManagerDashboardDataService.fetchTotalEmployeeCount(
+        managerUserId: userId,
+      ),
+      ManagerDashboardDataService.fetchTodayAttendanceCount(scope: scope),
+      ManagerDashboardDataService.fetchLeaveRequestCount(scope: scope),
+      ManagerDashboardDataService.fetchTodayLeavesTotalCount(scope: scope),
+      ManagerDashboardDataService.fetchLeaveRequestCountForToday(scope: scope),
+      ManagerDashboardDataService.fetchLateCheckInCount(scope: scope),
+    ]);
+    totalEmployeeCount = counts[0];
+    todayAttendanceCount = counts[1];
+    totalLeaveRequests = counts[2];
+    totalTodayLeaves = counts[3];
+    totalLeaveRequestsCountForToday = counts[4];
+    lateCheckInCount = counts[5];
+  }
+
+  /// Re-reads the day's figures in place, without the loading shimmer, so
+  /// check-ins, leave requests and approvals made since the last read show
+  /// up: when returning to the dashboard, on app resume, and on a timer.
+  /// If the server can't be reached the figures keep their last values.
+  Future<void> refreshTodayCounts() async {
+    final userId = currentUserId;
+    if (userId == null || _isRefreshingCounts || isManagerDashboardLoading) {
+      return;
+    }
+    _isRefreshingCounts = true;
+    try {
+      await _loadCounts(userId);
+      buildDashboardModel();
+    } catch (_) {
+      /// In-place refresh; the next one tries again.
+    } finally {
+      _isRefreshingCounts = false;
+      safeNotify();
+    }
   }
 
   String formatPrettyDateTime(String odooDateTime) {
@@ -232,7 +191,7 @@ class ManagerDashboardProvider extends ChangeNotifier {
       ),
       todayReport: ManagerTodayReportModel(
         lateCheckIns: _safeInt(lateCheckInCount),
-        payslipsGenerated: 0,
+        payslipsGenerated: payslipsGenerated,
         newLeaveRequestsForToday: _safeInt(totalLeaveRequestsCountForToday),
       ),
     );
@@ -248,8 +207,19 @@ class ManagerDashboardProvider extends ChangeNotifier {
         : "Evening";
   }
 
+  /// Pushes a profile edit (name/photo) made elsewhere in the app into the
+  /// dashboard's greeting card, which otherwise keeps the values it fetched
+  /// once at load time until the next full dashboard refresh.
+  void applyProfileChange({String? name, Uint8List? imageBytes}) {
+    if (name != null && name.trim().isNotEmpty) userName = name.trim();
+    if (imageBytes != null) userImageBytes = imageBytes;
+    buildDashboardModel();
+    safeNotify();
+  }
+
   /// Fetch user details
   Future<void> fetchUserDetails(int userId) async {
+    currentUserId = userId;
     final List users = await _callKw({
       'model': 'res.users',
       'method': 'search_read',
@@ -278,8 +248,11 @@ class ManagerDashboardProvider extends ChangeNotifier {
       'method': 'search_read',
       'args': [],
       'kwargs': {
-        'domain': [],
+        'domain': [
+          ['user_id', '=', userId],
+        ],
         'fields': ['id'],
+        'limit': 1,
       },
     });
 
@@ -312,13 +285,22 @@ class ManagerDashboardProvider extends ChangeNotifier {
   }
 
   /// Refresh Dashboard
+  ///
+  /// Non-forced calls (returning to the dashboard tab) only re-read the
+  /// day's figures in place via [refreshTodayCounts] once the dashboard has
+  /// loaded; pull-to-refresh passes [isRefresh] to reload it all. After a
+  /// failed load, every call retries the full load.
   Future<void> refreshDashboard({bool isRefresh = false}) async {
     if (isRefresh == false) {
-      if (isManagerDashboardDataLoading) return;
+      if (isManagerDashboardDataLoading && loadError == null) {
+        await refreshTodayCounts();
+        return;
+      }
     }
 
     isManagerDashboardLoading = true;
     isManagerDashboardDataLoading = true;
+    loadError = null;
     safeNotify();
 
 
@@ -329,27 +311,21 @@ class ManagerDashboardProvider extends ChangeNotifier {
       final session = await OdooSessionManager.getCurrentSession();
       if (session?.userId != null) {
         await fetchUserDetails(session!.userId);
-        totalEmployeeCount =
-            await ManagerDashboardDataService.fetchTotalEmployeeCount();
-        todayAttendanceCount =
-            await ManagerDashboardDataService.fetchTodayAttendanceCount();
-        totalLeaveRequests =
-            await ManagerDashboardDataService.fetchLeaveRequestCount();
-        totalTodayLeaves =
-            await ManagerDashboardDataService.fetchTodayLeavesTotalCount();
-        totalLeaveRequestsCountForToday =
-            await ManagerDashboardDataService.fetchLeaveRequestCountForToday();
-        await fetchTodayCalendarStartHours();
-        await fetchAttendanceWithDayInfo();
-        await fetchEmployeesWithCalendar();
-        await calculateLateCheckInsForToday();
-         setGreetings();
+        await _loadCounts(currentUserId!);
+        payslipsGenerated = await PayslipService.fetchTeamCountForMonth(
+          managerUserId: currentUserId!,
+          month: DateTime.now(),
+        );
+        setGreetings();
         buildDashboardModel();
       }
+    } catch (e) {
+      loadError = e;
+    } finally {
       isManagerDashboardLoading = false;
       isManagerDashboardDataLoading = true;
       safeNotify();
-    } catch (e) {}
+    }
   }
 
   /// Icon Handle
@@ -380,20 +356,19 @@ class ManagerDashboardProvider extends ChangeNotifier {
     totalTodayLeaves = 0;
     totalLeaveRequestsCountForToday = 0;
     lateCheckInCount = 0;
+    payslipsGenerated = null;
 
-    /// Lists
-    todayCalendarStartHours.clear();
-    attendanceWithDayInfo.clear();
-    employeesWithCalendar.clear();
+    _scope = null;
+    ManagerDashboardDataService.reset();
 
     /// Loading flags
     isManagerDashboardLoading = false;
     isManagerDashboardDataLoading = false;
-    isCalendarStartHourLoading = false;
-    isAttendanceWithDayInfoLoading = false;
+    _isRefreshingCounts = false;
 
     /// Dashboard model
     dashboard = ModelManagerDashboard.empty();
+    loadError = null;
 
     /// Reset initialization flags
     isInitialized = false;

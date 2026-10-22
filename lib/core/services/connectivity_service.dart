@@ -1,9 +1,53 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:http/http.dart' as http;
 
 /// Centralized connectivity service to check device network status and real internet access.
 class ConnectivityService {
+  /// How long a reachability probe waits for the server to accept a TCP
+  /// connection before treating it as unreachable.
+  static const Duration _serverProbeTimeout = Duration(seconds: 5);
+
+  /// True when [error] means the request never reached the server or the
+  /// server could not answer it: device offline, DNS failure, connection
+  /// refused/reset/timed out, or a proxy's HTML error page (502/503/504)
+  /// served while Odoo itself is down. False for errors Odoo returned,
+  /// such as access rights or validation errors.
+  ///
+  /// Also matches the raw errors thrown by calls that bypass
+  /// `OdooSessionManager.callWithSession`.
+  static bool isConnectivityError(Object error) {
+    if (error is NoInternetException ||
+        error is ServerUnreachableException ||
+        error is SocketException ||
+        error is HttpException ||
+        error is TimeoutException ||
+        error is http.ClientException) {
+      return true;
+    }
+    if (error is FormatException) {
+      final message = error.message.toLowerCase();
+      final source = error.source?.toString().toLowerCase() ?? '';
+      return _looksLikeHtml(message) || _looksLikeHtml(source);
+    }
+    /// Errors re-wrapped as `Exception('Failed to …: $e')` keep only the
+    /// original's text.
+    final s = error.toString().toLowerCase();
+    return s.contains('nointernetexception') ||
+        s.contains('serverunreachableexception') ||
+        s.contains('socketexception') ||
+        s.contains('clientexception') ||
+        s.contains('connection refused') ||
+        s.contains('connection reset') ||
+        s.contains('connection closed') ||
+        s.contains('connection timed out') ||
+        s.contains('network is unreachable') ||
+        s.contains('failed host lookup');
+  }
+
+  static bool _looksLikeHtml(String s) =>
+      s.contains('<html') || s.contains('<!doctype');
   ConnectivityService._();
   static final ConnectivityService instance = ConnectivityService._();
 
@@ -106,10 +150,26 @@ class ConnectivityService {
     }
   }
 
-  /// Ensures the specified server host is reachable via DNS.
+  /// Ensures the specified server accepts connections.
+  ///
+  /// Opens (and immediately closes) a TCP connection to the server's port.
+  /// A DNS lookup alone is not enough: it always succeeds for a raw IP
+  /// address such as `http://10.0.20.120:8020`, even when nothing is
+  /// listening there. Falls back to a DNS lookup only when the URL has no
+  /// http/https scheme, since the port is unknown then.
   Future<void> ensureServerReachable(String serverUrl) async {
     try {
       final uri = Uri.parse(serverUrl);
+      final hasScheme = uri.scheme == 'http' || uri.scheme == 'https';
+      if (hasScheme && uri.host.isNotEmpty) {
+        final socket = await Socket.connect(
+          uri.host,
+          uri.port,
+          timeout: _serverProbeTimeout,
+        );
+        socket.destroy();
+        return;
+      }
       final host = uri.host.isNotEmpty ? uri.host : serverUrl;
       final res = await InternetAddress.lookup(
         host,
@@ -122,6 +182,54 @@ class ConnectivityService {
         'Unable to reach server. Please verify the URL and network.',
       );
     }
+  }
+
+  /// Probes the current server (see [ensureServerReachable]) and publishes
+  /// the result on [onServerChanged]. Returns true when no server is set.
+  Future<bool> isCurrentServerReachable() async {
+    final url = _currentServerUrl;
+    if (url == null) return true;
+    try {
+      await ensureServerReachable(url);
+      reportServerReachable(true);
+      return true;
+    } on ServerUnreachableException {
+      reportServerReachable(false);
+      return false;
+    }
+  }
+
+  /// Records the server's reachability as observed by a real request, so
+  /// [onServerChanged] and [lastKnownServerReachable] follow actual RPC
+  /// outcomes and not only the probes run on network changes.
+  void reportServerReachable(bool reachable) {
+    if (_lastServerReachable == reachable) return;
+    _lastServerReachable = reachable;
+    _serverController.add(reachable);
+  }
+
+  /// Converts a connectivity failure (see [isConnectivityError]) into a
+  /// [NoInternetException] when the device has no network at all, otherwise
+  /// a [ServerUnreachableException], and records the server as unreachable.
+  ///
+  /// Uses the device's network state rather than [hasInternetAccess]: an
+  /// on-premise Odoo server can be reachable without public internet, so a
+  /// failed public DNS probe doesn't mean the device is offline.
+  Future<Exception> toConnectivityException(Object error) async {
+    if (error is NoInternetException) return error;
+    if (error is ServerUnreachableException) {
+      reportServerReachable(false);
+      return error;
+    }
+    if (!await isNetworkAvailable()) {
+      return NoInternetException(
+        'No network connection. Please check Wi‑Fi or mobile data.',
+      );
+    }
+    reportServerReachable(false);
+    return ServerUnreachableException(
+      'Unable to connect to the server. It may be offline or restarting.',
+    );
   }
 
   /// Set current server URL to be monitored for reachability. Pass null to clear.

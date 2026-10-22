@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mobo_employees/core/const/all_design.dart';
+
 /// Custom dropdown field matching sales_app1 design
 class CustomDropdown<T> extends StatelessWidget {
   final T? value;
@@ -60,16 +62,14 @@ class CustomDropdown<T> extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: theme.primaryColor, width: 1),
+              borderSide: BorderSide(color: theme.primaryColor, width: 2),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             filled: true,
-            fillColor: isDark
-                ? const Color(0xFF2A2A2A)
-                : const Color(0xffF8FAFB),
+            fillColor: AppColors.inputFill(isDark),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,

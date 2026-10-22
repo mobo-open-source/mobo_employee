@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/manager/manager_employees/model/model_fetch_manager_employee_details.dart';
 import 'package:mobo_employees/features/manager/manager_employees/service/manager_employees_data_service.dart';
@@ -31,6 +32,10 @@ class ManagerEmployeesProvider extends ChangeNotifier {
   ModelManagerEmployeesResponse? modelManagerEmployeesResponse;
 
   String? errorMessage;
+
+  /// Set when the last load of the list failed (e.g. server unreachable);
+  /// the page shows it in place of the list until a retry succeeds.
+  Object? loadError;
 
   int currentPage = 1;
   final int pageSize = 40;
@@ -161,7 +166,13 @@ class ManagerEmployeesProvider extends ChangeNotifier {
       domain.addAll(scopeConditions);
     }
 
-    return domain;
+    /// Managers must only ever see their own direct reports here — this is
+    /// not one of the optional filter chips above, it is always enforced
+    /// regardless of which chips the user has selected, by AND-ing it with
+    /// whatever complete domain expression was built above.
+    final mandatoryScope = ["parent_id.user_id", "=", currentUserId];
+    if (domain.isEmpty) return [mandatoryScope];
+    return ['&', mandatoryScope, ...domain];
   }
 
   /// Pagination
@@ -205,6 +216,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     employees.clear();
     final offset = (currentPage - 1) * pageSize;
     isLoading = true;
+    loadError = null;
     notifyListeners();
 
     try {
@@ -222,6 +234,9 @@ class ManagerEmployeesProvider extends ChangeNotifier {
         search: currentSearch,
       );
     } catch (e) {
+      /// The list was cleared above; show a lost connection rather than
+      /// "No Employee Records Found".
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isLoading = false;
       notifyListeners();
@@ -300,6 +315,7 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     initialLoading = false;
     isLoading = false;
     errorMessage = null;
+    loadError = null;
 
     notifyListeners();
   }

@@ -1,35 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/features/manager/manager_approvals/models/model_leave_calendar_event.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
-import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_card.dart';
+import 'package:mobo_employees/features/employee/leave/widget/time_off_balance_cards.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_leave_calendar.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 
-class WidgetManagerCalenderViewPage extends StatelessWidget {
+class WidgetManagerCalenderViewPage extends StatefulWidget {
   const WidgetManagerCalenderViewPage({super.key});
+
+  @override
+  State<WidgetManagerCalenderViewPage> createState() =>
+      _WidgetManagerCalenderViewPageState();
+}
+
+class _WidgetManagerCalenderViewPageState
+    extends State<WidgetManagerCalenderViewPage> {
+  final _dayDetailsKey = GlobalKey();
+
+  /// The day whose details were last brought into view.
+  DateTime? _revealedDate;
+
+  /// The day's details sit above the calendar, so after tapping a day low in
+  /// the calendar they can be scrolled out of sight: bring them back into
+  /// view (and leave the scroll alone when they already are).
+  void _revealDayDetails(DateTime? selectedDate) {
+    if (selectedDate == _revealedDate) return;
+    _revealedDate = selectedDate;
+    if (selectedDate == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final detailsContext = _dayDetailsKey.currentContext;
+      if (detailsContext == null) return;
+      Scrollable.ensureVisible(
+        detailsContext,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
 
+    if (provider.loadError != null) {
+      return ConnectionStatusWidget(
+        error: provider.loadError,
+        onRetry: provider.loadInitialData,
+      );
+    }
+
+    final selectedDate = provider.selectedDate;
+    _revealDayDetails(selectedDate);
 
     return RefreshIndicator(
       onRefresh: provider.refreshAll,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: 8, bottom: 12),
         child: Column(
           children: [
-            /// ───── Dashboard Cards (horizontal scroll allowed) ─────
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: provider.isLoading
-                    ? List.generate(
+            /// ───── Dashboard Cards: one per time off type, as in Odoo ─────
+            provider.isLoading
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(
                         3,
                         (_) => Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -39,188 +79,270 @@ class WidgetManagerCalenderViewPage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      )
-                    : [
-                        DashboardStatCard(
-                          color: AppColors.colorC03355,
-                          icon: HugeIcons.strokeRoundedUmbrella,
-                          count: provider.remainingLeaves.toStringAsFixed(
-                            0,
-                          ), ///provider.maxLeaves.toStringAsFixed(0),
-                          title: "Paid Time Off",
-                          subtitle: "Until ${provider.paidOffValidUntil}",
-                        ),
-                        const SizedBox(width: 5),
-                        DashboardStatCard(
-                          color: AppColors.Color0095FF,
-                          icon: HugeIcons.strokeRoundedDollarCircle,
-                          count: provider.compensatoryLeaves.toStringAsFixed(
-                            0,
-                          ), /// provider.compensatoryMaxLeaves.toStringAsFixed(0),
-                          title: "Compensatory Days",
-                          subtitle: "Until ${provider.compensatoryValidUntil}",
-                        ),
-                        const SizedBox(width: 5),
-                        DashboardStatCard(
-                          color: AppColors.colorFFCC3D,
-                          icon: HugeIcons.strokeRoundedTimeQuarter,
-                          count: provider.allocationRequestCount
-                              .toStringAsFixed(0),
-                          title: "Pending",
-                          subtitle: "Request pending",
-                        ),
-                      ],
-              ),
-            ),
+                      ),
+                    ),
+                  )
+                : provider.timeOffDataFailed && provider.timeOffBalances.isEmpty
+                /// Nothing to show and nothing loaded: say so and offer a
+                /// retry, instead of leaving the area looking empty.
+                ? _BalancesUnavailable(onRetry: provider.retryTimeOffData)
+                : TimeOffBalanceCards(
+                    balances: provider.timeOffBalances,
+                    pendingCount: provider.pendingAllocationCount,
+                    pendingSubtitle: "Allocation requests",
+                  ),
 
             const SizedBox(height: 12),
 
+            /// ───── Selected day: above the calendar, where it's seen ─────
+            if (selectedDate != null && !provider.isCalendarLoading) ...[
+              _SelectedDayLeaves(
+                key: _dayDetailsKey,
+                date: selectedDate,
+                leaves: provider.selectedDateEvents,
+                onClose: provider.clearSelectedDate,
+              ),
+              const SizedBox(height: 12),
+            ],
+
             /// ───── Calendar (MUST have fixed width) ─────
-             Consumer<ManagerApprovalsProvider>(
+            Consumer<ManagerApprovalsProvider>(
               builder: (context, provider, _) {
                 if (provider.isCalendarLoading) {
-                   return CalendarShimmer();
+                  return CalendarShimmer();
                 }
                 return const WidgetLeaveCalendar();
               },
             ),
-            const SizedBox(height: 12),
-            provider.isLoading
-                ? Column(
-                    children: List.generate(
-                      3,
-                      (_) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: AppShimmer(
-                          width: double.infinity,
-                          height: 90,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  )
-                : provider.selectedDateEvents.isEmpty
-                ? const SizedBox()
-                : Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Container(
-                      width: MediaQuery.of(context).size.width,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: AppColors.colorFFFFFF,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          children: List.generate(
-                            provider.selectedDateEvents.length,
-                            (index) {
-                              final leave = provider.selectedDateEvents[index];
-                              final from = leave.dateFrom ?? DateTime.now();
-                              final to = leave.dateTo ?? DateTime.now();
-                              bool showDate = true;
-                              String formattedDate;
-                              if (from.year == to.year &&
-                                  from.month == to.month &&
-                                  from.day == to.day) {
-                                formattedDate = DateFormat(
-                                  'MMM dd, yyyy',
-                                ).format(from);
-                              } else {
-                                final formattedFrom = DateFormat(
-                                  'MMM dd',
-                                ).format(from);
-                                final formattedTo = DateFormat(
-                                  'MMM dd, yyyy',
-                                ).format(to);
-                                formattedDate = '$formattedFrom - $formattedTo';
-                              }
-                              if (index > 0) {
-                                final prev =
-                                    provider.selectedDateEvents[index - 1];
-                                final prevFrom =
-                                    prev.dateFrom ?? DateTime.now();
-                                final prevTo = prev.dateTo ?? DateTime.now();
-
-                                String prevFormatted;
-
-                                if (prevFrom.year == prevTo.year &&
-                                    prevFrom.month == prevTo.month &&
-                                    prevFrom.day == prevTo.day) {
-                                  prevFormatted = DateFormat(
-                                    'MMM dd, yyyy',
-                                  ).format(prevFrom);
-                                } else {
-                                  prevFormatted =
-                                      '${DateFormat('MMM dd').format(prevFrom)} - ${DateFormat('MMM dd, yyyy').format(prevTo)}';
-                                }
-
-                                if (prevFormatted == formattedDate) {
-                                  showDate = false;
-                                }
-                              }
-
-                              String _calculateTotalDays(
-                                DateTime? from,
-                                DateTime? to,
-                              ) {
-                                if (from == null || to == null) return "1 Day";
-
-                                final difference =
-                                    to.difference(from).inDays + 1;
-
-                                if (difference == 1) {
-                                  return "1 Day";
-                                } else {
-                                  return "$difference Days";
-                                }
-                              }
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 6,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    /// Date
-                                    if (showDate)
-                                      Text(
-                                        formattedDate,
-                                        style: GoogleFonts.manrope(
-                                          color: AppColors.color000000,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    if (showDate) SizedBox(height: 10),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "${leave.description} - ${_calculateTotalDays(leave.dateFrom, leave.dateTo)}",
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w400,
-                                            color: AppColors.Color4E4E4E,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ).toList(),
-                        ),
-                      ),
-                    ),
-                  ),
           ],
         ),
       ),
     );
+  }
+}
 
+/// Shown where the balance cards go when they couldn't be loaded.
+class _BalancesUnavailable extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _BalancesUnavailable({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: isDark ? Colors.white70 : AppColors.color6A7282,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Couldn't load your time off balances",
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : AppColors.color616161,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              'Retry',
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.appColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The time off of the day tapped in the calendar, each with its status in
+/// the legend's colors.
+class _SelectedDayLeaves extends StatelessWidget {
+  final DateTime date;
+  final List<LeaveCalendarEvent> leaves;
+  final VoidCallback onClose;
+
+  const _SelectedDayLeaves({
+    super.key,
+    required this.date,
+    required this.leaves,
+    required this.onClose,
+  });
+
+  static String _rangeLabel(LeaveCalendarEvent leave) {
+    final from = leave.dateFrom;
+    final to = leave.dateTo;
+    if (from == null || to == null) return '';
+    if (DateUtils.isSameDay(from, to)) {
+      return DateFormat('MMM dd, yyyy').format(from);
+    }
+    return '${DateFormat('MMM dd').format(from)} - '
+        '${DateFormat('MMM dd, yyyy').format(to)}';
+  }
+
+  static String _daysLabel(LeaveCalendarEvent leave) {
+    final from = leave.dateFrom;
+    final to = leave.dateTo;
+    if (from == null || to == null) return '1 Day';
+    final days =
+        DateUtils.dateOnly(to).difference(DateUtils.dateOnly(from)).inDays + 1;
+    return days == 1 ? '1 Day' : '$days Days';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.color000000;
+    final detailColor = isDark ? Colors.white70 : AppColors.color6A7282;
+    final countLabel = leaves.length == 1
+        ? '1 request'
+        : '${leaves.length} requests';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 8, 6, 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.greyShade800Color : AppColors.colorFFFFFF,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ───── Header: the day, how many are off, close ─────
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  DateFormat('EEE, MMM dd, yyyy').format(date),
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+              if (leaves.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.appColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    countLabel,
+                    style: GoogleFonts.manrope(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.appColor,
+                    ),
+                  ),
+                ),
+              IconButton(
+                tooltip: 'Close',
+                visualDensity: VisualDensity.compact,
+                onPressed: onClose,
+                icon: Icon(Icons.close_rounded, size: 18, color: detailColor),
+              ),
+            ],
+          ),
+
+          if (leaves.isEmpty)
+            Text(
+              'No time off on this day',
+              style: GoogleFonts.manrope(fontSize: 12, color: detailColor),
+            ),
+
+          /// ───── One row per time off ─────
+          for (var i = 0; i < leaves.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 16,
+                color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
+              ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: WidgetLeaveCalendar.eventColor(leaves[i].state),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          leaves[i].description,
+                          style: GoogleFonts.manrope(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: titleColor,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            _rangeLabel(leaves[i]),
+                            _daysLabel(leaves[i]),
+                          ].where((part) => part.isNotEmpty).join(' · '),
+                          style: GoogleFonts.manrope(
+                            fontSize: 11,
+                            color: detailColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    WidgetLeaveCalendar.eventStatusLabel(leaves[i].state),
+                    style: GoogleFonts.manrope(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: WidgetLeaveCalendar.eventColor(leaves[i].state),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

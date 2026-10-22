@@ -337,7 +337,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                   ? Padding(
                       padding: const EdgeInsets.only(right: 16, left: 12),
                       child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedMail01,
+                        icon: HugeIcons.strokeRoundedAlertCircle,
                         color: Colors.red,
                         size: 20,
                       ),
@@ -377,7 +377,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Icon(Icons.error, color: Colors.white, size: 18),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedAlertCircle,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -409,6 +413,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                 overlayColor: Colors.transparent,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
+                shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -456,7 +461,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       ),
       child: Column(
         children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 48),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+            color: Colors.green,
+            size: 48,
+          ),
           const SizedBox(height: 16),
           Text(
             'Email Sent!',
@@ -495,6 +504,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           overlayColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

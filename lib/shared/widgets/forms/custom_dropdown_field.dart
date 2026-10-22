@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:mobo_employees/core/const/all_design.dart';
+
 class CustomDropdownField extends StatelessWidget {
   final String? value;
   final String labelText;
@@ -66,7 +68,7 @@ class CustomDropdownField extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
                 color: Theme.of(context).primaryColor,
-                width: showBorder ? 2 : 0,
+                width: 2,
               ),
             ),
             enabledBorder: OutlineInputBorder(
@@ -77,9 +79,7 @@ class CustomDropdownField extends StatelessWidget {
               ),
             ),
             filled: true,
-            fillColor: isDark
-                ? const Color(0xFF2A2A2A)
-                : const Color(0xffF8FAFB),
+            fillColor: AppColors.inputFill(isDark),
             labelStyle: TextStyle(
               fontFamily: GoogleFonts.manrope(
                 fontWeight: FontWeight.w400,

@@ -55,6 +55,15 @@ class _ActivityTabItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    /// Dark mode inverts the chips (as the company selector's Confirm does):
+    /// a black selected chip would vanish into the dark background.
+    final selectedFill =
+        isDarkTheme ? AppColors.whiteColor : AppColors.blackColor;
+    final selectedText =
+        isDarkTheme ? AppColors.blackColor : AppColors.whiteColor;
+    final idleFill =
+        isDarkTheme ? AppColors.greyShade800Color : AppColors.colorEDEDEB;
+    final idleText = isDarkTheme ? AppColors.whiteColor : AppColors.blackColor;
     return InkWell(
       key: Key('activity_tab_$index'),
       onTap: onTap,
@@ -65,10 +74,10 @@ class _ActivityTabItem extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.blackColor : AppColors.colorEDEDEB,
+            color: isSelected ? selectedFill : idleFill,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.blackColor : AppColors.colorEDEDEB,
+              color: isSelected ? selectedFill : idleFill,
               width: 1,
             ),
           ),
@@ -79,7 +88,7 @@ class _ActivityTabItem extends StatelessWidget {
             style: GoogleFonts.manrope(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: isSelected ? AppColors.whiteColor : AppColors.blackColor,
+              color: isSelected ? selectedText : idleText,
             ),
           ),
         ),

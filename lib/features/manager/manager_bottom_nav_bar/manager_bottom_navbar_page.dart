@@ -40,6 +40,11 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
   int? _vehicleId;
   int? _activityTabIndex;
 
+  /// Bumped on a company switch: the tab on screen is rebuilt from scratch,
+  /// so it reloads for the new company like on first open. (Clearing the
+  /// providers alone left it empty or loading forever.)
+  int _companyGeneration = 0;
+
   @override
   void initState() {
     super.initState();
@@ -47,12 +52,12 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
     _vehicleId = widget.vehicleId;
     _activityTabIndex = widget.activityTabIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileProvider>().fetchUserProfile();
+      context.read<ProfileProvider>().ensureLoaded();
     });
   }
 
   List<Widget> get screens => [
-    ManagerDashboardPage(),
+    ManagerDashboardPage(onOpenTab: _onItemTapped),
     ManagerAttendancePage(),
     ManagerEmployeesPage(),
     ManagerApprovalsPage(),
@@ -98,7 +103,10 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
         ),
         actions: _buildProfileActions(context),
       ),
-      body: screens[_currentIndex],
+      body: KeyedSubtree(
+        key: ValueKey(_companyGeneration),
+        child: screens[_currentIndex],
+      ),
       bottomNavigationBar: SnakeNavigationBar.color(
         backgroundColor: isDarkTheme
             ? AppColors.greyShade900Color
@@ -115,12 +123,15 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
         currentIndex: _currentIndex,
         onTap: _onItemTapped,
         snakeShape: SnakeShape.indicator,
+        height: 70,
+        elevation: 8,
+        shadowColor: isDarkTheme ? Colors.black26 : Colors.grey[200]!,
         selectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
         unselectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
         items: [
@@ -166,10 +177,13 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
 
-          ClearProviders.clearAllProviders(context);
-          await context.read<ProfileProvider>().fetchUserProfile(
-            forceRefresh: true,
-          );
+          /// Await the clear: it resets ProfileProvider at its end, so an
+          /// un-awaited clear could wipe the profile after it was re-fetched.
+          await ClearProviders.clearAllProviders(context);
+          if (!mounted) return;
+          setState(() => _companyGeneration++);
+          await context.read<ProfileProvider>().ensureLoaded();
+          if (!mounted) return;
 
           CustomSnackbar.showSuccess(context, 'Switched to $companyName');
         },

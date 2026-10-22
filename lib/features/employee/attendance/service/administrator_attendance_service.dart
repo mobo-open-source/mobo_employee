@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/employee/attendance/model/model_hr_attendance_all_leaves.dart';
 import 'package:mobo_employees/features/employee/attendance/model/model_hr_employee_attendance.dart';
@@ -16,132 +17,70 @@ class AdministratorAttendanceService {
   /// Normalizes a [DateTime] by removing the time component.
   static DateTime _normalize(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  /// Formats a local [DateTime] as the UTC string Odoo stores datetimes in.
+  /// Domains on `check_in`/`check_out` compare against UTC values, so local
+  /// day/month boundaries must be converted or records near midnight are
+  /// attributed to the wrong day (or fall outside the range entirely).
+  static String odooUtc(DateTime local) =>
+      DateFormat('yyyy-MM-dd HH:mm:ss').format(local.toUtc());
+
+  /// Parses an Odoo UTC datetime string (`yyyy-MM-dd HH:mm:ss`) to local time.
+  static DateTime parseOdooUtc(String raw) =>
+      DateTime.parse(raw.endsWith('Z') ? raw : '${raw}Z').toLocal();
+
   /// Fetches the set of dates on which an employee had check-in records during a specific month.
   ///
-  /// Returns a [Set<DateTime>] containing the normalized dates of check-ins.
+  /// Returns a [Set<DateTime>] containing the normalized local dates of
+  /// check-ins. Days are bucketed client-side in the device's timezone —
+  /// grouping server-side by `check_in:day` would use the RPC context's tz
+  /// (UTC here) and shift late-evening/early-morning records by a day.
   static Future<Set<DateTime>> fetchMonthlyCheckInDates({
     required int employeeId,
     required DateTime month,
   }) async {
-    try {
-      final odooClient = await OdooSessionManager.callKwWithCompany;
+    final from = DateTime(month.year, month.month, 1);
+    final to = DateTime(month.year, month.month + 1, 1);
 
-      final DateTime from = DateTime(month.year, month.month, 1);
-      final DateTime to = DateTime(
-        month.year,
-        month.month + 1,
-        1,
-      ).subtract(const Duration(seconds: 1));
+    final response = await OdooSessionManager.callKwWithCompany({
+      'model': 'hr.attendance',
+      'method': 'search_read',
+      'args': [],
+      'kwargs': {
+        'domain': [
+          ['employee_id', '=', employeeId],
+          ['check_in', '>=', odooUtc(from)],
+          ['check_in', '<', odooUtc(to)],
+        ],
+        'fields': ['check_in'],
+        'order': 'check_in asc',
+      },
+    });
 
-      final session = await OdooSessionManager.getCurrentSession();
-      final version = session!.odooSession.serverVersion;
-
-      /// Handle version-specific logic for Odoo 19 and earlier (e.g., Odoo 18)
-      if (version.contains("19")) {
-        final response = await odooClient({
-          'model': 'hr.attendance',
-          'method': 'web_read_group',
-          'args': [],
-          'kwargs': {
-            'domain': [
-              ['employee_id', '=', employeeId],
-              [
-                'check_in',
-                '>=',
-                DateFormat('yyyy-MM-dd HH:mm:ss').format(from),
-              ],
-              ['check_in', '<=', DateFormat('yyyy-MM-dd HH:mm:ss').format(to)],
-            ],
-            'groupby': ['check_in:day'],
-          },
-        });
-        final Set<DateTime> dates = {};
-        if (response is Map && response['groups'] is List) {
-          for (final group in response['groups']) {
-            final raw = group['check_in:day']?[0];
-            if (raw != null) {
-              final dt = DateTime.parse(raw).toLocal();
-              dates.add(_normalize(dt));
-            }
-          }
+    final Set<DateTime> dates = {};
+    if (response is List) {
+      for (final record in response) {
+        final raw = record['check_in'];
+        if (raw is String) {
+          dates.add(_normalize(parseOdooUtc(raw)));
         }
-        return dates;
-      } else {
-        final response = await odooClient({
-          'model': 'hr.attendance',
-          'method': 'search_read',
-          'args': [],
-          'kwargs': {
-            'domain': [
-              ['employee_id', '=', employeeId],
-              [
-                'check_in',
-                '>=',
-                DateFormat('yyyy-MM-dd HH:mm:ss').format(from),
-              ],
-              ['check_in', '<=', DateFormat('yyyy-MM-dd HH:mm:ss').format(to)],
-            ],
-            'fields': ['check_in'],
-            'order': 'check_in asc',
-          },
-        });
-
-        final Set<DateTime> dates = {};
-
-        if (response is List) {
-          for (final record in response) {
-            final raw = record['check_in'];
-            if (raw != null) {
-              final dt = DateTime.parse(raw).toLocal();
-              dates.add(_normalize(dt));
-            }
-          }
-        }
-
-        return dates;
       }
-    } catch (e) {
-      rethrow;
     }
-  }
-
-  /// Formats a [DateTime] into an Odoo-compatible string format.
-  static String _odooDate(DateTime dt) {
-    return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
+    return dates;
   }
 
   /// Calculates the total number of days an employee was present during a specific month.
   ///
-  /// This counts unique check-in days.
+  /// This counts unique (local) check-in days, so it always agrees with the
+  /// days marked present on the attendance calendar.
   static Future<int> fetchMonthlyAttendanceDays({
     required int employeeId,
     required DateTime month,
   }) async {
-    final odooClient = await OdooSessionManager.callKwWithCompany;
-
-    final fromDate = DateTime(month.year, month.month, 1);
-    final toDate = DateTime(month.year, month.month + 1, 1);
-
-    final result = await odooClient({
-      'model': 'hr.attendance',
-      'method': 'read_group',
-      'args': [
-        [
-          ['employee_id', '=', employeeId],
-          ['check_in', '>=', _odooDate(fromDate)],
-          ['check_in', '<', _odooDate(toDate)],
-        ],
-        [],
-        ['check_in:day'],
-      ],
-      'kwargs': {},
-    });
-
-    if (result is List) {
-      return result.length;
-    }
-
-    return 0;
+    final days = await fetchMonthlyCheckInDates(
+      employeeId: employeeId,
+      month: month,
+    );
+    return days.length;
   }
 
   /// Formats a [DateTime] to "YYYY-MM-DD 00:00:00" string.
@@ -174,6 +113,7 @@ class AdministratorAttendanceService {
 
       return ModelLeaveUnusualDays.fromJson(result);
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       return null;
     }
   }
@@ -205,6 +145,7 @@ class AdministratorAttendanceService {
           .map((e) => ModelHrAttendanceAllLeaves.fromJson(e))
           .toList();
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       return [];
     }
   }
@@ -287,8 +228,8 @@ class AdministratorAttendanceService {
             'kwargs': {
               'domain': [
                 ['employee_id', '=', employeeId],
-                ['check_in', '>=', from.toIso8601String()],
-                ['check_in', '<=', to.toIso8601String()],
+                ['check_in', '>=', odooUtc(from)],
+                ['check_in', '<=', odooUtc(to)],
               ],
               'fields': ['worked_hours'],
             },
@@ -308,6 +249,7 @@ class AdministratorAttendanceService {
       }
       return null;
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       throw Exception("Attendance administrator fetch failed: $e");
     }
   }
@@ -421,6 +363,7 @@ class AdministratorAttendanceService {
 
       return null;
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       throw Exception("Failed to fetch dashboard: $e");
     }
   }
@@ -441,19 +384,19 @@ class AdministratorAttendanceService {
       'kwargs': {
         'domain': [
           ['employee_id', '=', employeeId],
-          ['check_in', '>=', start.toIso8601String()],
-          ['check_in', '<', end.toIso8601String()],
+          ['check_in', '>=', odooUtc(start)],
+          ['check_in', '<', odooUtc(end)],
         ],
         'fields': ['employee_id', 'check_in', 'check_out', 'worked_hours'],
       },
     });
     for (var record in result) {
-      DateTime checkIn = DateTime.parse(record['check_in'] + 'Z').toLocal();
+      DateTime checkIn = parseOdooUtc(record['check_in']);
       if (firstCheckIn == null || checkIn.isBefore(firstCheckIn)) {
         firstCheckIn = checkIn;
       }
       if (record['check_out'] != false && record['check_out'] != null) {
-        DateTime checkOut = DateTime.parse(record['check_out'] + 'Z').toLocal();
+        DateTime checkOut = parseOdooUtc(record['check_out']);
         if (lastCheckOut == null || checkOut.isAfter(lastCheckOut)) {
           lastCheckOut = checkOut;
         }

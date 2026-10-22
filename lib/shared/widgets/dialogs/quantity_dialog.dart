@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'common_dialog.dart';
 
 /// Reusable quantity input dialog
 class QuantityDialog {
@@ -11,9 +12,9 @@ class QuantityDialog {
 
     return showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
+      builder: (ctx) => CommonDialog(
+        title: title,
+        body: TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           autofocus: true,
@@ -22,19 +23,13 @@ class QuantityDialog {
             border: OutlineInputBorder(),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-              Navigator.pop(ctx, value);
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
+        secondaryLabel: 'Cancel',
+        onSecondary: () => Navigator.pop(ctx),
+        primaryLabel: 'Confirm',
+        onPrimary: () {
+          final value = double.tryParse(controller.text);
+          Navigator.pop(ctx, value);
+        },
       ),
     );
   }

@@ -3,12 +3,17 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mobo_employees/core/exceptions/odoo_error_mapper.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/utils/date_range_validator.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_timeoff_data.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/services/manager_calendar_service.dart';
+import 'package:mobo_employees/shared/services/time_off_type_service.dart';
 
 import '../../attendance/service/administrator_attendance_service.dart';
 import '../model/leaveMyCalender.dart';
+import '../model/model_time_off_balance.dart';
 import '../model/model_time_off_type.dart';
 import '../service/leave_service.dart';
 
@@ -80,14 +85,24 @@ class LeavePageProvider extends ChangeNotifier {
   /// Whether the initial data load for the provider has been completed.
   bool get isInitialLoadDone => _isInitialLoadDone;
 
-  // Leave balance fields
-  double paidMaxLeaves = 0;
-  double paidRemainingMyLeave = 0;
-  double compRemainingMyLeaves = 0;
-  double pendingMyRequest = 0;
-  double compMaxMyLeaves = 0;
-  String paidOffValidUntil = '';
-  String compensatoryValidUntil = '';
+  /// Set when loading failed because the server couldn't be reached; the
+  /// page shows it in place of its content until a reload succeeds.
+  Object? loadError;
+
+  /// Records [e] as [loadError] when it's a connectivity failure. Other
+  /// errors keep the existing behaviour of showing whatever did load.
+  void _recordConnectivityFailure(Object e) {
+    if (!ConnectivityService.isConnectivityError(e)) return;
+    loadError = e;
+    notifyListeners();
+  }
+
+  /// The user's balance per time off type, as on Odoo's Time Off dashboard.
+  List<TimeOffBalance> timeOffBalances = [];
+
+  /// The user's own time off requests awaiting approval (same figure as the
+  /// dashboard's "Leave Requests" card).
+  int pendingMyRequest = 0;
 
   final List<LeaveMyCalenderModel> _calendarEvents = [];
 
@@ -138,7 +153,9 @@ class LeavePageProvider extends ChangeNotifier {
       _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
       await fetchLeaveMyCalendarEventsFunction();
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      _recordConnectivityFailure(e);
+    }
   }
 
   /// Navigates to the next month in the calendar and refreshes events.
@@ -147,7 +164,9 @@ class LeavePageProvider extends ChangeNotifier {
       _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
       await fetchLeaveMyCalendarEventsFunction();
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      _recordConnectivityFailure(e);
+    }
   }
 
   /// Fetches "unusual" days (holidays, non-working days) from the server.
@@ -162,7 +181,9 @@ class LeavePageProvider extends ChangeNotifier {
         }
       }
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+    }
   }
 
   /// Performs the initial data load for the leave page, including summary, events, and history.
@@ -173,71 +194,55 @@ class LeavePageProvider extends ChangeNotifier {
       if (_isInitialLoadDone) return;
     }
     _isLoading = true;
+    loadError = null;
     notifyListeners();
 
     try {
-      final session = await OdooSessionManager.getCurrentSession();
-      final version = session!.odooSession.serverVersion;
-      if (version.contains("19")) {
-        final result = await services.fetchMySummary();
-        final allocationData = result['allocation_data'] as List? ?? [];
-        pendingMyRequest = (result['allocation_request_amount'] ?? 0)
-            .toDouble();
-        for (var item in allocationData) {
-          final leaveName = item[0];
-          final leaveData = item[1] as Map<String, dynamic>;
-          switch (leaveName) {
-            case "Paid Time Off":
-              paidRemainingMyLeave =
-                  (leaveData['virtual_remaining_leaves'] ?? 0).toDouble();
-              paidMaxLeaves = (leaveData['remaining_leaves'] ?? 0).toDouble();
-              paidOffValidUntil = leaveData['closest_allocation_expire'] ?? "";
-              break;
-
-            case "Training Time Off":
-              compRemainingMyLeaves =
-                  (leaveData['virtual_remaining_leaves'] ?? 0).toDouble();
-              compMaxMyLeaves = (leaveData['remaining_leaves'] ?? 0).toDouble();
-              compensatoryValidUntil =
-                  leaveData['closest_allocation_expire'] ?? "";
-              break;
-          }
-        }
-      } else {
-        final emp = await OdooSessionManager.callKwWithCompany({
-          'model': 'hr.employee',
-          'method': 'search_read',
-          'args': [],
-          'kwargs': {
-            'domain': [
-              ['user_id', '=', session!.userId],
-            ],
-            'fields': ['id', 'name'],
-            'limit': 1,
-          },
-        });
-
-        final employeeId = emp[0]['id'];
-        final summary = await services.fetchTimeOffDashboard(employeeId);
-
-        paidRemainingMyLeave = summary['paid_available'];
-        paidOffValidUntil = summary['paid_valid_until'];
-        compRemainingMyLeaves = summary['training_available'];
-        compensatoryValidUntil = summary['training_valid_until'];
-        pendingMyRequest = double.parse(
-          summary['pending_allocations'].toString(),
-        );
-        notifyListeners();
+      /// A failing summary (e.g. no allocations yet) must not keep the
+      /// calendar and the request list from loading.
+      try {
+        await _loadSummary();
+      } catch (e) {
+        if (ConnectivityService.isConnectivityError(e)) rethrow;
       }
       await fetchLeaveMyCalendarEventsFunction(showLoader: false);
       await fetchUserUnusualDays();
-      await fetchMyTimeOff(isRefresh: true);
-    } catch (_) {
+      await fetchMyTimeOff(isRefresh: true, showLoader: false);
+    } catch (e) {
+      _recordConnectivityFailure(e);
     } finally {
       _isLoading = false;
       _isInitialLoadDone = true;
       notifyListeners();
     }
+  }
+
+  /// Re-reads the summary cards, the calendar and the request list in
+  /// place (no shimmer) — after the user submits a request, or when they
+  /// come back to the page and requests may have been approved/refused.
+  /// If the server can't be reached, what's on screen stays as it was.
+  Future<void> refreshInPlace() async {
+    try {
+      await _loadSummary();
+    } catch (_) {}
+    try {
+      await Future.wait([
+        fetchLeaveMyCalendarEventsFunction(showLoader: false),
+        fetchMyTimeOff(showLoader: false),
+      ]);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  /// Loads the balance cards and the "Pending" requests count.
+  Future<void> _loadSummary() async {
+    final results = await Future.wait([
+      LeaveService.fetchMyTimeOffDashboard(),
+      LeaveService.fetchMyPendingRequestCount(),
+    ]);
+    timeOffBalances = (results[0] as TimeOffDashboard).balances;
+    pendingMyRequest = results[1] as int;
+    notifyListeners();
   }
 
   /// Refreshes the calendar and summary data.
@@ -276,7 +281,8 @@ class LeavePageProvider extends ChangeNotifier {
       _calendarEvents
         ..clear()
         ..addAll(events);
-    } catch (_) {
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       _calendarEvents.clear();
     } finally {
       if (showLoader) {
@@ -324,7 +330,7 @@ class LeavePageProvider extends ChangeNotifier {
     _selectedTabIndex = index;
 
     if (index == 1) {
-      fetchMyTimeOff();
+      refreshMyTimeOff();
     }
 
     notifyListeners();
@@ -348,30 +354,43 @@ class LeavePageProvider extends ChangeNotifier {
 
   /// Refreshes the user's time-off records.
   Future<void> refreshMyTimeOff() async {
-    await fetchMyTimeOff(isRefresh: true);
+    try {
+      await fetchMyTimeOff(isRefresh: true);
+    } catch (e) {
+      _recordConnectivityFailure(e);
+    }
   }
 
   /// Fetches the user's time-off request history from the server.
-  Future<void> fetchMyTimeOff({bool isRefresh = false}) async {
+  ///
+  /// Same records as Odoo's "My Time Off" (`user_id = uid`).
+  Future<void> fetchMyTimeOff({
+    bool isRefresh = false,
+    bool showLoader = true,
+  }) async {
     final session = await OdooSessionManager.getCurrentSession();
     final userId = session?.userId.toInt();
     try {
-      _isLoading = true;
-      notifyListeners();
+      if (showLoader) {
+        _isLoading = true;
+        notifyListeners();
+      }
 
       final data = await ManagerCalendarService.fetchLeaveTimeOffDetails(
         domain: [
           ['user_id', '=', userId],
         ],
+        restrictToTeam: false,
       );
 
       _timeOffList
         ..clear()
         ..addAll(data);
-    } catch (_) {
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       _timeOffList.clear();
     } finally {
-      _isLoading = false;
+      if (showLoader) _isLoading = false;
       _isInitialLoadDone = true;
       notifyListeners();
     }
@@ -407,6 +426,13 @@ class LeavePageProvider extends ChangeNotifier {
     return isLeaveTypeValid && isFromValid && isToValid;
   }
 
+  /// Odoo's message when "From" is after "To", for the form to show inline;
+  /// `null` while the range is valid.
+  String? get dateRangeError =>
+      DateRangeValidator.isStartAfterEnd(fromDate, toDate)
+      ? DateRangeValidator.timeOffMessage
+      : null;
+
   /// Convenience method to notify listeners.
   void notifyListener() {
     notifyListeners();
@@ -436,13 +462,9 @@ class LeavePageProvider extends ChangeNotifier {
   void clearOnLogout() {
     _selectedTabIndex = 0;
     _isInitialLoadDone = false;
-    paidMaxLeaves = 0;
-    paidRemainingMyLeave = 0;
-    compRemainingMyLeaves = 0;
+    loadError = null;
+    timeOffBalances = [];
     pendingMyRequest = 0;
-    compMaxMyLeaves = 0;
-    paidOffValidUntil = '';
-    compensatoryValidUntil = '';
     _timeOffList.clear();
     _isLoading = false;
   }
@@ -474,6 +496,9 @@ class LeavePageProvider extends ChangeNotifier {
   /// Submits the current leave application to the server.
   /// Returns null on success, or an error message if the submission fails.
   Future<String?> saveLeave() async {
+    final rangeError = dateRangeError;
+    if (rangeError != null) return rangeError;
+
     try {
       _isSaveMyTimeOffLoading = true;
       notifyListeners();
@@ -483,6 +508,9 @@ class LeavePageProvider extends ChangeNotifier {
 
       if (employeeId == null) return "Employee not found";
       if (leaveTypeId == null) return "Select leave type";
+      if (this.fromDate == null || this.toDate == null) {
+        return "Select valid dates";
+      }
 
       int? attachmentId;
       if (_attachedFile != null) {
@@ -493,15 +521,18 @@ class LeavePageProvider extends ChangeNotifier {
       final versionStr = session!.odooSession.serverVersion;
       final majorVersion = int.tryParse(versionStr.split('.').first) ?? 19;
 
-      final fromDate = _convertToOdooDate(fromDateController.text);
-      final toDate = _convertToOdooDate(toDateController.text);
+      /// Use the picked dates themselves: re-parsing the "MMM dd" display
+      /// text dropped the year, so a range crossing New Year was sent
+      /// backwards and rejected by Odoo.
+      final fromDate = DateFormat('yyyy-MM-dd').format(this.fromDate!);
+      final toDate = DateFormat('yyyy-MM-dd').format(this.toDate!);
 
       Map<String, dynamic> payload;
 
       if (majorVersion >= 19) {
         payload = {
           'employee_id': employeeId,
-          'holiday_status_id': leaveTypeId,
+          TimeOffTypeService.typeField(majorVersion): leaveTypeId,
           'request_date_from': fromDate,
           'request_date_to': toDate,
           'request_hour_from': 8,
@@ -513,11 +544,16 @@ class LeavePageProvider extends ChangeNotifier {
             ],
         };
       } else {
+        /// `request_date_from`/`request_date_to` are plain Date fields on
+        /// 17/18 (no time component) — Odoo computes the actual start/end
+        /// datetime server-side from the employee's working calendar.
+        /// Appending a time-of-day here made `hr.leave.create` reject the
+        /// value outright.
         payload = {
           'employee_id': employeeId,
-          'holiday_status_id': leaveTypeId,
-          'request_date_from': "$fromDate 08:00:00",
-          'request_date_to': "$toDate 17:00:00",
+          TimeOffTypeService.typeField(majorVersion): leaveTypeId,
+          'request_date_from': fromDate,
+          'request_date_to': toDate,
           'name': descriptionController.text,
           if (attachmentId != null)
             'supported_attachment_ids': [
@@ -534,54 +570,15 @@ class LeavePageProvider extends ChangeNotifier {
       });
 
       clearForm();
-      await fetchMyTimeOff();
+      await refreshInPlace();
 
       return null;
     } catch (e) {
-      String errorMessage = "Something went wrong";
-
-      try {
-        final errorStr = e.toString();
-
-        if (errorStr.contains("message:")) {
-          errorMessage = errorStr.split("message:").last;
-        }
-
-        if (errorMessage.contains(", arguments")) {
-          errorMessage = errorMessage.split(", arguments").first;
-        }
-
-        final lines = errorMessage.split("\n");
-        List<String> cleanedLines = [];
-
-        for (var line in lines) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) {
-            cleanedLines.add(trimmed);
-          }
-          if (cleanedLines.length == 2) break;
-        }
-
-        errorMessage = cleanedLines.join(" ");
-        errorMessage = errorMessage.replaceAll(" - To Approve", "");
-        errorMessage = errorMessage
-            .replaceAll("\\n", " ")
-            .replaceAll(RegExp(r"\s+"), " ")
-            .trim();
-      } catch (_) {}
-
-      return errorMessage;
+      return OdooErrorMapper.serverMessage(e);
     } finally {
       _isSaveMyTimeOffLoading = false;
       notifyListeners();
     }
-  }
-
-  String _convertToOdooDate(String text) {
-    final now = DateTime.now();
-    final parsed = DateFormat('MMM dd').parse(text);
-    final fullDate = DateTime(now.year, parsed.month, parsed.day);
-    return DateFormat('yyyy-MM-dd').format(fullDate);
   }
 
   /// Resets the leave application form and removes any attachments.

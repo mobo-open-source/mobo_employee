@@ -299,7 +299,7 @@ class ListShimmer {
                       height: 20,
                       decoration: BoxDecoration(
                         color: base,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -308,7 +308,7 @@ class ListShimmer {
                       height: 18,
                       decoration: BoxDecoration(
                         color: base,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                     ),
                     const Spacer(),
@@ -317,7 +317,7 @@ class ListShimmer {
                       height: 16,
                       decoration: BoxDecoration(
                         color: base,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ],

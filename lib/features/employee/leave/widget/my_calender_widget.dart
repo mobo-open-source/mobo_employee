@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/employee/leave/provider/leave_page_provider.dart';
 import 'package:mobo_employees/features/employee/leave/service/leave_service.dart';
 import 'package:mobo_employees/features/employee/leave/widget/my_leave_calender.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
-import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_card.dart';
+import 'package:mobo_employees/features/employee/leave/widget/time_off_balance_cards.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/services/odoo_session_manager.dart';
@@ -19,6 +19,13 @@ class MyCalenderWidger extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<LeavePageProvider>(
       builder: (context, provider, _) {
+        if (provider.loadError != null) {
+          return ConnectionStatusWidget(
+            error: provider.loadError,
+            onRetry: provider.refreshMyCalender,
+          );
+        }
+
         /// Loading state
         if (provider.isLoading || provider.isInitialLoadDone == false) {
           return SingleChildScrollView(
@@ -45,7 +52,11 @@ class MyCalenderWidger extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 /// Dashboard cards
-                SizedBox(height: 120, child: _buildActualCards(provider)),
+                TimeOffBalanceCards(
+                  balances: provider.timeOffBalances,
+                  pendingCount: provider.pendingMyRequest,
+                  pendingSubtitle: "Leave requests",
+                ),
 
                 const SizedBox(height: 20),
 
@@ -174,47 +185,6 @@ class MyCalenderWidger extends StatelessWidget {
         height: 100,
         borderRadius: BorderRadius.circular(16),
       ),
-    );
-  }
-
-  /// Dashboard cards
-  Widget _buildActualCards(LeavePageProvider provider) {
-    return Row(
-      children: [
-        Expanded(
-          child: DashboardStatCard(
-            color: AppColors.colorC03355,
-            icon: HugeIcons.strokeRoundedUmbrella,
-            count: provider.paidRemainingMyLeave.toStringAsFixed(0),
-            title: "Paid Time Off",
-            subtitle: provider.paidOffValidUntil.isNotEmpty
-                ? "Until ${provider.paidOffValidUntil}"
-                : "",
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DashboardStatCard(
-            color: AppColors.Color0095FF,
-            icon: HugeIcons.strokeRoundedDollarCircle,
-            count: provider.compRemainingMyLeaves.toStringAsFixed(0),
-            title: "Training Time Off",
-            subtitle: provider.compensatoryValidUntil.isNotEmpty
-                ? "Until ${provider.compensatoryValidUntil}"
-                : "",
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DashboardStatCard(
-            color: AppColors.colorFFCC3D,
-            icon: HugeIcons.strokeRoundedTimeQuarter,
-            count: provider.pendingMyRequest.toStringAsFixed(0),
-            title: "Pending",
-            subtitle: "Request pending",
-          ),
-        ),
-      ],
     );
   }
 }

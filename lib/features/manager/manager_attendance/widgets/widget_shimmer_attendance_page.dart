@@ -7,12 +7,15 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? Colors.grey[800]! : AppColors.greyShade300Color;
+    final highlight = isDark ? Colors.grey[700]! : Colors.grey.shade100;
     return Column(
       children: [
         ///  Search bar shimmer placeholder
         Shimmer.fromColors(
-          baseColor: AppColors.greyShade300Color,
-          highlightColor: Colors.grey.shade100,
+          baseColor: base,
+          highlightColor: highlight,
           child: Container(
             height: 44,
             decoration: BoxDecoration(
@@ -26,8 +29,8 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 
         /// "No filters applied" placeholder
         Shimmer.fromColors(
-          baseColor: AppColors.greyShade300Color,
-          highlightColor: Colors.grey.shade100,
+          baseColor: base,
+          highlightColor: highlight,
           child: Align(
             alignment: Alignment.centerLeft,
             child: Container(width: 120, height: 12, color: Colors.white),
@@ -40,7 +43,7 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.whiteColor,
+              color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Column(
@@ -52,8 +55,8 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
                     vertical: 10,
                   ),
                   child: Shimmer.fromColors(
-                    baseColor: AppColors.greyShade300Color,
-                    highlightColor: Colors.grey.shade100,
+                    baseColor: base,
+                    highlightColor: highlight,
                     child: Container(
                       height: 36,
                       decoration: BoxDecoration(
@@ -71,8 +74,12 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
                   child: ListView.separated(
                     itemCount: 6,
                     separatorBuilder: (_, __) =>
-                        Divider(height: 1, color: AppColors.colorE5E7EB),
-                    itemBuilder: (_, __) => _AttendanceRowShimmer(),
+                        Divider(
+                          height: 1,
+                          color: isDark ? Colors.white12 : AppColors.colorE5E7EB,
+                        ),
+                    itemBuilder: (_, __) =>
+                        _AttendanceRowShimmer(base: base, highlight: highlight),
                   ),
                 ),
               ],
@@ -85,13 +92,18 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 }
 
 class _AttendanceRowShimmer extends StatelessWidget {
+  final Color base;
+  final Color highlight;
+
+  const _AttendanceRowShimmer({required this.base, required this.highlight});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Shimmer.fromColors(
-        baseColor: AppColors.greyShade300Color,
-        highlightColor: Colors.grey.shade100,
+        baseColor: base,
+        highlightColor: highlight,
         child: Row(
           children: [
             const CircleAvatar(radius: 16, backgroundColor: Colors.white),

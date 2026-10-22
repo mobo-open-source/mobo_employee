@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:provider/provider.dart';
 import '../providers/login_provider.dart';
@@ -148,6 +149,33 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
             child: LoginLayout(
               title: 'Sign In',
               subtitle: 'Configure your server connection',
+              /// Only shown when there's actually a previous screen to return
+              /// to (e.g. reached via "Add Account" from Switch Accounts) —
+              /// at initial app launch this is the root screen and there is
+              /// nothing to go back to.
+              backButton: Navigator.canPop(context)
+                  ? Positioned(
+                      top: 24,
+                      left: 0,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.of(context).pop(),
+                          borderRadius: BorderRadius.circular(32),
+                          child: Container(
+                            height: 64,
+                            width: 64,
+                            alignment: Alignment.center,
+                            child: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedArrowLeft01,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : null,
               child: Form(
                 key: provider.formKey,
                 child: Column(
@@ -194,7 +222,7 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                       child: LoginUrlTextField(
                         controller: provider.urlController,
                         hint: 'Enter Server Address',
-                        prefixIcon: Icons.dns,
+                        prefixIcon: HugeIcons.strokeRoundedServerStack01,
                         enabled: !provider.disableFields,
                         hasError: urlHasError,
                         selectedProtocol: provider.selectedProtocol,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/biometric_context_service.dart';
 import 'package:mobo_employees/core/services/connectivity_service.dart';
+import 'package:mobo_employees/core/services/required_modules_service.dart';
 import 'package:mobo_employees/core/services/session_service.dart';
 import 'package:mobo_employees/features/employee/bottom_navigation_bar/bottom_navigation_bar_page.dart';
 import 'package:mobo_employees/features/login/pages/app_lock_screen.dart';
@@ -99,34 +100,13 @@ class _AppEntryState extends State<AppEntry> {
         if (currentCompanyId == null) {
           inventoryInstalled = true;
         } else {
-          final requiredModules = [
-            'hr',
-            'hr_attendance',
-            'hr_holidays',
-          ];
-
-          final modules = await client.callKw({
-            'model': 'ir.module.module',
-            'method': 'search_read',
-            'args': [
-              [
-                ['name', 'in', requiredModules],
-                ['state', '=', 'installed'],
-              ],
-            ],
-            'kwargs': {
-              'fields': ['name'],
-            },
-          });
-
-          final installedModules = (modules as List)
-              .map((e) => e['name'] as String)
-              .toList();
-
-          missingModule = requiredModules
-              .where((module) => !installedModules.contains(module))
-              .toList();
-          inventoryInstalled = installedModules.length == 3;
+          /// Not `ir.module.module`: only administrators may read it, so for
+          /// an employee that query was refused and the check passed.
+          missingModule = await RequiredModules.findMissing(
+            serverUrl: client.baseURL,
+            sessionId: client.sessionId?.id ?? '',
+          );
+          inventoryInstalled = missingModule.isEmpty;
           await context.read<UserTypeRoleCheckProvider>().clearOnLogout();
           final userRoleProvider = context.read<UserTypeRoleCheckProvider>();
           await userRoleProvider.fetchAndSetUserRole();

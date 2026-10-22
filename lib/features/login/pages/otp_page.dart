@@ -5,6 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/app/app_entry.dart';
+import 'package:mobo_employees/core/exceptions/app_exceptions.dart';
+import 'package:mobo_employees/core/models/database_expiry.dart';
+import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/services/required_modules_service.dart';
 import 'package:mobo_employees/shared/providers/clear_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -142,6 +146,38 @@ class _TotpPageState extends State<TotpPage> {
           _error = result.errorMessage ??
               'Invalid authentication code. Please try again.';
         });
+        return;
+      }
+
+      /// Odoo accepted the code, but an expired database still isn't let
+      /// in. Checked before _finalizeLogin, which saves "logged in" state.
+      try {
+        DatabaseExpiry.ensureActive(result.sessionInfo!);
+      } on DatabaseExpiredException catch (e) {
+        await OdooSessionManager.discardServerSession(
+          widget.serverUrl,
+          result.sessionId!,
+        );
+        _invalidatePendingSession();
+        if (mounted) setState(() => _error = e.message);
+        return;
+      }
+
+      /// Same for a database without the Employee, Attendance or Time Off
+      /// module: the password step can't run this check for a 2FA account
+      /// (its session isn't live until the code is accepted).
+      try {
+        await RequiredModules.ensureInstalled(
+          serverUrl: widget.serverUrl,
+          sessionId: result.sessionId!,
+        );
+      } on RequiredModulesMissingException catch (e) {
+        await OdooSessionManager.discardServerSession(
+          widget.serverUrl,
+          result.sessionId!,
+        );
+        _invalidatePendingSession();
+        if (mounted) setState(() => _error = e.message);
         return;
       }
 
@@ -291,7 +327,7 @@ class _TotpPageState extends State<TotpPage> {
         const SizedBox(height: 16),
         Text(
           'To login, enter below the six-digit authentication code provided by your Authenticator app.',
-          style: GoogleFonts.montserrat(
+          style: GoogleFonts.manrope(
             fontSize: 14,
             color: Colors.white70,
             height: 1.4,
@@ -350,10 +386,19 @@ class _TotpPageState extends State<TotpPage> {
                 fontWeight: FontWeight.w400,
                 color: Colors.black.withOpacity(.4),
               ),
-              prefixIcon: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child:
-                    HugeIcon(icon: HugeIcons.strokeRoundedSmsCode, size: 20),
+              prefixIcon: SizedBox(
+                width: 48,
+                height: 48,
+                child: Center(
+                  child: Transform.scale(
+                    scale: 20 / 24.0,
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedSmsCode,
+                      color: Colors.black54,
+                      size: 24,
+                    ),
+                  ),
+                ),
               ),
               prefixIconColor: WidgetStateColor.resolveWith(
                 (states) => states.contains(WidgetState.disabled)
@@ -419,6 +464,8 @@ class _TotpPageState extends State<TotpPage> {
               onPressed:
                   (_verifying || !_isButtonEnabled) ? null : _submitTotp,
               style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shadowColor: Colors.transparent,
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.black.withOpacity(0.2),

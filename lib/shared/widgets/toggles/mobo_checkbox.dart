@@ -27,7 +27,7 @@ class MoboCheckbox extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.size = 22,
-    this.radius = 6,
+    this.radius = 4,
     this.disabledBorderColor,
     this.disabledFillColor,
   });
@@ -58,7 +58,7 @@ class _MoboCheckboxState extends State<MoboCheckbox> {
             borderRadius: BorderRadius.circular(widget.radius),
             border: Border.all(
               color: isDisabled ? (widget.disabledBorderColor ?? primary) : primary,
-              width: 2,
+              width: 1.5,
             ),
             color: widget.value
                 ? (isDisabled ? (widget.disabledFillColor ?? primary) : primary)

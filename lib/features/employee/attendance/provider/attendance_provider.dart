@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/features/employee/attendance/model/model_hr_attendance_all_leaves.dart';
 import 'package:mobo_employees/features/employee/attendance/model/model_hr_employee.dart';
 import 'package:mobo_employees/features/employee/attendance/model/model_hr_employee_attendance.dart';
@@ -56,6 +57,10 @@ class AttendanceProvider extends ChangeNotifier {
   bool isInitialLoaded = false;
   bool hasLoadedOnce = false;
 
+  /// Set when loading failed because the server couldn't be reached; the
+  /// page shows it in place of its content until a retry succeeds.
+  Object? loadError;
+
   int calendarAttendanceCount = 0;
   int calendarLeaveCount = 0;
 
@@ -76,6 +81,15 @@ class AttendanceProvider extends ChangeNotifier {
     isInitialLoaded = true;
     isLoading = false;
     hasLoadedOnce = true;
+    loadError = null;
+    notifyListeners();
+  }
+
+  /// Records a failure that happened before attendance could be requested,
+  /// e.g. the employee couldn't be resolved because the server is down.
+  void setLoadError(Object error) {
+    loadError = error;
+    isInitialLoaded = true;
     notifyListeners();
   }
 
@@ -88,16 +102,46 @@ class AttendanceProvider extends ChangeNotifier {
   bool isPresent(DateTime day) =>
       attendanceDates.contains(DateTime(day.year, day.month, day.day));
 
+  bool _isRefreshing = false;
+  int? _employeeId;
+
+  /// Pages the calendar to [month] (arrow buttons or swipe) and loads that
+  /// month's attendance, leaves and holidays.
+  Future<void> goToMonth(DateTime month) async {
+    final target = DateTime(month.year, month.month);
+    if (_monthKey(target) == _monthKey(calendarMonth)) return;
+
+    calendarMonth = target;
+    focusedDay = target;
+    notifyListeners();
+
+    final employeeId = _employeeId;
+    if (employeeId == null) return;
+    await refreshCalendarMonth(employeeId: employeeId, month: target);
+  }
+
+  /// Loads everything on the attendance page from the server.
+  ///
+  /// The first load shows the page shimmer; later calls (revisiting the tab,
+  /// pull-to-refresh) refresh in place, so attendances added or edited in
+  /// the Odoo backend show up without restarting the app. A retry after a
+  /// failed load shows the shimmer again.
   Future<void> refreshAttendance({
     required int employeeId,
     required DateTime month,
   }) async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    _employeeId = employeeId;
 
-
-    if (hasLoadedOnce) return;
-
-    isInitialLoaded = false;
-    notifyListeners();
+    if (!hasLoadedOnce || loadError != null) {
+      isInitialLoaded = false;
+      loadError = null;
+      notifyListeners();
+    }
+    loadedMonths.clear();
+    focusedDay = DateTime(month.year, month.month);
+    calendarMonth = DateTime(month.year, month.month);
 
     try {
       await Future.wait([
@@ -111,7 +155,10 @@ class AttendanceProvider extends ChangeNotifier {
         loadMonthlyAttendanceCount(employeeId: employeeId, month: month),
       ]);
     } catch (e) {
+      /// Other failures leave the sections that did load on screen.
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
+      _isRefreshing = false;
       isInitialLoaded = true;
       hasLoadedOnce = true;
       notifyListeners();
@@ -144,14 +191,17 @@ class AttendanceProvider extends ChangeNotifier {
     required int employeeId,
     required DateTime month,
   }) async {
-    attendanceDates.clear();
-
     final days = await AdministratorAttendanceService.fetchMonthlyCheckInDates(
       employeeId: employeeId,
       month: month,
     );
 
-    attendanceDates.addAll(days);
+    /// The user may have paged to another month while this was in flight.
+    if (_monthKey(month) != _monthKey(focusedDay)) return;
+
+    attendanceDates
+      ..clear()
+      ..addAll(days);
     notifyListeners();
   }
 
@@ -159,7 +209,7 @@ class AttendanceProvider extends ChangeNotifier {
     selectedDay = day;
     focusedDay = focused;
 
-    fetchDailyAttendenceCheckInCheckout(3, selectedDay!);
+    fetchDailyAttendenceCheckInCheckout(employeeId, selectedDay!);
 
     notifyListeners();
   }
@@ -179,21 +229,26 @@ class AttendanceProvider extends ChangeNotifier {
 
 
 
+  /// Loads the calendar data for [month] when the user pages the calendar.
+  ///
+  /// Always re-reads from the server (no per-month cache) so attendances
+  /// created in the backend after the page first loaded are shown too.
   Future<void> refreshCalendarMonth({
     required int employeeId,
     required DateTime month,
   }) async {
-    final key = _monthKey(month);
-
-    ///already fetched → DO NOTHING
-    if (loadedMonths.contains(key)) {
-      return;
+    loadedMonths.add(_monthKey(month));
+    try {
+      await Future.wait([
+        loadAttendanceDays(employeeId: employeeId, month: month),
+        fetchLeaveUnusualDays(),
+        fetchAllLeaves(employeeId: employeeId),
+        fetchCalendarHolidays(month: month),
+        _loadCalendarAttendanceCount(employeeId: employeeId, month: month),
+      ]);
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
     }
-    loadedMonths.add(key);
-    await fetchLeaveUnusualDays();
-    await fetchAllLeaves(employeeId: employeeId);
-    await fetchCalendarHolidays(month: month);
-    await _loadCalendarAttendanceCount(employeeId: employeeId, month: month);
     notifyListeners();
   }
 
@@ -297,6 +352,7 @@ class AttendanceProvider extends ChangeNotifier {
       notifyListeners();
 
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
     } finally {
       isLoading = false;
       notifyListeners();
@@ -396,6 +452,10 @@ class AttendanceProvider extends ChangeNotifier {
 
   void clearOnLogout() {
     isInitialLoaded = false;
+    loadError = null;
+    _isRefreshing = false;
+    _employeeId = null;
+    calendarMonth = DateTime.now();
     loadedMonths.clear();
     attendanceEmployeeModel = null;
     hasLoadedOnce = false;

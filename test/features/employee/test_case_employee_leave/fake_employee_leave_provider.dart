@@ -88,7 +88,10 @@ class FakeEmployeeLeaveProvider extends LeavePageProvider {
   }
 
   @override
-  Future<void> fetchMyTimeOff({bool isRefresh = false}) async {
+  Future<void> fetchMyTimeOff({
+    bool isRefresh = false,
+    bool showLoader = true,
+  }) async {
     /// prevent API call
     notifyListeners();
   }

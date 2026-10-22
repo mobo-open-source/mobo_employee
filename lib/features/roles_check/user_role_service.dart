@@ -13,49 +13,32 @@ class UserRoleService {
       }
 
       final uid = session!.userId;
-      final client = await OdooSessionManager.getClient();
-      final String serverVersionString = client!.sessionId!.serverVersion;
-      final int majorVersion = int.parse(serverVersionString.split('.').first);
 
-      if (majorVersion >= 18) {
-        final isHrManager = await OdooSessionManager.callKwWithCompany({
-          'model': 'res.users',
-          'method': 'has_group',
-          'args': [uid, 'hr.group_hr_manager'],
-          'kwargs': {},
-        });
+      final isHrManager = await OdooSessionManager.callKwWithCompany({
+        'model': 'res.users',
+        'method': 'has_group',
+        'args': [
+          [uid],
+          'hr.group_hr_manager',
+        ],
+        'kwargs': {},
+      });
 
-        final isHrOfficer = await OdooSessionManager.callKwWithCompany({
-          'model': 'res.users',
-          'method': 'has_group',
-          'args': [uid, 'hr.group_hr_user'],
-          'kwargs': {},
-        });
+      final isHrOfficer = await OdooSessionManager.callKwWithCompany({
+        'model': 'res.users',
+        'method': 'has_group',
+        'args': [
+          [uid],
+          'hr.group_hr_user',
+        ],
+        'kwargs': {},
+      });
 
-        if (isHrManager == true || isHrOfficer == true) {
-          return UserRole.administrator;
-        }
-
-        return UserRole.officer;
-      } else {
-        final isHrManager = await OdooSessionManager.callKwWithCompany({
-          'model': 'res.users',
-          'method': 'has_group',
-          'args': ['hr.group_hr_manager'],
-          'kwargs': {},
-        });
-
-        final isHrOfficer = await OdooSessionManager.callKwWithCompany({
-          'model': 'res.users',
-          'method': 'has_group',
-          'args': ['hr.group_hr_user'],
-          'kwargs': {},
-        });
-        if (isHrManager || isHrOfficer) {
-          return UserRole.administrator;
-        }
-        return UserRole.officer;
+      if (isHrManager == true || isHrOfficer == true) {
+        return UserRole.administrator;
       }
+
+      return UserRole.officer;
     } catch (e, stack) {
       return UserRole.officer;
     }

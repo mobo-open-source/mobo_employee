@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:mobo_employees/widgets/shimmer_widgets/shimmer_dashboard.dart';
 import 'package:mobo_employees/widgets/widget_checkin_card.dart';
 import 'package:mobo_employees/widgets/widget_costoverviewcard.dart';
 import 'package:mobo_employees/widgets/widget_recentActivity.dart';
 import 'package:mobo_employees/widgets/widget_welcomecard.dart';
 import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
+import 'package:mobo_employees/shared/services/payslip_service.dart';
 import 'package:provider/provider.dart';
 import '../../../review/services/review_service.dart';
 import '../provider/dashboard_provider.dart';
@@ -36,6 +39,30 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  /// Net salary of [payslip] in its own currency.
+  String _formatSalary(PayslipInfo payslip) {
+    final amount = payslip.netWage ?? 0;
+    final code = payslip.currencyCode;
+    if (code == null) return NumberFormat.decimalPattern().format(amount);
+    return NumberFormat.simpleCurrency(name: code).format(amount);
+  }
+
+  Color _payslipStateColor(String? state) {
+    switch (state) {
+      case 'paid':
+        return Colors.green;
+      case 'done':
+      case 'validated':
+        return Colors.blue;
+      case 'verify':
+        return Colors.orange;
+      case 'cancel':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.isTest) {
@@ -50,11 +77,20 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (context, provider, _) {
           final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
 
+          if (provider.loadError != null) {
+            return ConnectionStatusWidget(
+              error: provider.loadError,
+              onRetry: _onRefresh,
+            );
+          }
           if (provider.isDashboardLoading ||
               provider.isDashboardNewDataLoading == false) {
             return DashboardShimmer(isDarkTheme: isDarkTheme);
           }
           final data = provider.dashboard;
+          final payslips = provider.payslipSummary;
+          final lastCredited = payslips?.lastCredited;
+          final latestPayslip = payslips?.latest;
 
           final userAvatar = context.watch<ProfileProvider>().userAvatar;
 
@@ -80,9 +116,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 18),
                     WidgetCheckInCard(
                       isDarkTheme: isDarkTheme,
-                      text: "Checked In",
+                      text: provider.isAttendanceCheckedIn
+                          ? "Checked In"
+                          : provider.isCheckedOutToday
+                          ? "Checked Out"
+                          : "Not Checked In",
                       subtext: provider.isAttendanceCheckedIn
                           ? (provider.checkInn ?? "")
+                          : provider.isCheckedOutToday
+                          ? (provider.checkOut ?? "")
                           : provider.currentTime,
                       color: AppColors.Color4E4E4E,
                     ),
@@ -114,14 +156,19 @@ class _DashboardPageState extends State<DashboardPage> {
                           icon: HugeIcons.strokeRoundedClock01,
                           isDarkTheme: isDarkTheme,
                         ),
-                        WidgetQuickOverview(
-                          count: "",
-                          title: "Credited",
-                          subtitle: "This Month Salary",
-                          color: AppColors.Color43B75D,
-                          icon: HugeIcons.strokeRoundedDollar02,
-                          isDarkTheme: isDarkTheme,
-                        ),
+                        if (payslips != null)
+                          WidgetQuickOverview(
+                            count: lastCredited?.netWage != null
+                                ? _formatSalary(lastCredited!)
+                                : "—",
+                            title: "Credited",
+                            subtitle: lastCredited != null
+                                ? "Salary for ${lastCredited.periodLabel}"
+                                : "No salary credited yet",
+                            color: AppColors.Color43B75D,
+                            icon: HugeIcons.strokeRoundedDollar02,
+                            isDarkTheme: isDarkTheme,
+                          ),
                         WidgetQuickOverview(
                           isDarkTheme: isDarkTheme,
                           count:
@@ -141,22 +188,27 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         WidgetQuickOverview(
                           isDarkTheme: isDarkTheme,
-                          count: data.nextLeaveDate != null
-                              ? "${data.nextLeaveDate}"
-                              : 'No upcoming leave',
+                          count: data.nextLeaveDate ?? 'None',
                           title: "Holiday",
-                          subtitle: "Next Holiday",
+                          subtitle: data.nextLeaveDate == null
+                              ? "No upcoming holiday"
+                              : provider.nextHolidayName != null
+                              ? "Next: ${provider.nextHolidayName}"
+                              : "Next Holiday",
                           color: AppColors.colorC03355,
                           icon: HugeIcons.strokeRoundedProfile,
                         ),
-                        WidgetQuickOverview(
-                          isDarkTheme: isDarkTheme,
-                          count: "",
-                          title: "Payslip",
-                          subtitle: "Available to download",
-                          color: AppColors.Color009688,
-                          icon: HugeIcons.strokeRoundedInvoice01,
-                        ),
+                        if (payslips != null)
+                          WidgetQuickOverview(
+                            isDarkTheme: isDarkTheme,
+                            count: "${payslips.confirmedCount}",
+                            title: "Payslip",
+                            subtitle: payslips.confirmedCount == 1
+                                ? "Payslip issued"
+                                : "Payslips issued",
+                            color: AppColors.Color009688,
+                            icon: HugeIcons.strokeRoundedInvoice01,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -201,18 +253,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                 : Colors.grey,
                           ),
                         ),
-                        StaggeredGridTile.fit(
-                          crossAxisCellCount: 2,
-                          child: WidgetRecentActivity(
-                            isDarkTheme: isDarkTheme,
-                            statusText: "sss",
-                            statusColor: Colors.green,
-                            title: "Payslip",
-                            subtitle: "Your Pay slip is on processing",
-                            color: AppColors.Color009688,
-                            icon: HugeIcons.strokeRoundedInvoice01,
+                        if (payslips != null)
+                          StaggeredGridTile.fit(
+                            crossAxisCellCount: 2,
+                            child: WidgetRecentActivity(
+                              isDarkTheme: isDarkTheme,
+                              statusText: latestPayslip?.stateLabel ?? "",
+                              statusColor: _payslipStateColor(
+                                latestPayslip?.state,
+                              ),
+                              title: "Payslip",
+                              subtitle: latestPayslip != null
+                                  ? "Payslip for ${latestPayslip.periodLabel}"
+                                  : "No payslips yet",
+                              color: AppColors.Color009688,
+                              icon: HugeIcons.strokeRoundedInvoice01,
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 10),
                       ],
                     ),

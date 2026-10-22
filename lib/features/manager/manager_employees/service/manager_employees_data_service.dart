@@ -1,4 +1,5 @@
 import 'package:mobo_employees/features/manager/manager_employees/model/model_fetch_manager_employee_details.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 
 class ManagerEmployeesDataService {
@@ -12,6 +13,7 @@ class ManagerEmployeesDataService {
   }) async {
     try {
       final odooClient = await OdooSessionManager.callKwWithCompany;
+      final majorVersion = await OdooSessionManager.getServerMajorVersion();
 
       if (search.trim().isNotEmpty) {
         domain.addAll([
@@ -37,7 +39,8 @@ class ManagerEmployeesDataService {
             'active',
             'work_phone',
             'work_email',
-            'employee_type',
+            /// Odoo 20 replaced employee_type with employee_type_id
+            if (majorVersion < 20) 'employee_type',
             'job_id',
             'department_id',
             'company_id',
@@ -64,6 +67,7 @@ class ManagerEmployeesDataService {
         totalCount: safeTotalCount,
       );
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       throw Exception("Failed to fetch employees: $e");
     }
   }
@@ -95,6 +99,7 @@ class ManagerEmployeesDataService {
       });
       return count as int;
     } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       throw Exception("Failed to fetch employees: $e");
     }
   }

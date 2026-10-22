@@ -27,12 +27,14 @@ class PaginationControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isDark ? Colors.grey[800] : Colors.grey[100],
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+              color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
               width: 1,
             ),
           ),
@@ -40,33 +42,48 @@ class PaginationControls extends StatelessWidget {
             paginationText,
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white70 : Colors.black87,
             ),
           ),
         ),
-        InkWell(
-          onTap: canGoToPreviousPage ? onPreviousPage : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedArrowLeft01,
-              size: 20,
-              color: canGoToPreviousPage
-                  ? (isDark ? Colors.white : Colors.grey[700]!)
-                  : Colors.grey[400]!,
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 32,
+          height: 36,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: canGoToPreviousPage ? onPreviousPage : null,
+              child: Center(
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowLeft01,
+                  size: 20,
+                  color: canGoToPreviousPage
+                      ? (isDark ? Colors.white : Colors.black87)
+                      : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
+                ),
+              ),
             ),
           ),
         ),
-        InkWell(
-          onTap: canGoToNextPage ? onNextPage : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedArrowRight01,
-              size: 20,
-              color: canGoToNextPage
-                  ? (isDark ? Colors.white : Colors.grey[700]!)
-                  : Colors.grey[400]!,
+        SizedBox(
+          width: 32,
+          height: 36,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: canGoToNextPage ? onNextPage : null,
+              child: Center(
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
+                  size: 20,
+                  color: canGoToNextPage
+                      ? (isDark ? Colors.white : Colors.black87)
+                      : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
+                ),
+              ),
             ),
           ),
         ),

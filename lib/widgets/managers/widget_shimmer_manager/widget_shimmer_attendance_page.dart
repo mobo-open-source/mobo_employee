@@ -30,7 +30,14 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
           highlightColor: Colors.grey.shade100,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Container(width: 120, height: 12, color: Colors.white),
+            child: Container(
+              width: 120,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
           ),
         ),
 
@@ -99,25 +106,49 @@ class _AttendanceRowShimmer extends StatelessWidget {
 
             Expanded(
               flex: 5,
-              child: Container(height: 12, color: Colors.white),
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
 
             Expanded(
               flex: 3,
-              child: Container(height: 12, color: Colors.white),
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
 
             Expanded(
               flex: 3,
-              child: Container(height: 12, color: Colors.white),
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
 
             Expanded(
               flex: 3,
-              child: Container(height: 12, color: Colors.white),
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
           ],
         ),

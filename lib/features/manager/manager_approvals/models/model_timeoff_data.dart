@@ -86,7 +86,7 @@ class ModelTimeOffData {
 
     /// ───── Leave Type ─────
     String leaveType = '';
-    final holiday = json['holiday_status_id'];
+    final holiday = json['holiday_status_id'] ?? json['work_entry_type_id'];
     if (holiday is Map) {
       leaveType = holiday['display_name']?.toString() ?? '';
     } else if (holiday is List && holiday.length >= 2) {

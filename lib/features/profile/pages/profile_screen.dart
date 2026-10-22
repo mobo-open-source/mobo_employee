@@ -181,6 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           if (provider.userData == null) {
             return ConnectionStatusWidget(
+              error: provider.loadError,
               serverUnreachable: true,
               onRetry: () => provider.fetchUserProfile(forceRefresh: true),
             );

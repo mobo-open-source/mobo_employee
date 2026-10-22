@@ -14,9 +14,10 @@ class WidgetClockTimelineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppColors.greyShade800Color : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -47,12 +48,14 @@ class WidgetClockTimelineCard extends StatelessWidget {
                     label: 'Clock In',
                     time: clockInTime,
                     color: AppColors.colorF59E0B,
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 15),
                   _row(
                     label: 'Clock Out',
                     time: clockOutTime,
                     color: AppColors.color43B75D,
+                    isDark: isDark,
                   ),
                 ],
               ),
@@ -94,12 +97,17 @@ class WidgetClockTimelineCard extends StatelessWidget {
     required String label,
     required String time,
     required Color color,
+    required bool isDark,
   }) => Row(
     children: [
       Expanded(
         child: Text(
           label,
-          style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w400),
+          style: GoogleFonts.manrope(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: isDark ? Colors.white : AppColors.color101828,
+          ),
         ),
       ),
       Text(

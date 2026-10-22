@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/services/user_access_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:mobo_employees/features/manager/manager_attendance/model/model_fetch_manager_attendance_groupby_data.dart';
@@ -69,6 +71,10 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   /// Dedicated first-load flag, kept separate from `isLoading`/
   /// `isGroupLoading` since those double as reentrancy guards elsewhere.
   bool isFirstLoad = true;
+
+  /// Set when the last load of the list failed (e.g. server unreachable);
+  /// the page shows it in place of the list until a retry succeeds.
+  Object? loadError;
   bool hasMoreMonths = true;
   bool hasMoreEmployees = true;
   bool hasMoreGroups = true;
@@ -100,6 +106,14 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   /// during [initialLoad].
   int? currentUserId;
 
+  /// Whether Odoo's record rules give this user every employee's attendance
+  /// (Attendance Administrator, or "Manage all attendances" on Odoo 20+).
+  bool canSeeAllAttendances = false;
+
+  /// Whether this user may create attendances from the app — Attendance
+  /// Officer or above, as in Odoo's own Attendances menu.
+  bool canCreateAttendance = false;
+
   /// Custom "Attendance Date" range from the Filter tab's date pickers.
   DateTime? filterStartDate;
   DateTime? filterEndDate;
@@ -110,9 +124,17 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     if (currentUserId != null) return;
     final client = await OdooSessionManager.getClient();
     currentUserId = client?.sessionId?.userId;
+    canSeeAllAttendances = await UserAccessService.canSeeAllAttendances();
+    canCreateAttendance = canSeeAllAttendances ||
+        await UserAccessService.hasGroup(UserAccessService.attendanceOfficer);
+    notifyListeners();
   }
 
-  String _fmtDateTime(DateTime d) => DateFormat('yyyy-MM-dd HH:mm:ss').format(d);
+  /// Odoo stores datetimes in UTC, so domain bounds built from local
+  /// midnight must be converted, or "Today" is off by the timezone offset
+  /// (and no longer matches the dashboard's count).
+  String _fmtDateTime(DateTime d) =>
+      DateFormat('yyyy-MM-dd HH:mm:ss').format(d.toUtc());
 
   /// ANDs together domain fragments (each a leaf or a '&'/'|'-prefixed group).
   List<dynamic> _domainAnd(List<List<dynamic>> fragments) {
@@ -187,7 +209,13 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       [['employee_id.active', '=', true]],
     ];
 
-    if (activeFilters.contains(AttendanceFilter.myTeam) && currentUserId != null) {
+    /// Managers must only ever see their own direct reports here — this is
+    /// not one of the optional filter chips, it is always enforced
+    /// regardless of which chips the user has selected. Attendance
+    /// administrators are exempt: Odoo shows them every attendance, so
+    /// records of other employees (including ones entered in the backend)
+    /// must not be hidden from them.
+    if (currentUserId != null && !canSeeAllAttendances) {
       fragments.add([['employee_id.parent_id.user_id', '=', currentUserId]]);
     }
 
@@ -340,7 +368,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
           );
 
       _monthGroupCache[key] = res;
-    } catch (e) {}
+    } catch (e) {
+      /// Requested from the page's build: a lost connection would otherwise
+      /// leave the group spinning and be re-requested on every rebuild.
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
+    }
 
     _loadingGroupNodes.remove(key);
     notifyListeners();
@@ -364,7 +396,9 @@ class ManagerAttendanceProvider extends ChangeNotifier {
           );
 
       _employeeGroupCache[key] = res;
-    } catch (e) {}
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
+    }
 
     _loadingGroupNodes.remove(key);
     notifyListeners();
@@ -520,7 +554,9 @@ class ManagerAttendanceProvider extends ChangeNotifier {
           );
 
       _groupAttendanceCache[key] = data;
-    } catch (e) {}
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
+    }
 
     _loadingGroupAttendance.remove(key);
     notifyListeners();
@@ -658,20 +694,29 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads the top-level groups. Never throws: most callers don't await
+  /// it, so a failure is kept in [loadError] for the page to show.
   Future<void> fetchRootGroups() async {
-    final first = groupBy.first;
+    loadError = null;
 
-    if (first == AttendanceGroupBy.month) {
-      _monthOffset = 0;
-      hasMoreMonths = true;
-      await fetchTotalMonthGroups(); /// month total
-      await fetchNextMonthGroups(reset: true);
-    } else if (first == AttendanceGroupBy.employee) {
-      _employeeOffset = 0;
-      hasMoreEmployees = true;
+    try {
+      final first = groupBy.first;
 
-      await fetchTotalEmployeeGroups(domain: baseDomain); /// administrator total
-      await fetchEmployeeGroups(reset: true);
+      if (first == AttendanceGroupBy.month) {
+        _monthOffset = 0;
+        hasMoreMonths = true;
+        await fetchTotalMonthGroups(); /// month total
+        await fetchNextMonthGroups(reset: true);
+      } else if (first == AttendanceGroupBy.employee) {
+        _employeeOffset = 0;
+        hasMoreEmployees = true;
+
+        await fetchTotalEmployeeGroups(domain: baseDomain); /// administrator total
+        await fetchEmployeeGroups(reset: true);
+      }
+    } catch (e) {
+      loadError = e;
+      notifyListeners();
     }
   }
 
@@ -732,7 +777,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
 
 
+  /// Loads the current page of the ungrouped list. Never throws: most
+  /// callers don't await it, so a lost connection is kept in [loadError]
+  /// for the page to show instead of an empty or stale list.
   Future<void> fetchAllAttendances({bool silent = false}) async {
+    loadError = null;
     if (!silent) {
 
       isLoading = true;
@@ -767,11 +816,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       ) {
         final r = modelManagerAttendanceData!.attendanceRecords[i];
       }
-    } catch (e) {}
-
-    if (!silent) {
-      isLoading = false;
-      notifyListeners();
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
+    } finally {
+      if (!silent) isLoading = false;
+      if (!silent || loadError != null) notifyListeners();
     }
   }
 
@@ -815,6 +864,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       }
 
     } catch (e) {
+      /// Also runs on a page change; either way the page shows the error.
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isGroupLoading = false;
       notifyListeners();
@@ -896,6 +947,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
               search: currentSearch,
             );
       }
+    } catch (e) {
+      loadError = e;
     } finally {
       isGroupLoading = false;
       notifyListeners();
@@ -944,6 +997,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   String formatTimeAMPM(DateTime? date) {
     if (date == null) return '-';
     return DateFormat('hh:mm a').format(date);
+  }
+
+  String formatDate(DateTime? date, {String pattern = 'MMM dd, yyyy'}) {
+    if (date == null) return '-';
+    return DateFormat(pattern).format(date);
   }
 
   String formatWorkedHours(double hours) {
@@ -1005,6 +1063,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
       }
     } catch (e) {
+      /// Also runs on a page change; either way the page shows the error.
+      if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isGroupLoading = false;
       notifyListeners();
@@ -1027,8 +1087,46 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _showTodayOnNextLoad = false;
+
+  /// Dashboard shortcut (Today's attendance, Late Check-ins): the next load
+  /// of the page — which runs when the tab is shown — lists only today's
+  /// attendances, ungrouped, with any search cleared.
+  void showTodayOnNextLoad() {
+    _showTodayOnNextLoad = true;
+  }
+
+  void _applyTodayShortcut() {
+    if (!_showTodayOnNextLoad) return;
+    _showTodayOnNextLoad = false;
+
+    activeFilters = {AttendanceFilter.today};
+    draftFilters = {AttendanceFilter.today};
+    filterStartDate = null;
+    filterEndDate = null;
+    draftFilterStartDate = null;
+    draftFilterEndDate = null;
+    groupBy = [];
+    draftGroupBy = [];
+
+    searchController.clear();
+    currentSearch = '';
+    draftSearch = '';
+    _searchDebounce?.cancel();
+    _currentPage = 0;
+  }
+
+  /// Reloads the list (pull-to-refresh, retry, returning to the tab). Redoes
+  /// the whole [initialLoad] if that never completed.
   Future<void> refreshPage() async {
+    if (!initialLoadDone) {
+      await initialLoad();
+      return;
+    }
+
+    _applyTodayShortcut();
     isLoading = true;
+    loadError = null;
 
     totalMonthGroups = 0;
     totalEmployeeGroups = 0;
@@ -1048,14 +1146,16 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     _loadingEmployees.clear();
     notifyListeners();
 
-    if (groupBy.isEmpty) {
-      await fetchAllAttendances();
-    } else {
-      await fetchRootGroups();
+    try {
+      if (groupBy.isEmpty) {
+        await fetchAllAttendances();
+      } else {
+        await fetchRootGroups();
+      }
+    } finally {
+      isLoading = false;
+      notifyListeners();
     }
-
-    isLoading = false;
-    notifyListeners();
   }
 
   void loadData() {
@@ -1067,13 +1167,28 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   Future<void> initialLoad() async {
     if (initialLoadDone) return;
     initialLoadDone = true;
+    isFirstLoad = true;
+    loadError = null;
+    /// Resolve the user and their access again on a retry: the access
+    /// checks read as "no access" while the server is unreachable.
+    currentUserId = null;
+    notifyListeners();
 
     try {
       await _ensureCurrentUser();
       await setInitialGroupByByVersion();
+      _applyTodayShortcut();
 
-      await fetchRootGroups();
+      if (groupBy.isEmpty) {
+        await fetchAllAttendances();
+      } else {
+        await fetchRootGroups();
+      }
+    } catch (e) {
+      loadError = e;
     } finally {
+      /// After a failure the next refresh/retry redoes this whole load.
+      if (loadError != null) initialLoadDone = false;
       // Always clear, even on error, so the shimmer can't get stuck.
       isFirstLoad = false;
       notifyListeners();
@@ -1171,6 +1286,9 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     selectedMonth = null;
     draftSelectedMonth = null;
     currentUserId = null;
+    canSeeAllAttendances = false;
+    canCreateAttendance = false;
+    _showTodayOnNextLoad = false;
 
     /// Pagination
     _currentPage = 0;
@@ -1191,6 +1309,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     /// Loading states
     isLoading = false;
     isGroupLoading = false;
+    loadError = null;
 
     /// API models
     modelAttendanceGroupByData = null;

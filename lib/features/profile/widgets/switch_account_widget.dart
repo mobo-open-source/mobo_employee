@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/app/app_entry.dart';
+import 'package:mobo_employees/core/exceptions/app_exceptions.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/core/services/biometric_context_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
@@ -17,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/const/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/snackbars/custom_snackbar.dart';
 import '../../login/pages/credentials_screen.dart';
 import '../../../core/utils/server_url_utils.dart';
@@ -139,115 +141,124 @@ class SwitchAccountWidget extends StatelessWidget {
     required bool isCurrent,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool needsReauth = !isCurrent &&
+        (account['needsReauth']?.toString() == 'true' ||
+            account['password']?.toString().isEmpty == true);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: isCurrent
-            ? (isDark ? Colors.blue[900]!.withOpacity(0.3) : Colors.blue[50])
-            : (isDark ? Colors.grey[800] : Colors.grey[50]),
-        border: Border.all(
+    /// Flat "record card" recipe (Mobo UI Style Guide §8) — this row
+    /// represents a stored account, not a settings/menu option, so it gets
+    /// the InkWell + Container card treatment instead of a stock ListTile.
+    /// The card itself has no navigation target of its own (only the
+    /// trailing "Switch" action is tappable), so `onTap` stays null.
+    return InkWell(
+      onTap: null,
+      borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
+      child: Container(
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
           color: isCurrent
-              ? (isDark ? Colors.blue[700]! : Colors.blue[300]!)
-              : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
-          width: isCurrent ? 2 : 1,
+              ? (isDark
+                  ? Colors.blue[900]!.withValues(alpha: 0.3)
+                  : Colors.blue[50])
+              : (isDark ? Colors.grey[850] : Colors.white),
+          border: Border.all(
+            color: isCurrent
+                ? (isDark ? Colors.blue[700]! : Colors.blue[300]!)
+                : (isDark ? Colors.grey[850]! : Colors.grey[200]!),
+            width: isCurrent ? 2 : 0.5,
+          ),
+          boxShadow: const [AppShadows.cardShadow],
         ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: _buildUserAvatar(account, isCurrent, isDark),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                account['userName'] ?? 'Unknown User',
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
-                  fontSize: 14,
-                  fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ),
-            if (isCurrent)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.blue[700] : Colors.blue[600],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildUserAvatar(account, isCurrent, isDark),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.check_circle, size: 14, color: Colors.white),
-                    const SizedBox(width: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            account['userName'] ?? 'Unknown User',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 15,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w600 : FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isCurrent) ...[
+                          const SizedBox(width: 8),
+                          StatusColors.buildStatusBadge(
+                            'Current',
+                            color: StatusColors.green,
+                            isDark: isDark,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      'Current',
+                      account['database'] ?? 'Unknown Database',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 13,
                       ),
                     ),
+                    if (needsReauth)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 12,
+                              color: StatusColors.orange,
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'Needs re-authentication',
+                              style: TextStyle(
+                                color: StatusColors.orange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              account['database'] ?? 'Unknown Database',
-              style: TextStyle(
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                fontSize: 12,
-              ),
-            ),
-            if (!isCurrent &&
-                (account['needsReauth']?.toString() == 'true' ||
-                    account['password']?.toString().isEmpty == true))
-              Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    size: 12,
-                    color: Colors.orange[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Needs re-authentication',
-                    style: TextStyle(
-                      color: Colors.orange[600],
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-        trailing: isCurrent
-            ? null
-            : InkWell(
-                onTap: isCurrent
-                    ? null
-                    : () async {
-                        await _switchAccount(context, account, sessionService);
-                      },
-                child: Container(
-                  padding: EdgeInsets.all(10),
-                  child: Text(
-                    "Switch",
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
+              if (!isCurrent)
+                InkWell(
+                  onTap: () async {
+                    await _switchAccount(context, account, sessionService);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      "Switch",
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
-              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -356,6 +367,20 @@ class SwitchAccountWidget extends StatelessWidget {
           return;
         }
 
+        /// The account's database has expired: re-entering the password
+        /// can't help, so say so instead of offering the sign-in screen.
+        if (e is DatabaseExpiredException) {
+          _showErrorDialog(context, 'Database Expired', e.message);
+          return;
+        }
+
+        /// The account's database lacks a required module: also nothing a
+        /// password can fix.
+        if (e is RequiredModulesMissingException) {
+          _showErrorDialog(context, 'Module Missing', e.message);
+          return;
+        }
+
         final errorMsg = e.toString().toLowerCase();
 
         if (errorMsg.contains('authentication') ||
@@ -451,6 +476,8 @@ class SwitchAccountWidget extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
+              elevation: 0,
+              shadowColor: Colors.transparent,
               backgroundColor: Colors.red[600],
               foregroundColor: Colors.white,
             ),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:odoo_rpc/odoo_rpc.dart';
 import '../models/appsession.dart';
+import '../utils/odoo_binary_utils.dart';
 import '../utils/server_url_utils.dart';
 import 'connectivity_service.dart';
 import 'odoo_session_manager.dart';
@@ -239,9 +240,9 @@ class SessionService extends ChangeNotifier {
           if (n != null && n != false) {
             userDisplayName = n.toString();
           }
-          final img = user['image_1920'];
-          if (img != null && img != false) {
-            imageBase64 = img.toString();
+          final img = odooBinaryToBase64(user['image_1920']);
+          if (img.isNotEmpty) {
+            imageBase64 = img;
           }
         }
       } catch (e) {}
@@ -303,6 +304,42 @@ class SessionService extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Refreshes the display name/photo cached on a stored account after the
+  /// user edits their profile. Stored entries are otherwise only written at
+  /// login, so the switch-accounts list kept showing the pre-edit values.
+  /// Matches on user id + server + database (the same key used for dedup),
+  /// not the `isCurrent` flag, and only persists when something changed.
+  Future<void> updateStoredAccountProfile({
+    required int userId,
+    required String serverUrl,
+    required String database,
+    String? name,
+    String? imageBase64,
+  }) async {
+    final url = normalizeServerUrl(serverUrl);
+    var changed = false;
+    for (final account in _storedAccounts) {
+      final matches = account['userId']?.toString() == userId.toString() &&
+          normalizeServerUrl(account['serverUrl']?.toString() ?? '') == url &&
+          account['database'] == database;
+      if (!matches) continue;
+      if (name != null && name.isNotEmpty && account['userName'] != name) {
+        account['userName'] = name;
+        account['name'] = name;
+        changed = true;
+      }
+      if (imageBase64 != null &&
+          imageBase64.isNotEmpty &&
+          account['imageBase64'] != imageBase64) {
+        account['imageBase64'] = imageBase64;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    await _saveStoredAccountsWithRetry();
+    notifyListeners();
   }
 
   Future<void> _storePasswordWithMultiplePatterns(

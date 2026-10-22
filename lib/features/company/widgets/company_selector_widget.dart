@@ -215,9 +215,8 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
 
   void _showDropdownMenu(BuildContext context, CompanyProvider provider) async {
     /// Always refetch on open to ensure we display up-to-date companies
-    /// Fire-and-forget so the UI opens immediately but shows a spinner while loading
-    /// ignore: unawaited_futures
-    provider.initialize();
+    /// Not awaited so the UI opens immediately; Confirm waits for it instead.
+    final refreshing = provider.initialize();
     final screenSize = MediaQuery.of(context).size;
     /// Use bottom sheet on very narrow screens
     if (screenSize.width < 1000) {
@@ -237,6 +236,7 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: _CompanyDropdownContent(
               provider: provider,
+              refreshing: refreshing,
               onCompanyChanged: widget.onCompanyChanged,
               width: screenSize.width, /// take full width inside sheet
             ),
@@ -283,6 +283,7 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
                   constraints: BoxConstraints(maxWidth: popoverWidth),
                   child: _CompanyDropdownContent(
                     provider: provider,
+                    refreshing: refreshing,
                     onCompanyChanged: widget.onCompanyChanged,
                     width: popoverWidth,
                   ),
@@ -309,11 +310,15 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
 
 class _CompanyDropdownContent extends StatefulWidget {
   final CompanyProvider provider;
+
+  /// The company refresh started when the list was opened.
+  final Future<void> refreshing;
   final VoidCallback? onCompanyChanged;
   final double? width;
 
   const _CompanyDropdownContent({
     required this.provider,
+    required this.refreshing,
     this.onCompanyChanged,
     this.width,
   });
@@ -329,30 +334,55 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
   bool _applying = false;
   bool _resetting = false;
 
+  /// Whether the user changed the selection since it was last synced.
+  bool _edited = false;
+
   @override
   void initState() {
     super.initState();
+    _syncFromProvider();
+    widget.provider.addListener(_onProviderChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.provider.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _syncFromProvider() {
     _tempSelectedCompanyId = widget.provider.selectedCompanyId ?? -1;
     _tempAllowedCompanyIds = widget.provider.selectedAllowedCompanyIds.toSet();
   }
 
-  void _onConfirm() async {
-    /// If nothing changed, just close
-    final noActiveChange =
-        _tempSelectedCompanyId == widget.provider.selectedCompanyId;
-    final noAllowedChange = _setEquals(
-      _tempAllowedCompanyIds,
-      widget.provider.selectedAllowedCompanyIds.toSet(),
-    );
-    if (noActiveChange && noAllowedChange) {
-      if (mounted) Navigator.pop(context);
-      return;
-    }
+  /// The list opens while [CompanyProvider.initialize] is still running:
+  /// show its companies once loaded, and — until the user picks something —
+  /// the selection it settles on.
+  void _onProviderChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (!_edited && !_applying && !_resetting) _syncFromProvider();
+    });
+  }
 
+  void _onConfirm() async {
     setState(() => _applying = true);
     bool changed = false;
 
     try {
+      /// Let the refresh started on open finish first: it ends by restoring
+      /// the saved company, which would otherwise undo this switch.
+      await widget.refreshing;
+      if (!mounted) return;
+
+      /// -1: no company was selected when the list opened.
+      final noActiveChange = _tempSelectedCompanyId < 0 ||
+          _tempSelectedCompanyId == widget.provider.selectedCompanyId;
+      final noAllowedChange = _setEquals(
+        _tempAllowedCompanyIds,
+        widget.provider.selectedAllowedCompanyIds.toSet(),
+      );
+
       /// 1. Switch active company if changed
       if (!noActiveChange) {
         await widget.provider.switchCompany(_tempSelectedCompanyId);
@@ -370,10 +400,21 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
       if (changed) {
         widget.onCompanyChanged?.call();
       }
+    } catch (_) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        CustomSnackbar.showError(
+          ctx,
+          'Could not switch company. Please try again.',
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _applying = false);
-        Navigator.pop(context);
+        /// Only close the list itself; if it was already dismissed while
+        /// applying, a bare pop would close the page beneath it.
+        final route = ModalRoute.of(context);
+        if (route != null && route.isCurrent) Navigator.pop(context);
       }
     }
   }
@@ -459,6 +500,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                           ? null
                           : () {
                               setState(() {
+                                _edited = true;
                                 _tempSelectedCompanyId = companyId;
                                 /// Odoo behavior: When you switch active company, it must be in allowed list
                                 _tempAllowedCompanyIds.add(companyId);
@@ -498,6 +540,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                     ? null /// active company cannot be unchecked
                                     : (val) {
                                         setState(() {
+                                          _edited = true;
                                           if (val == true) {
                                             _tempAllowedCompanyIds.add(
                                               companyId,
@@ -549,6 +592,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                 await widget.provider.initialize();
                                 if (mounted) {
                                   setState(() {
+                                    _edited = false;
                                     _tempSelectedCompanyId =
                                         widget.provider.selectedCompanyId ?? -1;
                                     _tempAllowedCompanyIds = widget
@@ -604,23 +648,21 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                 Expanded(
                   child: Builder(
                     builder: (context) {
-                      final noActiveChange =
-                          _tempSelectedCompanyId ==
-                          widget.provider.selectedCompanyId;
-                      final noAllowedChange = _setEquals(
-                        _tempAllowedCompanyIds,
-                        widget.provider.selectedAllowedCompanyIds.toSet(),
-                      );
+                      /// Not disabled when nothing changed: the disabled
+                      /// colors match the enabled ones (so "Applying..."
+                      /// stays readable), and a Confirm that looked enabled
+                      /// but did nothing read as broken. It just closes.
                       final disabled =
                           _applying ||
                           _resetting ||
-                          widget.provider.isSwitching ||
-                          (noActiveChange && noAllowedChange);
+                          widget.provider.isSwitching;
                       return SizedBox(
                         height: 48,
                         child: ElevatedButton(
                           onPressed: disabled ? null : _onConfirm,
                           style: ElevatedButton.styleFrom(
+                            elevation: 0,
+                            shadowColor: Colors.transparent,
                             minimumSize: const Size(double.infinity, 48),
                             // White background in dark mode keeps the black label readable.
                             backgroundColor: isDark ? Colors.white : primaryColor,

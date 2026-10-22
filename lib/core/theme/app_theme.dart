@@ -1,69 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+/// `AppTheme` used to be defined twice — once here and once in
+/// `themeData.dart` (which `main.dart` actually wires up). Both declared the
+/// same class name with the same brand constants, which happened to work by
+/// accident but left two sources of truth. `themeData.dart` is the real one
+/// (it also carries the app's `TextTheme`/`DatePickerTheme` overrides, plus
+/// the `StatusColors`/`AppShadows`/`AppRadius` tokens from the Mobo UI Style
+/// Guide), so this file now just re-exports it and keeps every existing
+/// `import '.../app_theme.dart'` working unchanged.
+library;
 
-class AppTheme {
-  static const Color primaryColor = Color(0xFFC03355);
-  static const Color secondaryColor = Color(0xFFffffff);
-
-  static ThemeData lightTheme = ThemeData(
-    brightness: Brightness.light,
-    primaryColor: primaryColor,
-    fontFamily: GoogleFonts.manrope().fontFamily,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primaryColor,
-      brightness: Brightness.light,
-      primary: primaryColor,
-      secondary: secondaryColor,
-    ),
-    scaffoldBackgroundColor: Colors.grey.shade50,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: primaryColor,
-      foregroundColor: Colors.white,
-      elevation: 0,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: primaryColor, width: 2),
-      ),
-    ),
-  );
-
-  static ThemeData darkTheme = ThemeData(
-    brightness: Brightness.dark,
-    primaryColor: primaryColor,
-    fontFamily: GoogleFonts.manrope().fontFamily,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primaryColor,
-      brightness: Brightness.dark,
-      primary: primaryColor,
-      secondary: secondaryColor,
-    ),
-    scaffoldBackgroundColor: const Color(0xFF181A20),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: primaryColor,
-      foregroundColor: Colors.white,
-      elevation: 0,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: primaryColor, width: 2),
-      ),
-    ),
-  );
-}
+export 'themeData.dart';

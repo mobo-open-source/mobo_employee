@@ -57,7 +57,7 @@ class ModelAllocationData {
       empName = employee[1] ?? '';
     }
 
-    final holiday = json['holiday_status_id'];
+    final holiday = json['holiday_status_id'] ?? json['work_entry_type_id'];
 
     String leaveType = '';
 
@@ -85,7 +85,10 @@ class ModelAllocationData {
       id: (json['id'] as num?)?.toInt() ?? 0,
       userId: userId,
       employeeId: empId,
-      notes: _stringOrEmpty(json['notes']),
+      /// hr.leave.allocation has no `notes` field — the reason/description
+      /// text an employee enters is stored in `name` (same convention as
+      /// hr.leave), which is what was actually missing here.
+      notes: _stringOrEmpty(json['name']),
       employeeName: empName,
       leaveTypeName: leaveType,
       durationDisplay: _stringOrEmpty(json['duration_display']),

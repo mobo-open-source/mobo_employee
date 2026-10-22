@@ -3,8 +3,13 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:odoo_rpc/odoo_rpc.dart';
+import 'package:mobo_employees/core/exceptions/odoo_error_mapper.dart';
+import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/services/user_access_service.dart';
+import 'package:mobo_employees/core/utils/date_range_validator.dart';
+import 'package:mobo_employees/features/employee/leave/model/model_time_off_balance.dart';
+import 'package:mobo_employees/features/employee/leave/service/leave_service.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_allocation_data.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_leave_calendar_event.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_employees.dart';
@@ -14,6 +19,7 @@ import 'package:mobo_employees/features/manager/manager_approvals/services/manag
 import 'package:mobo_employees/features/employee/attendance/service/administrator_attendance_service.dart';
 import 'package:mobo_employees/shared/widgets/snackbars/custom_snackbar.dart';
 import 'package:mobo_employees/core/const/keys/global_keys.dart';
+import 'package:mobo_employees/shared/services/time_off_type_service.dart';
 
 /// State holder for the manager-side leave approvals feature.
 ///
@@ -24,20 +30,20 @@ import 'package:mobo_employees/core/const/keys/global_keys.dart';
 /// actions without blocking the rest of the list.
 class ManagerApprovalsProvider extends ChangeNotifier {
   int _selectedTabIndex = 0;
-  int _pendingRequests = 0;
   int? serverMajorVersion;
   int? selectedEmployeeId;
 
-  double _remainingLeaves = 0;
-  double paidRemainingMyLeave = 0;
-  double compRemainingMyLeaves = 0;
-  double pendingMyRequest = 0;
-  double compMaxMyLeaves = 0;
-  double _maxLeaves = 0;
-  double paidMaxLeaves = 0;
-  double _compensatoryLeaves = 0;
-  double _compensatoryMaxLeaves = 0;
-  double _allocationRequestCount = 0;
+  List<TimeOffBalance> _timeOffBalances = [];
+  int _pendingAllocationCount = 0;
+
+  /// Whether the last read of the balance cards failed (and none has
+  /// succeeded since). The cards on screen are then the last good ones, or
+  /// none at all.
+  bool _timeOffDataFailed = false;
+
+  /// Numbers the balance reads, so that when two overlap (page entry, pull
+  /// to refresh, an approval) only the newest one may update the cards.
+  int _timeOffDataRequest = 0;
 
   bool _isLoading = false;
   bool _isInitialLoadDone = false;
@@ -47,6 +53,20 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   bool _isCalendarLoading = false;
   bool _isSaveMyTimeOffLoading = false;
   bool _isAllocationLoading = false;
+  bool _isEmployeesLoading = false;
+
+  /// Set when the last full load of the Calendar tab (events, balance cards,
+  /// unusual days) failed, e.g. server unreachable; the tab shows it in
+  /// place of its content until a retry succeeds.
+  Object? loadError;
+
+  /// Set when the last load of the Time Off tab's request list failed; the
+  /// tab shows it in place of the list until a retry succeeds.
+  Object? timeOffLoadError;
+
+  /// Set when the last load of the Allocation tab's list failed; the tab
+  /// shows it in place of the list until a retry succeeds.
+  Object? allocationLoadError;
 
   File? _attachedFile;
   File? get attachedFile => _attachedFile;
@@ -62,9 +82,6 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   DateTime? _selectedDate;
   DateTime? fromDate;
   DateTime? toDate;
-
-  String paidOffValidUntil = '';
-  String compensatoryValidUntil = '';
 
   String? _attachedFileName;
   String? get attachedFileName => _attachedFileName;
@@ -99,15 +116,21 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   bool get isCalendarLoading => _isCalendarLoading;
   bool get isSaveMyTimeOffLoading => _isSaveMyTimeOffLoading;
   bool get isAllocationLoading => _isAllocationLoading;
+  bool get isEmployeesLoading => _isEmployeesLoading;
 
   int get selectedTabIndex => _selectedTabIndex;
-  int get pendingRequests => _pendingRequests;
 
-  double get remainingLeaves => _remainingLeaves;
-  double get maxLeaves => _maxLeaves;
-  double get compensatoryLeaves => _compensatoryLeaves;
-  double get compensatoryMaxLeaves => _compensatoryMaxLeaves;
-  double get allocationRequestCount => _allocationRequestCount;
+  /// The signed-in user's own balance per time off type, as on Odoo's
+  /// Time Off dashboard.
+  List<TimeOffBalance> get timeOffBalances => _timeOffBalances;
+
+  /// Odoo's "Pending Allocations": the user's own allocation requests
+  /// awaiting approval.
+  int get pendingAllocationCount => _pendingAllocationCount;
+
+  /// True when the balance cards couldn't be read, so the page shows a retry
+  /// in their place rather than silently showing nothing.
+  bool get timeOffDataFailed => _timeOffDataFailed;
 
   List<ModelTimeOffData> get timeOffList => _timeOffList;
   List<LeaveCalendarEvent> get calendarEvents => _calendarEvents;
@@ -123,24 +146,37 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// Advances the calendar by one month and refetches its events.
   Future<void> goToNextMonth() async {
     _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
-    await fetchLeaveCalendarEventsFunction();
+    await _fetchMonthEvents();
   }
 
   /// Moves the calendar back one month and refetches its events.
   Future<void> goToPreviousMonth() async {
     _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
-    await fetchLeaveCalendarEventsFunction();
+    await _fetchMonthEvents();
+  }
+
+  /// Fetches the events of the month just navigated to; if the server
+  /// can't be reached the Calendar tab shows [loadError] instead of an
+  /// empty month.
+  Future<void> _fetchMonthEvents() async {
+    try {
+      await fetchLeaveCalendarEventsFunction();
+    } catch (e) {
+      loadError = e;
+      notifyListeners();
+    }
   }
 
   /// Switches the active tab and lazy-loads its data on first visit.
   ///
   /// No-op if [index] equals the current tab. The time-off tab (1) is
-  /// fetched once and gated by [_isTimeOffInitialLoaded]; the allocations
-  /// tab (2) is refetched every time it is selected.
+  /// fetched once and gated by [_isTimeOffInitialLoaded], or again after a
+  /// failed load; the allocations tab (2) is refetched every time it is
+  /// selected.
   void setTab(int index) {
     if (_selectedTabIndex == index) return;
     _selectedTabIndex = index;
-    if (index == 1 && !_isTimeOffInitialLoaded) {
+    if (index == 1 && (!_isTimeOffInitialLoaded || timeOffLoadError != null)) {
       fetchTimeOffDetails();
       _isTimeOffInitialLoaded = true;
     }
@@ -152,7 +188,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
   /// Loads "unusual days" (e.g. public holidays / non-working days) into
   /// [unusualDays] for calendar shading. Failures clear nothing and are
-  /// swallowed.
+  /// swallowed, except an unreachable server, which is rethrown.
   Future<void> fetchUnusualDays() async {
     try {
       final service = AdministratorAttendanceService();
@@ -164,52 +200,90 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         }
       }
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+    }
   }
 
-  /// Loads the manager's own time-off summary counters (remaining/max leaves,
-  /// pending requests, compensatory balances, allocation request count).
+  /// Loads the manager's own Time Off dashboard figures: a balance per time
+  /// off type and the pending allocation requests count.
   ///
   /// Set [showLoader] to `false` for background refreshes that should not
-  /// flip the page-level spinner. On error, every counter is reset to 0.
+  /// flip the page-level spinner. A failed read never wipes the cards: it
+  /// keeps the last good figures and raises [timeOffDataFailed], and a read
+  /// that was overtaken by a newer one is dropped. An unreachable server is
+  /// rethrown and leaves everything as it was.
   Future<void> fetchTimeOffData({bool showLoader = true}) async {
+    final request = ++_timeOffDataRequest;
     if (showLoader) {
       _isLoading = true;
       notifyListeners();
     }
 
     try {
-      final timeOffData = await ManagerCalendarService.fetchTimeOffSummary();
-      _remainingLeaves = timeOffData['virtual_remaining_leaves'] ?? 0;
-      _maxLeaves = timeOffData['max_leaves'] ?? 0;
-      _pendingRequests = (timeOffData['pending_leaves'] ?? 0).toInt();
-      _compensatoryLeaves = timeOffData['compensatory_leaves'] ?? 0;
-      _compensatoryMaxLeaves = timeOffData['compensatory_max_leaves'] ?? 0;
-      _allocationRequestCount = timeOffData['allocation_request_amount'] ?? 0;
-    } catch (_) {
-      _remainingLeaves = 0;
-      _maxLeaves = 0;
-      _pendingRequests = 0;
-      _compensatoryLeaves = 0;
-      _compensatoryMaxLeaves = 0;
-      _allocationRequestCount = 0;
+      final dashboard = await _readTimeOffDashboard();
+      if (request != _timeOffDataRequest) return;
+      _timeOffBalances = dashboard.balances;
+      _pendingAllocationCount = dashboard.pendingAllocations;
+      _timeOffDataFailed = false;
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+      if (request == _timeOffDataRequest) _timeOffDataFailed = true;
     } finally {
-      if (showLoader) {
-        _isLoading = false;
-        notifyListeners();
-      }
+      if (showLoader) _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// One-shot loader that fetches calendar events, summary counters, and
-  /// unusual days in parallel. Guarded by [_isInitialLoadDone] so it runs
-  /// at most once per provider lifetime; use [refreshAll] for subsequent
-  /// pull-to-refresh actions.
+  /// Reads the dashboard, trying once more after a short pause: on entering
+  /// the page several calls start together, and when the session needs
+  /// renewing one of them can fail while another renews it.
+  Future<TimeOffDashboard> _readTimeOffDashboard() async {
+    try {
+      return await _readDashboard();
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+      await Future.delayed(_timeOffRetryDelay);
+      return _readDashboard();
+    }
+  }
+
+  /// The retry offered when the balance cards failed to load.
+  Future<void> retryTimeOffData() async {
+    _timeOffDataFailed = false;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await fetchTimeOffData(showLoader: false);
+    } catch (_) {
+      /// Unreachable server: the cards stay as they were, still marked failed.
+      _timeOffDataFailed = true;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Fetches calendar events, summary counters, and unusual days in
+  /// parallel behind the page loader the first time; later calls (the page
+  /// being shown again) refresh in place via [_refreshInPlace]. After a
+  /// failed load ([loadError] set), every call retries the full load.
   Future<void> loadInitialData() async {
-    if (_isInitialLoadDone) return;
+    if (_isInitialLoadDone && loadError == null) {
+      /// Returning to Approvals: requests may have been created, approved
+      /// or refused (here or in Odoo) since the counters were read.
+      try {
+        await _refreshInPlace();
+      } catch (_) {
+        /// In-place refresh: figures that couldn't be re-read (server
+        /// unreachable) keep their last loaded values.
+      }
+      return;
+    }
 
     _isInitialLoadDone = true;
     _isLoading = true;
+    loadError = null;
     notifyListeners();
 
     try {
@@ -217,8 +291,10 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         fetchLeaveCalendarEventsFunction(showLoader: true),
         fetchTimeOffData(showLoader: false),
         fetchUnusualDays(),
+        _loadAllocationAccess(),
       ]);
-    } catch (_) {
+    } catch (e) {
+      loadError = e;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -226,25 +302,86 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   }
 
   /// Refetches calendar, summary, and unusual days without showing a
-  /// page-level loader — intended for pull-to-refresh.
+  /// page-level loader — intended for pull-to-refresh. Also reloads the
+  /// request list of the tab on screen. If the server can't be reached,
+  /// the Calendar tab shows [loadError] as after a failed initial load.
   Future<void> refreshAll() async {
+    try {
+      await _refreshInPlace();
+    } catch (e) {
+      loadError = e;
+      notifyListeners();
+    }
+  }
+
+  /// Re-reads the Calendar tab's events, cards and unusual days, plus the
+  /// request list of the tab on screen, without any loader. Rethrows when
+  /// the server can't be reached; the request lists record their own
+  /// failure instead.
+  Future<void> _refreshInPlace() async {
+    await Future.wait([
+      fetchLeaveCalendarEventsFunction(showLoader: false),
+      fetchTimeOffData(showLoader: false),
+      fetchUnusualDays(),
+      if (_selectedTabIndex == 1) fetchTimeOffDetails(),
+      if (_selectedTabIndex == 2) fetchAllocationDetails(),
+    ]);
+    notifyListeners();
+  }
+
+  /// Re-reads what the Calendar tab shows — the Paid Time Off /
+  /// Compensatory / Pending cards and the per-day events — after any change
+  /// that moves them: a request or allocation created, approved or refused.
+  Future<void> _refreshCalendarCounts() async {
     try {
       await Future.wait([
         fetchLeaveCalendarEventsFunction(showLoader: false),
         fetchTimeOffData(showLoader: false),
-        fetchUnusualDays(),
       ]);
-    } catch (_) {}
+    } catch (_) {
+      /// In-place refresh after an action: figures that couldn't be re-read
+      /// (server unreachable) keep their last loaded values, and the
+      /// action's own result is still reported.
+    }
+    notifyListeners();
+  }
+
+  bool _canCreateAllocation = false;
+
+  /// Whether this user may create allocations — Time Off Officer or above,
+  /// who gets the "New" button on Odoo's Allocations list.
+  bool get canCreateAllocation => _canCreateAllocation;
+
+  Future<void> _loadAllocationAccess() async {
+    _canCreateAllocation = await UserAccessService.hasGroup(
+      UserAccessService.timeOffOfficer,
+    );
+    notifyListeners();
+  }
+
+  /// Call after an allocation was created from the app.
+  Future<void> onAllocationCreated() async {
+    await Future.wait([fetchAllocationDetails(), _refreshCalendarCounts()]);
   }
 
   /// Populates [employees] with the list the manager can create time-off for.
+  ///
+  /// [isEmployeesLoading] keeps the employee picker disabled until this
+  /// completes — otherwise a tap during a slow fetch caches an empty
+  /// suggestion list in the typeahead that never refreshes.
   Future<void> fetchEmployees() async {
+    if (_isEmployeesLoading) return;
+    _isEmployeesLoading = true;
+    notifyListeners();
     try {
       final data =
           await ManagerCalendarService.fetchManagerAddTimeOffEmployees();
       _employees = data;
+    } catch (_) {
+    } finally {
+      _isEmployeesLoading = false;
       notifyListeners();
-    } catch (_) {}
+    }
   }
 
   /// Loads leave types valid for [selectedEmployeeId] into [leaveTypes].
@@ -277,7 +414,8 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   ///
   /// Re-entrancy guard: returns immediately if a fetch is already in flight.
   /// Pass [showLoader] = `false` for silent background refreshes. On error
-  /// the existing event list is cleared.
+  /// the existing event list is cleared; an unreachable server is rethrown
+  /// and leaves it as it was.
   Future<void> fetchLeaveCalendarEventsFunction({
     bool showLoader = true,
   }) async {
@@ -305,7 +443,8 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         ..clear()
         ..addAll(events);
       _isCalendarInitialLoaded = true;
-    } catch (_) {
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
       _calendarEvents.clear();
     } finally {
       if (showLoader) {
@@ -337,10 +476,12 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   }
 
   /// Loads the pending time-off requests visible to this manager into
-  /// [timeOffList]. Toggles [isTimeOffLoading] and clears the list on error.
+  /// [timeOffList]. Toggles [isTimeOffLoading]; on error clears the list
+  /// and records the failure in [timeOffLoadError]. Never throws.
   Future<void> fetchTimeOffDetails() async {
     try {
       _isTimeOffLoading = true;
+      timeOffLoadError = null;
       notifyListeners();
       final data = await ManagerCalendarService.fetchLeaveTimeOffDetails();
       _timeOffList
@@ -348,8 +489,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         ..addAll(data);
       await _preloadEmployeeImages(_timeOffList.map((e) => e.employeeId));
       _isTimeOffInitialLoaded = true;
-    } catch (_) {
+    } catch (e) {
       _timeOffList.clear();
+      timeOffLoadError = e;
     } finally {
       _isTimeOffLoading = false;
       notifyListeners();
@@ -358,12 +500,10 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
   /// Turns a raw RPC failure into something worth showing the user.
   String _readableActionError(Object e) {
-    final raw = e.toString();
-    if (e is OdooException && raw.contains('message:')) {
-      final message = raw.split('message:').last.split(',').first.trim();
-      if (message.isNotEmpty) return message;
-    }
-    return 'Failed to update the request. Please try again.';
+    return OdooErrorMapper.serverMessage(
+      e,
+      fallback: 'Failed to update the request. Please try again.',
+    );
   }
 
   /// Shows a snackbar via the app's global `navigatorKey` rather than a
@@ -396,7 +536,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
       } else {
         await ManagerCalendarService.actionApprove(leaveId);
       }
-      await fetchTimeOffDetails();
+      await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Time off request approved');
     } catch (e) {
       _showActionSnack(success: false, message: _readableActionError(e));
@@ -414,7 +554,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await ManagerCalendarService.actionRefuse(leaveId);
-      await fetchTimeOffDetails();
+      await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Time off request refused');
     } catch (e) {
       _showActionSnack(success: false, message: _readableActionError(e));
@@ -425,10 +565,13 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   }
 
   /// Loads the manager's allocation requests into [allocationList] and
-  /// kicks off avatar fetches for any employee not yet cached.
+  /// kicks off avatar fetches for any employee not yet cached. On error
+  /// clears the list and records the failure in [allocationLoadError].
+  /// Never throws.
   Future<void> fetchAllocationDetails() async {
     try {
       _isAllocationLoading = true;
+      allocationLoadError = null;
       notifyListeners();
 
       final data =
@@ -437,8 +580,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         ..clear()
         ..addAll(data);
       await _preloadEmployeeImages(_allocationList.map((e) => e.employeeId));
-    } catch (_) {
+    } catch (e) {
       _allocationList.clear();
+      allocationLoadError = e;
     } finally {
       _isAllocationLoading = false;
       notifyListeners();
@@ -462,8 +606,39 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Reads the balance cards' figures; swapped out in tests.
+  final Future<TimeOffDashboard> Function() _readDashboard;
+
+  /// The manager's own balances, with the "Pending" figure replaced by the
+  /// allocation requests awaiting approval in the Allocation tab — Odoo's
+  /// own figure counts only the manager's own requests. If that count can't
+  /// be read, Odoo's figure stays.
+  static Future<TimeOffDashboard> _readDashboardWithTeamPending() async {
+    final dashboard = await LeaveService.fetchMyTimeOffDashboard();
+    try {
+      return TimeOffDashboard(
+        balances: dashboard.balances,
+        pendingAllocations:
+            await ManagerCalendarService.fetchPendingAllocationCount(),
+      );
+    } catch (e) {
+      if (ConnectivityService.isConnectivityError(e)) rethrow;
+      return dashboard;
+    }
+  }
+
+  /// Pause before the single retry of a failed balance read.
+  final Duration _timeOffRetryDelay;
+
   /// Creates the provider with from/to dates pre-filled to today.
-  ManagerApprovalsProvider() {
+  ///
+  /// [readTimeOffDashboard] and [timeOffRetryDelay] exist for tests; the app
+  /// uses the defaults.
+  ManagerApprovalsProvider({
+    Future<TimeOffDashboard> Function()? readTimeOffDashboard,
+    Duration timeOffRetryDelay = const Duration(milliseconds: 800),
+  }) : _readDashboard = readTimeOffDashboard ?? _readDashboardWithTeamPending,
+       _timeOffRetryDelay = timeOffRetryDelay {
     setDefaultDates();
   }
 
@@ -481,6 +656,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// design (Odoo error formats vary across versions) and falls back to
   /// "Something went wrong".
   Future<String?> saveLeave() async {
+    final rangeError = dateRangeError;
+    if (rangeError != null) return rangeError;
+
     try {
       _isSaveMyTimeOffLoading = true;
       notifyListeners();
@@ -503,10 +681,11 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         attachmentId = await _createAttachment();
       }
 
+      final majorVersion = await OdooSessionManager.getServerMajorVersion();
       final values = {
         'employee_id': selectedEmployeeId,
         'state': 'confirm',
-        'holiday_status_id': selectedLeaveType.id,
+        TimeOffTypeService.typeField(majorVersion): selectedLeaveType.id,
         'request_date_from': _formatDate(fromDate!),
         'request_date_to': _formatDate(toDate!),
         'name': descriptionController.text,
@@ -525,48 +704,23 @@ class ManagerApprovalsProvider extends ChangeNotifier {
       });
 
       clearForm();
-      await fetchTimeOffDetails();
+      await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
 
       return null;
     } catch (e) {
-      String errorMessage = "Something went wrong";
-
-      try {
-        final errorStr = e.toString();
-
-        if (errorStr.contains("message:")) {
-          errorMessage = errorStr.split("message:").last;
-        }
-
-        if (errorMessage.contains(", arguments")) {
-          errorMessage = errorMessage.split(", arguments").first;
-        }
-
-        final lines = errorMessage.split("\n");
-        List<String> cleanedLines = [];
-
-        for (var line in lines) {
-          final trimmed = line.trim();
-          if (trimmed.isNotEmpty) {
-            cleanedLines.add(trimmed);
-          }
-          if (cleanedLines.length == 2) break;
-        }
-
-        errorMessage = cleanedLines.join(" ");
-        errorMessage = errorMessage.replaceAll(" - To Approve", "");
-        errorMessage = errorMessage
-            .replaceAll("\\n", " ")
-            .replaceAll(RegExp(r"\s+"), " ")
-            .trim();
-      } catch (_) {}
-
-      return errorMessage;
+      return OdooErrorMapper.serverMessage(e);
     } finally {
       _isSaveMyTimeOffLoading = false;
       notifyListeners();
     }
   }
+
+  /// Odoo's message when "From" is after "To", for the form to show inline;
+  /// `null` while the range is valid.
+  String? get dateRangeError =>
+      DateRangeValidator.isStartAfterEnd(fromDate, toDate)
+      ? DateRangeValidator.timeOffMessage
+      : null;
 
   /// Resets every field of the "add time off" form to its initial state,
   /// including controllers, selected employee, attachment, and dates.
@@ -698,7 +852,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
     try {
       await ManagerCalendarService.actionApproveAllocation(allocationId);
-      await fetchAllocationDetails();
+      await Future.wait([fetchAllocationDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Allocation request approved');
     } catch (e) {
       _showActionSnack(success: false, message: _readableActionError(e));
@@ -718,7 +872,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
     try {
       await ManagerCalendarService.actionRefuseAllocation(allocationId);
-      await fetchAllocationDetails();
+      await Future.wait([fetchAllocationDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Allocation request refused');
     } catch (e) {
       _showActionSnack(success: false, message: _readableActionError(e));
@@ -732,6 +886,12 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// [selectedDateEvents]. Time-of-day is dropped to keep comparisons stable.
   void selectDate(DateTime date) {
     _selectedDate = DateTime(date.year, date.month, date.day);
+    notifyListeners();
+  }
+
+  /// Closes the selected day's time off list.
+  void clearSelectedDate() {
+    _selectedDate = null;
     notifyListeners();
   }
 
@@ -770,21 +930,14 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     _isTimeOffLoading = false;
     _isInitialLoadDone = false;
 
-    _remainingLeaves = 0;
-    _maxLeaves = 0;
-    _pendingRequests = 0;
-    _compensatoryLeaves = 0;
-    _compensatoryMaxLeaves = 0;
-    _allocationRequestCount = 0;
+    loadError = null;
+    timeOffLoadError = null;
+    allocationLoadError = null;
 
-    paidRemainingMyLeave = 0;
-    compRemainingMyLeaves = 0;
-    pendingMyRequest = 0;
-    compMaxMyLeaves = 0;
-    paidMaxLeaves = 0;
-
-    paidOffValidUntil = '';
-    compensatoryValidUntil = '';
+    _timeOffBalances = [];
+    _pendingAllocationCount = 0;
+    _timeOffDataFailed = false;
+    _timeOffDataRequest++;
 
     _calendarEvents.clear();
     _timeOffList.clear();
@@ -800,6 +953,8 @@ class ManagerApprovalsProvider extends ChangeNotifier {
 
     _isTimeOffInitialLoaded = false;
     _isCalendarInitialLoaded = false;
+    _canCreateAllocation = false;
+    _allocationList.clear();
 
     notifyListeners();
   }
