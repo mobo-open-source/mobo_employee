@@ -33,4 +33,16 @@ class ClearProviders {
     /// different account. See ProfileProvider.resetState().
     context.read<ProfileProvider>().resetState();
   }
+
+  /// Drops the manager view's lists, counts and access checks when the
+  /// user's role changed in Odoo, so they're read again with the new access.
+  /// The employee view only shows the user's own records, which a role
+  /// change doesn't affect.
+  static Future<void> clearRoleViews(BuildContext context) async {
+    final dashboard = context.read<ManagerDashboardProvider>();
+    context.read<ManagerAttendanceProvider>().clearOnManagerLogout();
+    context.read<ManagerApprovalsProvider>().clearOnManagerLogout();
+    context.read<ManagerEmployeesProvider>().clearOnManagerLogout();
+    await dashboard.clearOnManagerLogout();
+  }
 }

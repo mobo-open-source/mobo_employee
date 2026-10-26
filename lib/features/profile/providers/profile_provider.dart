@@ -523,32 +523,41 @@ class ProfileProvider extends ChangeNotifier {
         'partner_id',
       ];
 
-  /// If [e] is an AccessError on one of the optional HR fields, stops
-  /// requesting that field (group) and returns true so the read can retry.
+  /// The fields an Odoo AccessError says the user can't read. Odoo 17 and 18
+  /// list every denied field in one message (`access the fields "x,y,z"`);
+  /// Odoo 20 names a single one (`access the field "x"`).
+  @visibleForTesting
+  static Set<String> deniedFieldsIn(String message) {
+    final names = RegExp(r'access the fields? "([a-zA-Z0-9_,]+)"')
+        .firstMatch(message)
+        ?.group(1);
+    if (names == null) return {};
+    return names.split(',').where((name) => name.isNotEmpty).toSet();
+  }
+
+  /// If [e] is an AccessError on any of the optional HR fields, stops
+  /// requesting those fields (groups) and returns true so the read can retry.
   bool _dropDeniedOptionalField(Object e) {
     if (!_isAccessError(e)) return false;
-    final field =
-        RegExp(r'access the field "([a-zA-Z0-9_]+)"').firstMatch(e.toString())?.group(1);
-    if (field == 'job_title' && _hasJobTitleField) {
-      _hasJobTitleField = false;
-      _jobTitleWritableViaUsers = false;
-      return true;
+    var dropped = false;
+    for (final field in deniedFieldsIn(e.toString())) {
+      if (field == 'job_title' && _hasJobTitleField) {
+        _hasJobTitleField = false;
+        _jobTitleWritableViaUsers = false;
+        dropped = true;
+      } else if (field == 'work_phone' && _hasWorkPhoneField) {
+        _hasWorkPhoneField = false;
+        dropped = true;
+      } else if (field == 'employee_id' && _hasEmployeeIdField) {
+        _hasEmployeeIdField = false;
+        dropped = true;
+      } else if (_privateAddressFieldNames.contains(field) &&
+          _hasPrivateAddressFields) {
+        _hasPrivateAddressFields = false;
+        dropped = true;
+      }
     }
-    if (field == 'work_phone' && _hasWorkPhoneField) {
-      _hasWorkPhoneField = false;
-      return true;
-    }
-    if (field == 'employee_id' && _hasEmployeeIdField) {
-      _hasEmployeeIdField = false;
-      return true;
-    }
-    if (field != null &&
-        _privateAddressFieldNames.contains(field) &&
-        _hasPrivateAddressFields) {
-      _hasPrivateAddressFields = false;
-      return true;
-    }
-    return false;
+    return dropped;
   }
 
   /// Reads the user's own row, dropping any optional HR field the user isn't

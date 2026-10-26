@@ -320,6 +320,8 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// failure instead.
   Future<void> _refreshInPlace() async {
     await Future.wait([
+      /// Groups may have changed in Odoo since the last read.
+      _loadAllocationAccess(),
       fetchLeaveCalendarEventsFunction(showLoader: false),
       fetchTimeOffData(showLoader: false),
       fetchUnusualDays(),

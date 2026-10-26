@@ -14,38 +14,6 @@ import 'package:mobo_employees/shared/services/time_off_type_service.dart';
 /// This service provides methods to fetch leave summaries, calendar events,
 /// allocation details, and perform approval actions through the Odoo backend.
 class ManagerCalendarService {
-  /// Whether [userId] holds the HR Officer or HR Manager group. Such users
-  /// are legitimate approvers company-wide under Odoo's own permission
-  /// model — not just for their literal direct reports — so approval
-  /// listings below skip the direct-reports domain restriction for them (and
-  /// the manager dashboard's leave cards follow the same rule).
-  static Future<bool> isHrManagerOrOfficer(int userId) async {
-    try {
-      final isHrManager = await OdooSessionManager.callKwWithCompany({
-        'model': 'res.users',
-        'method': 'has_group',
-        'args': [
-          [userId],
-          'hr.group_hr_manager',
-        ],
-        'kwargs': {},
-      });
-      final isHrOfficer = await OdooSessionManager.callKwWithCompany({
-        'model': 'res.users',
-        'method': 'has_group',
-        'args': [
-          [userId],
-          'hr.group_hr_user',
-        ],
-        'kwargs': {},
-      });
-      return isHrManager == true || isHrOfficer == true;
-    } catch (e) {
-      if (ConnectivityService.isConnectivityError(e)) rethrow;
-      return false;
-    }
-  }
-
   /// Fetches the time-off dashboard summary for the current user from Odoo.
   ///
   /// Returns a [dynamic] containing dashboard data such as leave balances and request counts.
@@ -256,51 +224,25 @@ class ManagerCalendarService {
 
   /// Fetches detailed time-off request records, optionally filtered by a [domain].
   ///
-  /// [restrictToTeam] scopes plain line managers to their direct reports for
-  /// the approvals queue. Pass `false` for a user's own requests ("My Time
-  /// Off"): those are already limited by [domain], and the team scope would
-  /// hide them unless the user happened to be their own manager.
+  /// No scope of the app's own: Odoo's record rules already limit this to
+  /// the requests the user may see in Odoo (every one for a Time Off
+  /// Officer, those of the employees whose Time Off approver they are, and
+  /// their own).
   static Future<List<ModelTimeOffData>> fetchLeaveTimeOffDetails({
     List<dynamic>? domain,
-    bool restrictToTeam = true,
   }) async {
     try {
       final odooClient = await OdooSessionManager.callKwWithCompany;
-      final session = await OdooSessionManager.getCurrentSession();
       final client = await OdooSessionManager.getClient();
       final String serverVersionString = client!.sessionId!.serverVersion;
       final int majorVersion = int.parse(serverVersionString.split('.').first);
-
-      final userId = session?.userId.toInt();
-
-      /// A plain line manager must only ever see their own direct reports'
-      /// leave requests here. An HR Officer/Manager is a legitimate
-      /// company-wide approver under Odoo's own permission model, so the
-      /// restriction is skipped for them — otherwise a request whose
-      /// employee doesn't have this HR user set as their literal reporting
-      /// manager (parent_id) would wrongly disappear from their queue.
-      final passedDomain = domain ?? [];
-      final canSeeCompanyWide =
-          !restrictToTeam ||
-          (userId != null && await isHrManagerOrOfficer(userId));
-      final scopedDomain = (userId == null || canSeeCompanyWide)
-          ? passedDomain
-          : (passedDomain.isEmpty
-                ? [
-                    ['employee_id.parent_id.user_id', '=', userId],
-                  ]
-                : [
-                    '&',
-                    ['employee_id.parent_id.user_id', '=', userId],
-                    ...passedDomain,
-                  ]);
 
       final result = await odooClient({
         'model': 'hr.leave',
         'method': 'search_read',
         'args': [],
         'kwargs': {
-          'domain': scopedDomain,
+          'domain': domain ?? [],
           'fields': [
             'id',
             'name',
@@ -499,47 +441,24 @@ class ManagerCalendarService {
   /// "Second Approval".
   static const List<String> pendingAllocationStates = ['confirm', 'validate1'];
 
-  /// [domain] narrowed to the allocations [userId] approves.
-  ///
-  /// A plain line manager must only ever see their own direct reports'
-  /// allocations. An HR Officer/Manager is a legitimate company-wide approver
-  /// under Odoo's own permission model, so the restriction is skipped for
-  /// them (see [fetchLeaveTimeOffDetails]). The one scope behind the
-  /// Allocation tab and the Calendar tab's "Pending" card, so the two agree.
-  static Future<List<dynamic>> _allocationDomain(
-    List<dynamic> domain,
-    int? userId,
-  ) async {
-    final canSeeCompanyWide =
-        userId != null && await isHrManagerOrOfficer(userId);
-    if (userId == null || canSeeCompanyWide) return domain;
-    return domain.isEmpty
-        ? [
-            ['employee_id.parent_id.user_id', '=', userId],
-          ]
-        : [
-            '&',
-            ['employee_id.parent_id.user_id', '=', userId],
-            ...domain,
-          ];
-  }
-
   /// Number of allocation requests awaiting approval in the Allocation tab:
-  /// the ones the manager can act on, not just their own.
+  /// the ones the manager can act on, not just their own. Like the tab, it
+  /// counts what Odoo's record rules let the user read (every allocation for
+  /// a Time Off Officer, those of the employees whose Time Off approver they
+  /// are, and their own), so the two agree.
   ///
   /// Odoo's own dashboard figure (`get_allocations_number`) counts only the
   /// current employee's requests, which is why the "Pending" card read 0
   /// while the tab listed requests from the team.
   static Future<int> fetchPendingAllocationCount() async {
-    final session = await OdooSessionManager.getCurrentSession();
-    final domain = await _allocationDomain([
-      ['state', 'in', pendingAllocationStates],
-    ], session?.userId.toInt());
-
     final count = await OdooSessionManager.callKwWithCompany({
       'model': 'hr.leave.allocation',
       'method': 'search_count',
-      'args': [domain],
+      'args': [
+        [
+          ['state', 'in', pendingAllocationStates],
+        ],
+      ],
       'kwargs': {},
     });
     return count is int ? count : 0;
@@ -553,13 +472,11 @@ class ManagerCalendarService {
       final session = await OdooSessionManager.getCurrentSession();
       final userId = session?.userId.toInt();
 
-      final scopedDomain = await _allocationDomain(domain ?? [], userId);
-
       final result = await odooClient({
         'model': 'hr.leave.allocation',
         'method': 'search_read',
         'args': [],
-        'kwargs': {'domain': scopedDomain, 'fields': []},
+        'kwargs': {'domain': domain ?? [], 'fields': []},
         'context': {'uid': userId},
       });
 

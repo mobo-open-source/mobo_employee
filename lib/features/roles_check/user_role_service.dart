@@ -3,8 +3,9 @@ import 'package:mobo_employees/features/roles_check/role_check_provider.dart';
 
 class UserRoleService {
 
-  ///fetching the user Role from odoo
-  static Future<UserRole> getUserRole() async {
+  ///fetching the user Role from odoo; null when the server couldn't answer,
+  ///so a dropped connection isn't mistaken for losing the manager view.
+  static Future<UserRole?> getUserRole() async {
     try {
       final session = await OdooSessionManager.getCurrentSession();
 
@@ -39,8 +40,8 @@ class UserRoleService {
       }
 
       return UserRole.officer;
-    } catch (e, stack) {
-      return UserRole.officer;
+    } catch (e) {
+      return null;
     }
   }
 }

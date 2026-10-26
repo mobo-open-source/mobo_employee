@@ -1,70 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
-import 'package:mobo_employees/core/services/user_access_service.dart';
 import 'package:mobo_employees/features/employee/attendance/service/administrator_attendance_service.dart';
-import 'package:mobo_employees/features/manager/manager_approvals/services/manager_calendar_service.dart';
 
-/// Whose records the manager dashboard counts. Each card follows the rule of
-/// the tab it opens, so the number on the card is the number of rows there:
-/// a manager sees their own direct reports, unless Odoo already shows them
-/// everyone.
-class ManagerDashboardScope {
-  final int userId;
-
-  /// Odoo gives this user every attendance (Attendance Administrator, or
-  /// "Manage all attendances" on Odoo 20+): the attendance cards aren't
-  /// narrowed to direct reports, exactly like the Attendance tab.
-  final bool allAttendances;
-
-  /// HR Officers/Managers approve company-wide, so the time off cards aren't
-  /// narrowed either — like the Approvals tab (see
-  /// [ManagerCalendarService.isHrManagerOrOfficer]).
-  final bool allLeaves;
-
-  const ManagerDashboardScope({
-    required this.userId,
-    required this.allAttendances,
-    required this.allLeaves,
-  });
-
-  List<List<dynamic>> get _attendanceScope => allAttendances
-      ? const []
-      : [
-          ['employee_id.parent_id.user_id', '=', userId],
-        ];
-
-  List<List<dynamic>> get _leaveScope => allLeaves
-      ? const []
-      : [
-          ['employee_id.parent_id.user_id', '=', userId],
-        ];
-}
-
+/// The manager dashboard's figures. Each card counts what Odoo's record
+/// rules let this user read, like the tab it opens, so the number on the
+/// card is the number of rows there.
 class ManagerDashboardDataService {
-  /// Reads which records [userId]'s dashboard may count; see
-  /// [ManagerDashboardScope].
-  static Future<ManagerDashboardScope> resolveScope(int userId) async {
-    final allAttendances = await UserAccessService.canSeeAllAttendances();
-    final allLeaves = await ManagerCalendarService.isHrManagerOrOfficer(userId);
-    return ManagerDashboardScope(
-      userId: userId,
-      allAttendances: allAttendances,
-      allLeaves: allLeaves,
-    );
-  }
-
   /// Forgets what was learned about the server (call on logout, since the
   /// next login may be a different Odoo version).
   static void reset() {
-    _calendarLineFields = null;
+    _modelFields.clear();
   }
 
-  /// Fetch Total Employees count (manager Dashboard) — scoped to the
-  /// manager's own direct reports, never company-wide.
-  static Future<int> fetchTotalEmployeeCount({
-    required int managerUserId,
-  }) async {
+  /// Fetch Total Employees count (manager Dashboard): the employees of the
+  /// allowed companies, like the Employees tab.
+  static Future<int> fetchTotalEmployeeCount() async {
     try {
       final session = await OdooSessionManager.getCurrentSession();
       final employeeCount = await OdooSessionManager.callKwWithCompany({
@@ -72,9 +23,7 @@ class ManagerDashboardDataService {
         'method': 'search_count',
         'args': [
           [
-            '&',
             ['company_id', 'in', session!.allowedCompanyIds],
-            ['parent_id.user_id', '=', managerUserId],
           ],
         ],
         'kwargs': {},
@@ -97,12 +46,11 @@ class ManagerDashboardDataService {
     );
   }
 
-  /// Today's attendances in [scope], earliest check-in first. The one
-  /// domain behind both "Todays attendance" and "Late Check-ins", and the
-  /// one the Attendance tab applies for its Today filter, so the cards and
-  /// the list always agree.
-  static Future<dynamic> _fetchTodayAttendances(
-    ManagerDashboardScope scope, {
+  /// Today's attendances, earliest check-in first. The one domain behind
+  /// both "Todays attendance" and "Late Check-ins", and the one the
+  /// Attendance tab applies for its Today filter, so the cards and the list
+  /// always agree.
+  static Future<dynamic> _fetchTodayAttendances({
     required List<String> fields,
   }) {
     final today = _todayUtc();
@@ -114,7 +62,6 @@ class ManagerDashboardDataService {
           ['check_in', '>=', today.start],
           ['check_in', '<', today.end],
           ['employee_id.active', '=', true],
-          ...scope._attendanceScope,
         ],
       ],
       'kwargs': {'fields': fields, 'order': 'check_in asc'},
@@ -123,12 +70,9 @@ class ManagerDashboardDataService {
 
   /// Fetch Today Attendance count (manager Dashboard). Counts employees,
   /// not attendance records: someone who checked in twice counts once.
-  static Future<int> fetchTodayAttendanceCount({
-    required ManagerDashboardScope scope,
-  }) async {
+  static Future<int> fetchTodayAttendanceCount() async {
     try {
       final attendances = await _fetchTodayAttendances(
-        scope,
         fields: ['employee_id'],
       );
       return _distinctEmployeeCount(attendances);
@@ -141,9 +85,7 @@ class ManagerDashboardDataService {
   /// Fetch count of employees on leave today (manager Dashboard).
   /// Counts employees with an approved leave spanning today (not just
   /// starting today); one with two half-day leaves counts once.
-  static Future<int> fetchTodayLeavesTotalCount({
-    required ManagerDashboardScope scope,
-  }) async {
+  static Future<int> fetchTodayLeavesTotalCount() async {
     try {
       final today = _todayUtc();
       final leaves = await OdooSessionManager.callKwWithCompany({
@@ -154,7 +96,6 @@ class ManagerDashboardDataService {
             ['state', '=', 'validate'],
             ['date_from', '<', today.end],
             ['date_to', '>=', today.start],
-            ...scope._leaveScope,
           ],
         ],
         'kwargs': {
@@ -170,9 +111,7 @@ class ManagerDashboardDataService {
 
   /// Fetch Leave Request count (manager Dashboard): the requests awaiting
   /// approval — Odoo's "To Approve" (first and second approval).
-  static Future<int> fetchLeaveRequestCount({
-    required ManagerDashboardScope scope,
-  }) async {
+  static Future<int> fetchLeaveRequestCount() async {
     try {
       final count = await OdooSessionManager.callKwWithCompany({
         'model': 'hr.leave',
@@ -180,7 +119,6 @@ class ManagerDashboardDataService {
         'args': [
           [
             ['state', 'in', ['validate1', 'confirm']],
-            ...scope._leaveScope,
           ],
         ],
         'kwargs': {},
@@ -195,9 +133,7 @@ class ManagerDashboardDataService {
   /// Fetch count of leave requests submitted today (manager Dashboard):
   /// by creation time, whatever the dates requested or the state they've
   /// since reached (a no-validation type is approved on the spot).
-  static Future<int> fetchLeaveRequestCountForToday({
-    required ManagerDashboardScope scope,
-  }) async {
+  static Future<int> fetchLeaveRequestCountForToday() async {
     try {
       final today = _todayUtc();
       final count = await OdooSessionManager.callKwWithCompany({
@@ -208,7 +144,6 @@ class ManagerDashboardDataService {
             ['state', 'not in', ['draft', 'cancel']],
             ['create_date', '>=', today.start],
             ['create_date', '<', today.end],
-            ...scope._leaveScope,
           ],
         ],
         'kwargs': {},
@@ -227,12 +162,9 @@ class ManagerDashboardDataService {
   /// check-in on the device's clock (see [startHoursFromLines]). Employees
   /// whose schedule has no start time today — a day off or flexible hours —
   /// can't be late.
-  static Future<int> fetchLateCheckInCount({
-    required ManagerDashboardScope scope,
-  }) async {
+  static Future<int> fetchLateCheckInCount() async {
     try {
       final attendances = await _fetchTodayAttendances(
-        scope,
         fields: ['employee_id', 'check_in'],
       );
       if (attendances is! List) return 0;
@@ -274,34 +206,62 @@ class ManagerDashboardDataService {
       }
       if (calendarOf.isEmpty) return 0;
 
-      final startHours = await _fetchTodayStartHours(
-        calendarOf.values.toSet().toList(),
+      final calendarIds = calendarOf.values.toSet().toList();
+      return countLateCheckIns(
+        firstCheckIn: firstCheckIn,
+        calendarOf: calendarOf,
+        startHours: await _fetchTodayStartHours(calendarIds),
+        flexibleCalendars: await _fetchFlexibleCalendarIds(calendarIds),
       );
-
-      var late = 0;
-      firstCheckIn.forEach((employeeId, checkIn) {
-        final startHour = startHours[calendarOf[employeeId]];
-        if (startHour == null) return;
-        final checkInMinutes = checkIn.hour * 60 + checkIn.minute;
-        if (checkInMinutes > (startHour * 60).round()) late++;
-      });
-      return late;
     } catch (e) {
       if (ConnectivityService.isConnectivityError(e)) rethrow;
+
+      /// A failed query is indistinguishable from "nobody is late" on the
+      /// card, so at least leave a trace for whoever wonders about the 0.
+      if (kDebugMode) debugPrint('fetchLateCheckInCount failed: $e');
       return 0;
     }
+  }
+
+  /// How many of the employees in [firstCheckIn] (their first check-in
+  /// today, by employee id) checked in after their working day started.
+  ///
+  /// [calendarOf] gives each employee's schedule and [startHours] the hour
+  /// each schedule starts at today. An employee whose schedule has no start
+  /// today, or is in [flexibleCalendars], can't be late.
+  @visibleForTesting
+  static int countLateCheckIns({
+    required Map<int, DateTime> firstCheckIn,
+    required Map<int, int> calendarOf,
+    required Map<int, double> startHours,
+    Set<int> flexibleCalendars = const {},
+  }) {
+    var late = 0;
+    firstCheckIn.forEach((employeeId, checkIn) {
+      final calendarId = calendarOf[employeeId];
+      if (flexibleCalendars.contains(calendarId)) return;
+      final startHour = startHours[calendarId];
+      if (startHour == null) return;
+      final checkInMinutes = checkIn.hour * 60 + checkIn.minute;
+      if (checkInMinutes > (startHour * 60).round()) late++;
+    });
+    return late;
   }
 
   /// Fields of `resource.calendar.attendance` on this server. Odoo 20
   /// dropped `week_type` and added `date` and `duration_based`, so the
   /// query below is built from what exists rather than from the version.
-  static Set<String>? _calendarLineFields;
+  static final Map<String, Set<String>> _modelFields = {};
 
-  static Future<Set<String>> _loadCalendarLineFields() async {
-    final cached = _calendarLineFields;
+  static Future<Set<String>> _loadCalendarLineFields() =>
+      _loadFields('resource.calendar.attendance');
+
+  /// The field names [model] has on this server, read once.
+  static Future<Set<String>> _loadFields(String model) async {
+    final cached = _modelFields[model];
     if (cached != null) return cached;
     final result = await OdooSessionManager.callKwWithCompany({
-      'model': 'resource.calendar.attendance',
+      'model': model,
       'method': 'fields_get',
       'args': [],
       'kwargs': {
@@ -311,8 +271,40 @@ class ManagerDashboardDataService {
     final fields = result is Map
         ? result.keys.map((key) => key.toString()).toSet()
         : <String>{};
-    if (fields.isNotEmpty) _calendarLineFields = fields;
+    if (fields.isNotEmpty) _modelFields[model] = fields;
     return fields;
+  }
+
+  /// The schedules among [calendarIds] set to Flexible Hours.
+  ///
+  /// Odoo 18 and 19 flag them on `resource.calendar`, but keep the weekly
+  /// lines the schedule had before, which say nothing about when a flexible
+  /// employee has to start. Odoo 17 has no such schedule, and Odoo 20 models
+  /// it as a schedule with no lines at all, so neither has the field.
+  static Future<Set<int>> _fetchFlexibleCalendarIds(
+    List<int> calendarIds,
+  ) async {
+    final fields = await _loadFields('resource.calendar');
+    if (!fields.contains('flexible_hours')) return {};
+    final calendars = await OdooSessionManager.callKwWithCompany({
+      'model': 'resource.calendar',
+      'method': 'search_read',
+      'args': [
+        [
+          ['id', 'in', calendarIds],
+          ['flexible_hours', '=', true],
+        ],
+      ],
+      'kwargs': {
+        'fields': ['id'],
+      },
+    });
+    if (calendars is! List) return {};
+    return calendars
+        .whereType<Map>()
+        .map((calendar) => calendar['id'])
+        .whereType<int>()
+        .toSet();
   }
 
   /// Odoo's `get_week_type`: which week of a two-week schedule [day] is in.
@@ -332,55 +324,14 @@ class ManagerDashboardDataService {
   ) async {
     final today = DateTime.now();
     final fields = await _loadCalendarLineFields();
-    final isOdoo20 = fields.contains('duration_based');
-    final todayDate = _formatOdooDate(today);
     final lines = await OdooSessionManager.callKwWithCompany({
       'model': 'resource.calendar.attendance',
       'method': 'search_read',
       'args': [
-        [
-          ['calendar_id', 'in', calendarIds],
-          ['duration_hours', '>', 0],
-
-          if (isOdoo20) ...[
-            /// Fixed schedules repeat on a weekday; variable ones have dated
-            /// lines, some recurring, which [startHoursFromLines] matches to
-            /// today.
-            '|',
-            '&',
-            ['date', '=', false],
-            ['dayofweek', '=', '${today.weekday - 1}'],
-            '&',
-            ['date', '<=', todayDate],
-            ['recurrency_until', '>=', todayDate],
-          ] else ...[
-            ['dayofweek', '=', '${today.weekday - 1}'],
-
-            /// Two-week schedules (up to Odoo 19): only this week's lines.
-            if (fields.contains('week_type'))
-              ['week_type', 'in', [false, '${_weekType(today)}']],
-
-            /// The lunch break isn't the start of the day.
-            if (fields.contains('day_period')) ['day_period', '!=', 'lunch'],
-          ],
-        ],
+        startHoursDomain(calendarIds: calendarIds, today: today, fields: fields),
       ],
       'kwargs': {
-        'fields': [
-          'calendar_id',
-          'hour_from',
-          if (isOdoo20) ...[
-            'duration_hours',
-            'duration_based',
-            'dayofweek',
-            'date',
-            'recurrency',
-            'recurrency_type',
-            'recurrency_interval',
-            'recurrency_until',
-            'recurrency_excluded_occurences',
-          ],
-        ],
+        'fields': startHoursReadFields(fields),
         'order': 'hour_from asc',
       },
     });
@@ -391,6 +342,94 @@ class ManagerDashboardDataService {
       today,
     );
   }
+
+  /// The `resource.calendar.attendance` lines of [calendarIds] that can start
+  /// the working day on [today], given the [fields] this server has.
+  ///
+  /// Nothing here filters on `duration_hours`: up to Odoo 19 it's a computed
+  /// field that isn't stored, so a domain on it isn't a valid search. Odoo 17
+  /// and 18 quietly ignore such a condition (which let the empty section rows
+  /// of two-week schedules through), and Odoo 20's reworked domain engine
+  /// rejects it. Lines with no hours are dropped by [startHoursFromLines]
+  /// instead, the same on every version.
+  ///
+  /// Which shape to ask for follows the fields the server has, never a guess
+  /// at its version: Odoo 19 already has `duration_based` but not the dated,
+  /// recurring lines (`date`, `recurrency_*`), and filtering on a field that
+  /// isn't there is an error that ends the whole query.
+  @visibleForTesting
+  static List<dynamic> startHoursDomain({
+    required List<int> calendarIds,
+    required DateTime today,
+    required Set<String> fields,
+  }) {
+    final hasDatedLines =
+        fields.contains('date') && fields.contains('recurrency_until');
+    final todayDate = _formatOdooDate(today);
+    return [
+      ['calendar_id', 'in', calendarIds],
+
+      if (hasDatedLines) ...[
+        /// Fixed schedules repeat on a weekday; variable ones have dated
+        /// lines, some recurring, which [startHoursFromLines] matches to
+        /// today.
+        '|',
+        '&',
+        ['date', '=', false],
+        ['dayofweek', '=', '${today.weekday - 1}'],
+        '&',
+        ['date', '<=', todayDate],
+        ['recurrency_until', '>=', todayDate],
+      ] else ...[
+        ['dayofweek', '=', '${today.weekday - 1}'],
+
+        /// Two-week schedules (up to Odoo 19): only this week's lines.
+        if (fields.contains('week_type'))
+          ['week_type', 'in', [false, '${_weekType(today)}']],
+
+        /// The lunch break isn't the start of the day.
+        if (fields.contains('day_period')) ['day_period', '!=', 'lunch'],
+
+        /// A line can be limited to a period (Odoo's `_attendance_intervals_batch`
+        /// skips it outside it), so one that hasn't started or has ended
+        /// mustn't move the start of today's day.
+        if (fields.contains('date_from')) ...[
+          '|',
+          ['date_from', '=', false],
+          ['date_from', '<=', todayDate],
+        ],
+        if (fields.contains('date_to')) ...[
+          '|',
+          ['date_to', '=', false],
+          ['date_to', '>=', todayDate],
+        ],
+      ],
+    ];
+  }
+
+  /// The fields of `resource.calendar.attendance` to read: the two every
+  /// version has, plus whichever of the rest [fields] says this server has.
+  /// Asking `search_read` for a field the model lacks is an error, so none is
+  /// requested on the strength of the version alone.
+  @visibleForTesting
+  static List<String> startHoursReadFields(Set<String> fields) => [
+    'calendar_id',
+    'hour_from',
+    for (final field in const [
+      /// [startHoursFromLines] drops the lines that don't work; see
+      /// [startHoursDomain].
+      'duration_hours',
+      'duration_based',
+      'dayofweek',
+      'date',
+      'recurrency',
+      'recurrency_type',
+      'recurrency_interval',
+      'recurrency_until',
+      'recurrency_excluded_occurences',
+    ])
+      if (fields.contains(field)) field,
+  ];
 
   /// The hour each calendar's working day starts at on [day], from the
   /// `resource.calendar.attendance` [lines] read for it (e.g. 8.5 = 08:30).
@@ -412,8 +451,12 @@ class ManagerDashboardDataService {
       final calendarId = _many2oneId(line['calendar_id']);
       if (calendarId == null || !_occursOn(line, day)) continue;
 
+      /// A line with no hours isn't working time (see [startHoursDomain] for
+      /// why this isn't asked of the server). A row that doesn't say is kept.
+      final hours = line['duration_hours'];
+      if (hours is num && hours <= 0) continue;
+
       if (line['duration_based'] == true) {
-        final hours = line['duration_hours'];
         if (hours is num) {
           durationHours[calendarId] =
               (durationHours[calendarId] ?? 0) + hours.toDouble();

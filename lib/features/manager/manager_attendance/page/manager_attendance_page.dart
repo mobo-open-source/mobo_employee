@@ -40,7 +40,7 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
   Future<void> _createAttendance(ManagerAttendanceProvider provider) async {
     final created = await AttendanceCreateSheet.show(
       context,
-      canSeeAllEmployees: provider.canSeeAllAttendances,
+      employeeDomain: provider.attendanceCreateDomain ?? const [],
     );
     if (!created || !mounted) return;
     CustomSnackbar.showSuccess(context, "Attendance created");

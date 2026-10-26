@@ -18,6 +18,10 @@ class UserAccessService {
   static const String attendanceOfficer =
       'hr_attendance.group_hr_attendance_officer';
 
+  /// Odoo 20+ "Self Attendance Edit": may create and edit their own
+  /// attendances. Doesn't exist on 17/18.
+  static const String attendanceOwn = 'hr_attendance.group_hr_attendance_own';
+
   /// Time Off "Officer: Manage all requests": may create allocations.
   static const String timeOffOfficer = 'hr_holidays.group_hr_holidays_user';
 
@@ -51,5 +55,24 @@ class UserAccessService {
   static Future<bool> canSeeAllAttendances() async {
     return await hasGroup(attendanceAdmin) ||
         await hasGroup(attendanceAllOfficer);
+  }
+
+  /// The `hr.employee` domain of the employees Odoo's record rules let the
+  /// current user create attendances for, or null when there are none:
+  /// everyone ([canSeeAllAttendances]), the employees whose Attendance
+  /// manager they are ([attendanceOfficer]), and themselves
+  /// ([attendanceOwn]).
+  static Future<List<dynamic>?> attendanceCreateDomain() async {
+    if (await canSeeAllAttendances()) return const [];
+    final session = await OdooSessionManager.getCurrentSession();
+    final uid = session?.userId;
+    if (uid == null) return null;
+    final allowed = <List<dynamic>>[
+      if (await hasGroup(attendanceOfficer))
+        ['attendance_manager_id', '=', uid],
+      if (await hasGroup(attendanceOwn)) ['user_id', '=', uid],
+    ];
+    if (allowed.isEmpty) return null;
+    return [for (var i = 1; i < allowed.length; i++) '|', ...allowed];
   }
 }

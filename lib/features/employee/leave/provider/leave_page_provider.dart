@@ -380,7 +380,6 @@ class LeavePageProvider extends ChangeNotifier {
         domain: [
           ['user_id', '=', userId],
         ],
-        restrictToTeam: false,
       );
 
       _timeOffList
