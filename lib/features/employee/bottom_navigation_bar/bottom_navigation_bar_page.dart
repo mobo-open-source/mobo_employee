@@ -12,6 +12,7 @@ import 'package:mobo_employees/features/employee/bottom_navigation_bar/bottom_na
 import 'package:mobo_employees/features/employee/dashboard/page/dashboard_page.dart';
 import 'package:mobo_employees/features/profile/pages/profile_screen.dart';
 import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
+import 'package:mobo_employees/features/roles_check/role_refresh.dart';
 import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 
 import 'package:provider/provider.dart';
@@ -80,6 +81,9 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
       }
       _currentIndex = index;
     });
+
+    /// The user may have been made a manager in Odoo since the view opened.
+    if (!widget.isTest) refreshUserRole(context);
   }
 
   @override

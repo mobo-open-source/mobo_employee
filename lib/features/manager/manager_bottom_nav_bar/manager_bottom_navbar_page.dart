@@ -12,6 +12,7 @@ import 'package:mobo_employees/features/manager/manager_dashboard/page/manager_d
 import 'package:mobo_employees/features/manager/manager_employees/page/manager_employees_page.dart';
 import 'package:mobo_employees/features/profile/pages/profile_screen.dart';
 import 'package:mobo_employees/features/profile/providers/profile_provider.dart';
+import 'package:mobo_employees/features/roles_check/role_refresh.dart';
 import 'package:mobo_employees/shared/widgets/avatars/initials_avatar.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -80,6 +81,10 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
       }
       _currentIndex = index;
     });
+
+    /// The user's manager groups may have been removed in Odoo since the
+    /// view opened.
+    refreshUserRole(context);
   }
 
   @override

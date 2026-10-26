@@ -23,8 +23,7 @@ class ManagerDashboardProvider extends ChangeNotifier {
 
   int? employeeId;
 
-  /// The logged-in manager's own user id, which the dashboard queries are
-  /// scoped by (see [ManagerDashboardScope]). Set by [fetchUserDetails].
+  /// The logged-in manager's own user id. Set by [fetchUserDetails].
   int? currentUserId;
 
   int leaveRequestCount = 0;
@@ -52,10 +51,6 @@ class ManagerDashboardProvider extends ChangeNotifier {
   String greetings = "";
   String currentTime = "";
 
-
-  /// Who the cards count (direct reports or everyone); read once per
-  /// session, since the user's groups don't change while they're logged in.
-  ManagerDashboardScope? _scope;
 
   /// Set while [refreshTodayCounts] runs, so ticks don't overlap.
   bool _isRefreshingCounts = false;
@@ -101,7 +96,7 @@ class ManagerDashboardProvider extends ChangeNotifier {
 
 
     await fetchUserDetails(session!.userId!);
-    await _loadCounts(currentUserId!);
+    await _loadCounts();
 
     setGreetings();
 
@@ -118,19 +113,14 @@ class ManagerDashboardProvider extends ChangeNotifier {
   /// Reads the figures of the cards and Today's Reports — everything that
   /// moves during the day. Assigns them only once all have been read, so a
   /// failure part-way never leaves a mix of old and new values.
-  Future<void> _loadCounts(int userId) async {
-    final scope = _scope ??= await ManagerDashboardDataService.resolveScope(
-      userId,
-    );
+  Future<void> _loadCounts() async {
     final counts = await Future.wait<int>([
-      ManagerDashboardDataService.fetchTotalEmployeeCount(
-        managerUserId: userId,
-      ),
-      ManagerDashboardDataService.fetchTodayAttendanceCount(scope: scope),
-      ManagerDashboardDataService.fetchLeaveRequestCount(scope: scope),
-      ManagerDashboardDataService.fetchTodayLeavesTotalCount(scope: scope),
-      ManagerDashboardDataService.fetchLeaveRequestCountForToday(scope: scope),
-      ManagerDashboardDataService.fetchLateCheckInCount(scope: scope),
+      ManagerDashboardDataService.fetchTotalEmployeeCount(),
+      ManagerDashboardDataService.fetchTodayAttendanceCount(),
+      ManagerDashboardDataService.fetchLeaveRequestCount(),
+      ManagerDashboardDataService.fetchTodayLeavesTotalCount(),
+      ManagerDashboardDataService.fetchLeaveRequestCountForToday(),
+      ManagerDashboardDataService.fetchLateCheckInCount(),
     ]);
     totalEmployeeCount = counts[0];
     todayAttendanceCount = counts[1];
@@ -145,13 +135,14 @@ class ManagerDashboardProvider extends ChangeNotifier {
   /// up: when returning to the dashboard, on app resume, and on a timer.
   /// If the server can't be reached the figures keep their last values.
   Future<void> refreshTodayCounts() async {
-    final userId = currentUserId;
-    if (userId == null || _isRefreshingCounts || isManagerDashboardLoading) {
+    if (currentUserId == null ||
+        _isRefreshingCounts ||
+        isManagerDashboardLoading) {
       return;
     }
     _isRefreshingCounts = true;
     try {
-      await _loadCounts(userId);
+      await _loadCounts();
       buildDashboardModel();
     } catch (_) {
       /// In-place refresh; the next one tries again.
@@ -311,9 +302,8 @@ class ManagerDashboardProvider extends ChangeNotifier {
       final session = await OdooSessionManager.getCurrentSession();
       if (session?.userId != null) {
         await fetchUserDetails(session!.userId);
-        await _loadCounts(currentUserId!);
-        payslipsGenerated = await PayslipService.fetchTeamCountForMonth(
-          managerUserId: currentUserId!,
+        await _loadCounts();
+        payslipsGenerated = await PayslipService.fetchCountForMonth(
           month: DateTime.now(),
         );
         setGreetings();
@@ -358,7 +348,6 @@ class ManagerDashboardProvider extends ChangeNotifier {
     lateCheckInCount = 0;
     payslipsGenerated = null;
 
-    _scope = null;
     ManagerDashboardDataService.reset();
 
     /// Loading flags

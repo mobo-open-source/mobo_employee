@@ -119,12 +119,10 @@ class PayslipService {
     }
   }
 
-  /// Number of payslips, in any state but cancelled, covering [month] for
-  /// the manager's direct reports.
-  static Future<int?> fetchTeamCountForMonth({
-    required int managerUserId,
-    required DateTime month,
-  }) async {
+  /// Number of payslips, in any state but cancelled, covering [month]: the
+  /// ones Odoo lets this user read (a Payroll Officer reads every payslip of
+  /// the allowed companies), as in Odoo's own Payslips list.
+  static Future<int?> fetchCountForMonth({required DateTime month}) async {
     final schema = await _readSchema();
     if (schema == null) return null;
 
@@ -137,7 +135,6 @@ class PayslipService {
         'method': 'search_count',
         'args': [
           [
-            ['employee_id.parent_id.user_id', '=', managerUserId],
             ['date_from', '<=', format.format(lastDay)],
             ['date_to', '>=', format.format(firstDay)],
             ['state', '!=', 'cancel'],

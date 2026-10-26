@@ -4,7 +4,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/core/exceptions/odoo_error_mapper.dart';
-import 'package:mobo_employees/core/services/odoo_session_manager.dart';
+import 'package:mobo_employees/core/services/user_access_service.dart';
 import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/core/utils/date_range_validator.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_employees.dart';
@@ -18,16 +18,16 @@ import '../../../../widgets/snackbar_widgets.dart';
 /// Bottom sheet mirroring Odoo's Attendances > New form: an employee, a
 /// check-in and an optional check-out (left empty while still checked in).
 class AttendanceCreateSheet extends StatefulWidget {
-  /// Attendance administrators may pick any employee; officers only those
-  /// whose attendance manager they are (Odoo's officer record rule).
-  final bool canSeeAllEmployees;
+  /// The employees Odoo lets this user create attendances for (see
+  /// [UserAccessService.attendanceCreateDomain]).
+  final List<dynamic> employeeDomain;
 
-  const AttendanceCreateSheet({super.key, required this.canSeeAllEmployees});
+  const AttendanceCreateSheet({super.key, required this.employeeDomain});
 
   /// Opens the sheet. Resolves to `true` once an attendance was created.
   static Future<bool> show(
     BuildContext context, {
-    required bool canSeeAllEmployees,
+    required List<dynamic> employeeDomain,
   }) async {
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -35,8 +35,7 @@ class AttendanceCreateSheet extends StatefulWidget {
       isDismissible: false,
       enableDrag: false,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          AttendanceCreateSheet(canSeeAllEmployees: canSeeAllEmployees),
+      builder: (_) => AttendanceCreateSheet(employeeDomain: employeeDomain),
     );
     return created == true;
   }
@@ -68,13 +67,8 @@ class _AttendanceCreateSheetState extends State<AttendanceCreateSheet> {
   Future<void> _loadEmployees() async {
     List<Employee> employees = [];
     try {
-      final session = await OdooSessionManager.getCurrentSession();
       employees = await ManagerCalendarService.fetchManagerAddTimeOffEmployees(
-        domain: widget.canSeeAllEmployees || session?.userId == null
-            ? const []
-            : [
-                ['attendance_manager_id', '=', session!.userId],
-              ],
+        domain: widget.employeeDomain,
       );
     } catch (e) {
       /// Server unreachable: stop the picker's spinner and say why it's

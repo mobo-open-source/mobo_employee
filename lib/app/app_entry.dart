@@ -10,6 +10,7 @@ import 'package:mobo_employees/features/login/pages/server_setup_screen.dart';
 import 'package:mobo_employees/features/manager/manager_bottom_nav_bar/manager_bottom_navbar_page.dart';
 import 'package:mobo_employees/features/module_check/module_check_dialog.dart';
 import 'package:mobo_employees/features/roles_check/role_check_provider.dart';
+import 'package:mobo_employees/features/roles_check/role_refresh.dart';
 import 'package:mobo_employees/features/user_type_role_check/user_type_role_check_provider.dart';
 import 'package:mobo_employees/features/user_type_role_check/widget_show_role_type_dialog.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_indicator.dart';
@@ -30,13 +31,14 @@ class AppEntry extends StatefulWidget {
   State<AppEntry> createState() => _AppEntryState();
 }
 
-class _AppEntryState extends State<AppEntry> {
+class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
   late Future<Map<String, dynamic>> _initFuture;
   bool _roleDialogShown = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     /// Start monitoring connectivity centrallya
     ConnectivityService.instance.startMonitoring();
     _initFuture = _checkAuthStatus();
@@ -44,6 +46,22 @@ class _AppEntryState extends State<AppEntry> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ClearProviders.clearAllProviders(context);
     });
+  }
+
+  /// Back in the foreground: the user's groups may have been changed in Odoo
+  /// meanwhile, so switch to the employee or manager view they now call for.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        SessionService.instance.currentSession != null) {
+      refreshUserRole(context);
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<Map<String, dynamic>> _checkAuthStatus() async {

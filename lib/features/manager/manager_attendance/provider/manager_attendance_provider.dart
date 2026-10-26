@@ -106,12 +106,13 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   /// during [initialLoad].
   int? currentUserId;
 
-  /// Whether Odoo's record rules give this user every employee's attendance
-  /// (Attendance Administrator, or "Manage all attendances" on Odoo 20+).
-  bool canSeeAllAttendances = false;
+  /// The employees Odoo lets this user create attendances for, as an
+  /// `hr.employee` domain (see [UserAccessService.attendanceCreateDomain]);
+  /// null when there are none.
+  List<dynamic>? attendanceCreateDomain;
 
-  /// Whether this user may create attendances from the app — Attendance
-  /// Officer or above, as in Odoo's own Attendances menu.
+  /// Whether this user may create attendances from the app: Odoo would
+  /// accept one for at least one employee.
   bool canCreateAttendance = false;
 
   /// Custom "Attendance Date" range from the Filter tab's date pickers.
@@ -124,10 +125,32 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     if (currentUserId != null) return;
     final client = await OdooSessionManager.getClient();
     currentUserId = client?.sessionId?.userId;
-    canSeeAllAttendances = await UserAccessService.canSeeAllAttendances();
-    canCreateAttendance = canSeeAllAttendances ||
-        await UserAccessService.hasGroup(UserAccessService.attendanceOfficer);
     notifyListeners();
+  }
+
+  /// Reads what Odoo lets this user create. On every load, not once per
+  /// login: an administrator may change the user's groups in Odoo while the
+  /// app is open.
+  Future<void> _loadAccess() async {
+    try {
+      final domain = await UserAccessService.attendanceCreateDomain();
+      var canCreate = domain != null;
+      if (domain != null && domain.isNotEmpty) {
+        final count = await OdooSessionManager.callKwWithCompany({
+          'model': 'hr.employee',
+          'method': 'search_count',
+          'args': [domain],
+          'kwargs': {},
+        });
+        canCreate = count is int && count > 0;
+      }
+      attendanceCreateDomain = domain;
+      canCreateAttendance = canCreate;
+      notifyListeners();
+    } catch (_) {
+      /// Server unreachable: keep what was last read; the list's own fetch
+      /// reports the error.
+    }
   }
 
   /// Odoo stores datetimes in UTC, so domain bounds built from local
@@ -209,13 +232,12 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       [['employee_id.active', '=', true]],
     ];
 
-    /// Managers must only ever see their own direct reports here — this is
-    /// not one of the optional filter chips, it is always enforced
-    /// regardless of which chips the user has selected. Attendance
-    /// administrators are exempt: Odoo shows them every attendance, so
-    /// records of other employees (including ones entered in the backend)
-    /// must not be hidden from them.
-    if (currentUserId != null && !canSeeAllAttendances) {
+    /// No scope of the app's own: Odoo's record rules already limit this to
+    /// the attendances the user may see in Odoo's Attendances menu (all of
+    /// them, the employees they're Attendance manager of, or only their
+    /// own). "My Team" narrows to direct reports.
+    if (currentUserId != null &&
+        activeFilters.contains(AttendanceFilter.myTeam)) {
       fragments.add([['employee_id.parent_id.user_id', '=', currentUserId]]);
     }
 
@@ -1147,11 +1169,10 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (groupBy.isEmpty) {
-        await fetchAllAttendances();
-      } else {
-        await fetchRootGroups();
-      }
+      await Future.wait([
+        _loadAccess(),
+        groupBy.isEmpty ? fetchAllAttendances() : fetchRootGroups(),
+      ]);
     } finally {
       isLoading = false;
       notifyListeners();
@@ -1169,13 +1190,13 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     initialLoadDone = true;
     isFirstLoad = true;
     loadError = null;
-    /// Resolve the user and their access again on a retry: the access
-    /// checks read as "no access" while the server is unreachable.
+    /// Resolve the user again on a retry.
     currentUserId = null;
     notifyListeners();
 
     try {
       await _ensureCurrentUser();
+      await _loadAccess();
       await setInitialGroupByByVersion();
       _applyTodayShortcut();
 
@@ -1286,7 +1307,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     selectedMonth = null;
     draftSelectedMonth = null;
     currentUserId = null;
-    canSeeAllAttendances = false;
+    attendanceCreateDomain = null;
     canCreateAttendance = false;
     _showTodayOnNextLoad = false;
 

@@ -166,13 +166,10 @@ class ManagerEmployeesProvider extends ChangeNotifier {
       domain.addAll(scopeConditions);
     }
 
-    /// Managers must only ever see their own direct reports here — this is
-    /// not one of the optional filter chips above, it is always enforced
-    /// regardless of which chips the user has selected, by AND-ing it with
-    /// whatever complete domain expression was built above.
-    final mandatoryScope = ["parent_id.user_id", "=", currentUserId];
-    if (domain.isEmpty) return [mandatoryScope];
-    return ['&', mandatoryScope, ...domain];
+    /// No scope of the app's own: Odoo shows an HR Officer every employee of
+    /// the allowed companies, and so does this list. The "My Team" chip
+    /// narrows it to direct reports.
+    return domain;
   }
 
   /// Pagination
