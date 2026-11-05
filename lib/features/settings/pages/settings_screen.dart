@@ -305,8 +305,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600];
 
+    /// No side padding here: each tile carries its own 16px inset, which puts
+    /// these icons in line with those of the rows in the cards above. The
+    /// block under the tiles is inset separately, to stay in line with the
+    /// tile text.
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -348,73 +352,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-          const SizedBox(height: 16),
-          Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
-          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
+                const SizedBox(height: 16),
 
-          /// Social links
-          Center(
-            child: Text(
-              'Follow Us',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: textPrimary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildSocialButton(
-                context,
-                'assets/images/social/facebook.png',
-                const Color(0xFF1877F2),
-                'Facebook',
-                () => _launchUrlSmart(
-                  'https://www.facebook.com/cybrosystechnologies',
-                  title: 'Facebook',
+                /// Social links
+                Center(
+                  child: Text(
+                    'Follow Us',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: textPrimary,
+                    ),
+                  ),
                 ),
-              ),
-              _buildSocialButton(
-                context,
-                'assets/images/social/linkedin.png',
-                const Color(0xFF0077B5),
-                'LinkedIn',
-                () => _launchUrlSmart(
-                  'https://www.linkedin.com/company/cybrosys/',
-                  title: 'LinkedIn',
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSocialButton(
+                      context,
+                      'assets/images/social/facebook.png',
+                      const Color(0xFF1877F2),
+                      'Facebook',
+                      () => _launchUrlSmart(
+                        'https://www.facebook.com/cybrosystechnologies',
+                        title: 'Facebook',
+                      ),
+                    ),
+                    _buildSocialButton(
+                      context,
+                      'assets/images/social/linkedin.png',
+                      const Color(0xFF0077B5),
+                      'LinkedIn',
+                      () => _launchUrlSmart(
+                        'https://www.linkedin.com/company/cybrosys/',
+                        title: 'LinkedIn',
+                      ),
+                    ),
+                    _buildSocialButton(
+                      context,
+                      'assets/images/social/instagram.png',
+                      const Color(0xFFE4405F),
+                      'Instagram',
+                      () => _launchUrlSmart(
+                        'https://www.instagram.com/cybrosystech/',
+                        title: 'Instagram',
+                      ),
+                    ),
+                    _buildSocialButton(
+                      context,
+                      'assets/images/social/youtube.png',
+                      const Color(0xFFFF0000),
+                      'YouTube',
+                      () => _launchUrlSmart(
+                        'https://www.youtube.com/channel/UCKjWLm7iCyOYINVspCSanjg',
+                        title: 'YouTube',
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              _buildSocialButton(
-                context,
-                'assets/images/social/instagram.png',
-                const Color(0xFFE4405F),
-                'Instagram',
-                () => _launchUrlSmart(
-                  'https://www.instagram.com/cybrosystech/',
-                  title: 'Instagram',
-                ),
-              ),
-              _buildSocialButton(
-                context,
-                'assets/images/social/youtube.png',
-                const Color(0xFFFF0000),
-                'YouTube',
-                () => _launchUrlSmart(
-                  'https://www.youtube.com/channel/UCKjWLm7iCyOYINVspCSanjg',
-                  title: 'YouTube',
-                ),
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 24),
-          Center(
-            child: Text(
-              '© ${DateTime.now().year} Cybrosys Technologies',
-              style: TextStyle(fontSize: 12, color: textSecondary),
+                const SizedBox(height: 24),
+                Center(
+                  child: Text(
+                    '© ${DateTime.now().year} Cybrosys Technologies',
+                    style: TextStyle(fontSize: 12, color: textSecondary),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

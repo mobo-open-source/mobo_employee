@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
+import 'package:mobo_employees/shared/widgets/calendar/leave_month_calendar.dart';
 import 'package:shimmer/shimmer.dart';
 
 class AppShimmer extends StatelessWidget {
@@ -31,208 +33,188 @@ class AppShimmer extends StatelessWidget {
   }
 }
 
+/// Placeholder for [LeaveMonthCalendar]: the same card, navigation row, legend,
+/// weekday strip and week rows, so the calendar doesn't change size when it
+/// arrives. Only for the first load — moving between months updates the
+/// calendar in place and never shows this.
 class CalendarShimmer extends StatelessWidget {
+  const CalendarShimmer({super.key});
+
+  /// Five week rows: what most months need.
+  static const int _weeks = 5;
+
   @override
   Widget build(BuildContext context) {
-    const double cellHeight = 70;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Column(
-      children: [
-        /// Month header shimmer
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: AppShimmer(
-            width: double.infinity,
-            height: 40,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        /// Weekdays shimmer
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: List.generate(
-              7,
-              (_) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: AppShimmer(width: double.infinity, height: 14),
+    return Container(
+      decoration: LeaveMonthCalendar.cardDecoration(isDark),
+      child: Column(
+        children: [
+          /// Previous / month / next
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                AppShimmer(
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: AppShimmer(
+                    width: double.infinity,
+                    height: 48,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                AppShimmer(
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ],
+            ),
+          ),
+
+          /// Legend
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: AppShimmer(width: 240, height: 16),
+          ),
+
+          /// Weekday strip
+          const AppShimmer(
+            width: double.infinity,
+            height: 36,
+            borderRadius: BorderRadius.zero,
+          ),
+
+          /// Week rows
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 8),
+            itemCount: _weeks * 7,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisExtent: LeaveMonthCalendar.rowHeight,
+            ),
+            itemBuilder: (_, __) => const Center(
+              child: AppShimmer(
+                width: 26,
+                height: 26,
+                borderRadius: BorderRadius.all(Radius.circular(13)),
               ),
             ),
           ),
-        ),
-
-        const SizedBox(height: 12),
-
-        /// Calendar grid shimmer (6 weeks max)
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 42,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            crossAxisSpacing: 6,
-            mainAxisExtent: cellHeight,
-          ),
-          itemBuilder: (_, __) {
-            return Column(
-              children: [
-                AppShimmer(width: 24, height: 18),
-                const SizedBox(height: 5),
-                AppShimmer(width: double.infinity, height: 16),
-              ],
-            );
-          },
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-/// Mirrors `WidgetTimeOffCard`'s layout so size doesn't jump when real data loads.
+/// Mirrors `WidgetTimeOffCard`'s layout — the same padding, round photo, two
+/// lines beside it, reason and equal buttons — so the card doesn't change size
+/// when real data loads.
 class WidgetTimeOffCardShimmer extends StatelessWidget {
   const WidgetTimeOffCardShimmer({super.key});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget bar(double height, {double? width, double radius = 6}) => Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+
     return Shimmer.fromColors(
       baseColor: isDark ? Colors.grey[800]! : Colors.grey.shade300,
       highlightColor: isDark ? Colors.grey[700]! : Colors.grey.shade100,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(WidgetTimeOffCard.padding),
         decoration: BoxDecoration(
           color: isDark ? Colors.grey[850] : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(WidgetTimeOffCard.radius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.04),
+              color: Colors.black.withValues(alpha: .04),
               offset: const Offset(3, 11),
               blurRadius: 8.5,
               spreadRadius: -3,
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Profile image shimmer
-            Container(
-              width: 50,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                /// Photo
+                Container(
+                  width: WidgetTimeOffCard.avatarSize,
+                  height: WidgetTimeOffCard.avatarSize,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: WidgetTimeOffCard.avatarGap),
+
+                /// Name + pill, and the details under them
+                Expanded(
+                  child: SizedBox(
+                    height: WidgetTimeOffCard.avatarSize,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: bar(14)),
+                            const SizedBox(width: 8),
+                            bar(18, width: 52, radius: 20),
+                          ],
+                        ),
+                        bar(11, width: 150),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: WidgetTimeOffCard.reasonGap),
 
-            const SizedBox(width: 12),
+            /// Reason
+            bar(13, width: double.infinity),
+            const SizedBox(height: WidgetTimeOffCard.buttonsGap),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  /// Name + status
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        height: 20,
-                        width: 70,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ],
+            /// Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: bar(
+                    WidgetTimeOffCard.buttonHeight,
+                    radius: WidgetTimeOffCard.buttonRadius,
                   ),
-
-                  const SizedBox(height: 8),
-
-                  /// Leave type
-                  Container(
-                    height: 12,
-                    width: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                ),
+                const SizedBox(width: WidgetTimeOffCard.buttonSpacing),
+                Expanded(
+                  child: bar(
+                    WidgetTimeOffCard.buttonHeight,
+                    radius: WidgetTimeOffCard.buttonRadius,
                   ),
-
-                  const SizedBox(height: 10),
-
-                  /// Date range
-                  Container(
-                    height: 10,
-                    width: 160,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  /// Reason lines
-                  Container(
-                    height: 10,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    height: 10,
-                    width: MediaQuery.of(context).size.width * 0.6,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  /// Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),

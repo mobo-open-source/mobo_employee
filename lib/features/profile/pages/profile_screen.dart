@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobo_employees/core/providers/logout_view_model.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/profile/pages/profile_detail_screen.dart';
 import 'package:mobo_employees/shared/widgets/action_tile.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
@@ -229,30 +230,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// The canonical flat card around the Settings / Switch Account / Logout
+  /// rows — shared with the loading shimmer so it doesn't jump.
+  BoxDecoration _menuCardDecoration(bool isDark) => BoxDecoration(
+    color: isDark ? Colors.grey[850] : Colors.white,
+    borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
+    border: Border.all(
+      color: isDark ? Colors.grey[850]! : Colors.grey[200]!,
+      width: 0.5,
+    ),
+    boxShadow: const [AppShadows.cardShadow],
+  );
+
   Widget _buildQuickActionsSection(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? Colors.grey[900] : Colors.white;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.08)
-              : Colors.black.withOpacity(0.06),
-        ),
-        boxShadow: [
-          if (!isDark)
-            BoxShadow(
-              blurRadius: 16,
-              spreadRadius: 2,
-              offset: const Offset(0, 6),
-              color: Colors.black.withOpacity(0.06),
-            ),
-        ],
-      ),
+      // Keeps the rows' ripples inside the rounded corners.
+      clipBehavior: Clip.antiAlias,
+      decoration: _menuCardDecoration(isDark),
       child: Column(
         children: [
           ActionTile(
@@ -287,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 builder: (ctx) => ActionTile(
                   title: 'Logout',
                   subtitle: 'Sign out from this device',
-                  icon: HugeIcons.strokeRoundedLogout05,
+                  icon: HugeIcons.strokeRoundedLogout01,
                   destructive: true,
                   trailing: const SizedBox.shrink(),
                   onTap: () => ctx.read<LogoutViewModel>().confirmLogout(ctx),
@@ -386,15 +383,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             /// Quick actions shimmer
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.black.withOpacity(0.06),
-                ),
-              ),
+              decoration: _menuCardDecoration(isDark),
               child: Column(
                 children: List.generate(2, (index) {
                   return Padding(

@@ -2,15 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
-/// MoboCheckbox
-/// A design-accurate checkbox matching the provided UI spec with states:
-/// - default (outline)
-/// - hover (tinted background)
-/// - selected (filled with check)
-/// - indeterminate (filled with minus)
-/// - disabled (low-contrast outline/fill)
+/// Rounded-square checkbox: a 2px brand-coloured outline that fills in with a
+/// check when [value] is true (white fill and black check in dark mode).
 ///
-/// Use [value] as bool? to support tri-state. null -> indeterminate.
+/// Passing a null [onChanged] disables taps; the box keeps its look so a
+/// locked-on option (e.g. the active company) still reads as ticked.
 class MoboCheckbox extends StatefulWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
@@ -18,7 +14,7 @@ class MoboCheckbox extends StatefulWidget {
   final double radius;
 
   /// Override the disabled-state border/fill colors; left null, disabled
-  /// still renders with the primary color.
+  /// renders exactly like enabled.
   final Color? disabledBorderColor;
   final Color? disabledFillColor;
 
@@ -27,7 +23,7 @@ class MoboCheckbox extends StatefulWidget {
     required this.value,
     required this.onChanged,
     this.size = 22,
-    this.radius = 4,
+    this.radius = AppRadius.segmentChip,
     this.disabledBorderColor,
     this.disabledFillColor,
   });
@@ -41,8 +37,10 @@ class _MoboCheckboxState extends State<MoboCheckbox> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = AppTheme.primaryColor;
+    const primary = AppTheme.primaryColor;
     final isDisabled = widget.onChanged == null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? Colors.white : primary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -57,17 +55,23 @@ class _MoboCheckboxState extends State<MoboCheckbox> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),
             border: Border.all(
-              color: isDisabled ? (widget.disabledBorderColor ?? primary) : primary,
-              width: 1.5,
+              color: isDisabled
+                  ? (widget.disabledBorderColor ?? accent)
+                  : accent,
+              width: 2,
             ),
             color: widget.value
-                ? (isDisabled ? (widget.disabledFillColor ?? primary) : primary)
+                ? (isDisabled ? (widget.disabledFillColor ?? accent) : accent)
                 : (_hovering
-                      ? primary.withOpacity(0.10)
+                      ? accent.withValues(alpha: 0.10)
                       : Colors.transparent),
           ),
           child: widget.value
-              ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+              ? Icon(
+                  Icons.check_rounded,
+                  size: widget.size * 0.75,
+                  color: isDark ? Colors.black : Colors.white,
+                )
               : null,
         ),
       ),

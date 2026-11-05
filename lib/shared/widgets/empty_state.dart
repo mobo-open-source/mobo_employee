@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
+import '../../core/theme/app_theme.dart';
+
 class EmptyState extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -77,18 +79,25 @@ class EmptyState extends StatelessWidget {
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: onAction,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.primary,
-                  side: BorderSide(
-                    color: theme.colorScheme.primary.withOpacity(0.4),
+              SizedBox(
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: onAction,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primaryColor,
+                    side: const BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 1.5,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppRadius.defaultRadius,
+                      ),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  child: Text(actionLabel!),
                 ),
-                child: Text(actionLabel!),
               ),
             ],
           ],

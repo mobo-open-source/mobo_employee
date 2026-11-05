@@ -149,19 +149,34 @@ class LoginLayout extends StatelessWidget {
     );
   }
 
-  /// Build app header (Sales App + logo at top)
+  /// The people glyph in `employee-app-icon.svg` spans only x 128–384 of its
+  /// 512×512 viewBox (centred); the rest is transparent margin. Sizing the box
+  /// to the whole canvas therefore shrinks the artwork to about half of it.
+  static const double _logoSize = 44;
+  static const double _logoScale = _logoSize / 256;
+
+  /// Build app header (logo + "mobo employees" wordmark at top)
   Widget _buildAppHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 50,
-          height: 45,
-          child: SvgPicture.asset(
-            'assets/images/app-logo/employee-app-icon.svg',
+        /// Scale the canvas until the glyph alone is [_logoSize] wide and let
+        /// the transparent margin spill outside the box, so the gap to the
+        /// wordmark is the 12px below rather than invisible padding.
+        SizedBox.square(
+          dimension: _logoSize,
+          child: OverflowBox(
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: SvgPicture.asset(
+              'assets/images/app-logo/employee-app-icon.svg',
+              width: 512 * _logoScale,
+              height: 512 * _logoScale,
+            ),
           ),
         ),
+        const SizedBox(width: 12),
         Text(
           'mobo employees',
           style: const TextStyle(

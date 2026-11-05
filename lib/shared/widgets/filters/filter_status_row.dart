@@ -43,7 +43,8 @@ class FilterStatusRow extends StatelessWidget {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (hasFilter) _ActiveFilterPill(isDark: isDark, count: filterCount),
+                      if (hasFilter)
+                        _ActiveFilterPill(isDark: isDark, count: filterCount),
                       if (hasGroup) _GroupByPill(label: groupByLabel!),
                     ],
                   )
@@ -53,8 +54,9 @@ class FilterStatusRow extends StatelessWidget {
                       fontSize: 12,
                       color: isDark
                           ? Colors.white70
-                          : Theme.of(context).colorScheme.onSurface
-                              .withOpacity(0.7),
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.7),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -75,7 +77,9 @@ class FilterStatusRow extends StatelessWidget {
   }
 }
 
-/// Active filter count pill — transparent bg, black/grey[400] outline.
+/// Active filter count pill — solid black with white text, inverted (white
+/// with black text) in dark mode so it doesn't vanish into the background.
+/// As the events app's "N Active" chip, and the twin of [_GroupByPill].
 class _ActiveFilterPill extends StatelessWidget {
   final bool isDark;
   final int count;
@@ -84,15 +88,11 @@ class _ActiveFilterPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground = isDark ? Colors.black : Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.2)
-              : Colors.black.withOpacity(0.1),
-        ),
+        color: isDark ? Colors.white : Colors.black,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -103,24 +103,19 @@ class _ActiveFilterPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black,
+              color: foreground,
             ),
           ),
           const SizedBox(width: 5),
-          Text(
-            'Active',
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          ),
+          Text('Active', style: TextStyle(fontSize: 12, color: foreground)),
         ],
       ),
     );
   }
 }
 
-/// GroupBy indicator pill — solid black bg, layer icon + truncated label.
+/// GroupBy indicator pill — the same solid black (white in dark mode) as
+/// [_ActiveFilterPill], with a layer icon + truncated label.
 class _GroupByPill extends StatelessWidget {
   final String label;
 
@@ -128,29 +123,31 @@ class _GroupByPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark ? Colors.black : Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: isDark ? Colors.white : Colors.black,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const HugeIcon(
+          HugeIcon(
             icon: HugeIcons.strokeRoundedLayer,
             size: 14,
-            color: Colors.white,
+            color: foreground,
           ),
           const SizedBox(width: 5),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 90),
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: Colors.white,
+                color: foreground,
               ),
               overflow: TextOverflow.ellipsis,
             ),

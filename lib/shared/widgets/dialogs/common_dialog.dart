@@ -53,7 +53,9 @@ class CommonDialog extends StatelessWidget {
       elevation: 0,
       shadowColor: Colors.transparent,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        // One 24px inset for the title, message and buttons alike, so the
+        // button row lines up with the text above it.
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -172,7 +174,7 @@ class CommonDialog extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Row(
               children: [
                 if (secondaryLabel != null && onSecondary != null) ...[

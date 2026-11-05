@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
-import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
+import 'package:mobo_employees/shared/widgets/empty_state.dart';
 import 'package:provider/provider.dart';
 
 class WidgetManagerTimeOffViewPage extends StatelessWidget {
@@ -14,7 +14,6 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (provider.timeOffLoadError != null) {
       return ConnectionStatusWidget(
@@ -39,31 +38,10 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
         children: [
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.6,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: Lottie.asset(
-                      'assets/lotties/empty ghost.json',
-                      repeat: true,
-                      animate: true,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "No Timeoff Records Found",
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: isDark ? Colors.white : AppColors.blackColor,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
+            child: const Center(
+              child: EmptyState(
+                title: "No Timeoff Records Found",
+                lottieAsset: 'assets/lotties/empty ghost.json',
               ),
             ),
           ),
@@ -72,7 +50,8 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      // Room under the last card so it scrolls clear of the speed dial.
+      padding: const EdgeInsets.only(top: 12, bottom: AppSpacing.fabClearance),
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemCount: provider.timeOffList.length,
       itemBuilder: (context, index) {
@@ -90,8 +69,13 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
           employeeName: item.employeeName.toString(),
           leaveType: item.leaveTypeName,
           statesss: item.state == 'cancel' || hideButtonsForV18,
-          dateRange:
-              "${item.dateFromFormatted} – ${item.dateToFormatted} . ${item.durationDisplay}",
+          duration: item.durationDisplay,
+          // "10-12 Nov"
+          date: WidgetTimeOffCard.dateLabel(
+            item.dateFrom,
+            item.dateTo,
+            fallback: "${item.dateFromFormatted} – ${item.dateToFormatted}",
+          ),
           reason: item.description,
           status: item.state == 'cancel'
               ? 'Cancelled'
@@ -102,6 +86,7 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
               : item.state == "refuse"
               ? "Refused"
               : 'To Approve',
+          state: item.state,
           actionName: majorVersion >= 19
               ? "Validate"
               : item.state == "validate1"

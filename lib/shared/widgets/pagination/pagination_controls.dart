@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
-/// Reusable pagination controls with prev/next buttons and page info.
+/// The record count and previous / next arrows above a paged list.
+///
+/// Shows only what is useful:
+/// * no arrows when everything fits on one page;
+/// * on a longer list, an arrow that can't be used is hidden — but keeps its
+///   slot, so the other arrow doesn't slide under a thumb that has just tapped.
+///
+/// Callers leave the whole control out while there is no data, so an empty
+/// list shows no count.
 class PaginationControls extends StatelessWidget {
   final bool canGoToPreviousPage;
   final bool canGoToNextPage;
@@ -23,6 +31,10 @@ class PaginationControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A single page still shows its record count; only the arrows, which
+    // have nowhere to go, are left out.
+    final hasOtherPages = canGoToPreviousPage || canGoToNextPage;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -42,52 +54,58 @@ class PaginationControls extends StatelessWidget {
             paginationText,
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? Colors.white70 : Colors.black87,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
             ),
           ),
         ),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 32,
-          height: 36,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: canGoToPreviousPage ? onPreviousPage : null,
-              child: Center(
-                child: HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowLeft01,
-                  size: 20,
-                  color: canGoToPreviousPage
-                      ? (isDark ? Colors.white : Colors.black87)
-                      : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
-                ),
-              ),
-            ),
+        if (hasOtherPages) ...[
+          const SizedBox(width: 4),
+          _arrow(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            enabled: canGoToPreviousPage,
+            onTap: onPreviousPage,
           ),
-        ),
-        SizedBox(
-          width: 32,
-          height: 36,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: canGoToNextPage ? onNextPage : null,
-              child: Center(
-                child: HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  size: 20,
-                  color: canGoToNextPage
-                      ? (isDark ? Colors.white : Colors.black87)
-                      : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
-                ),
-              ),
-            ),
+          _arrow(
+            icon: HugeIcons.strokeRoundedArrowRight01,
+            enabled: canGoToNextPage,
+            onTap: onNextPage,
           ),
-        ),
+        ],
       ],
+    );
+  }
+
+  /// An arrow that can't be used is hidden but keeps its slot, so the other
+  /// arrow doesn't slide under a thumb that has just tapped.
+  Widget _arrow({
+    required List<List<dynamic>> icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return Visibility(
+      visible: enabled,
+      maintainSize: true,
+      maintainAnimation: true,
+      maintainState: true,
+      child: SizedBox(
+        width: 32,
+        height: 36,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: enabled ? onTap : null,
+            child: Center(
+              child: HugeIcon(
+                icon: icon,
+                size: 20,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

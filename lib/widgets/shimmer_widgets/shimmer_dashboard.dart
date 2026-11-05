@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/widgets/widget_costoverviewcard.dart';
+import 'package:mobo_employees/widgets/widget_recentActivity.dart';
+import 'package:mobo_employees/widgets/widget_checkin_card.dart';
 
 /// Mirrors the real dashboard's own layout so there's no visible jump in
 /// size or alignment when the real data swaps in.
@@ -81,23 +84,9 @@ class DashboardShimmer extends StatelessWidget {
   Widget _cardDecoration({required Widget child, EdgeInsetsGeometry? padding}) {
     return Container(
       width: double.infinity,
-      padding: padding ?? const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: isDarkTheme ? AppColors.greyShade800Color : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDarkTheme
-              ? AppColors.greyShade700Color
-              : const Color(0xFFE0E0E0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDarkTheme ? 0.25 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      padding:
+          padding ?? const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: WidgetCheckInCard.decoration(isDarkTheme),
       child: child,
     );
   }
@@ -136,7 +125,11 @@ class DashboardShimmer extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          _circle(diameter: 60, base: _onAccentBase, highlight: _onAccentHighlight),
+          _circle(
+            diameter: 60,
+            base: _onAccentBase,
+            highlight: _onAccentHighlight,
+          ),
         ],
       ),
     );
@@ -167,39 +160,26 @@ class DashboardShimmer extends StatelessWidget {
     );
   }
 
-  /// Matches WidgetQuickOverview: count/title/subtitle lines + icon chip.
+  /// Matches WidgetQuickOverview: title on top, value and caption in the
+  /// middle, accent bar at the bottom.
   Widget _quickOverviewCardShimmer() {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.all(20),
+      decoration: WidgetQuickOverview.decoration(isDarkTheme),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _line(width: 44, height: 26),
-                const SizedBox(height: 6),
-                _line(width: 70, height: 12),
-                const SizedBox(height: 4),
-                _line(width: 90, height: 10),
-              ],
-            ),
+          _line(width: 80, height: 13),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _line(width: 70, height: 24),
+              const SizedBox(height: 6),
+              _line(width: 96, height: 10),
+            ],
           ),
-          const SizedBox(width: 10),
-          _box(height: 40, width: 40, radius: 12),
+          _line(width: 40, height: 3, radius: 2),
         ],
       ),
     );
@@ -209,17 +189,7 @@ class DashboardShimmer extends StatelessWidget {
   Widget _recentActivityCardShimmer() {
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      decoration: WidgetRecentActivity.decoration(isDarkTheme),
       padding: const EdgeInsets.all(15),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,13 +228,11 @@ class DashboardShimmer extends StatelessWidget {
           /// "Quick Overview" title
           _line(width: 150, height: 18),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
+          GridView(
+            gridDelegate: WidgetQuickOverview.gridDelegate,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.2,
+            clipBehavior: Clip.none,
             children: List.generate(6, (_) => _quickOverviewCardShimmer()),
           ),
           const SizedBox(height: 18),
@@ -273,7 +241,7 @@ class DashboardShimmer extends StatelessWidget {
           _line(width: 150, height: 18),
           const SizedBox(height: 16),
           _recentActivityCardShimmer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           _recentActivityCardShimmer(),
         ],
       ),

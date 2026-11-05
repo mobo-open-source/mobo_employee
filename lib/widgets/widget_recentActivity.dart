@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 
 class WidgetRecentActivity extends StatelessWidget {
   final String title;
@@ -26,20 +27,21 @@ class WidgetRecentActivity extends StatelessWidget {
     this.onTap,
   });
 
+  /// The canonical flat card — the same surface the dashboard shimmers use.
+  static BoxDecoration decoration(bool isDark) => BoxDecoration(
+    color: isDark ? Colors.grey[850] : Colors.white,
+    borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
+    border: Border.all(
+      color: isDark ? Colors.grey[850]! : Colors.grey[200]!,
+      width: 0.5,
+    ),
+    boxShadow: const [AppShadows.cardShadow],
+  );
+
   @override
   Widget build(BuildContext context) {
     final card = Container(
-      decoration: BoxDecoration(
-        color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      decoration: decoration(isDarkTheme),
       padding: const EdgeInsets.all(15),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,8 +49,8 @@ class WidgetRecentActivity extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(isDarkTheme ? 0.22 : 0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: isDarkTheme ? 0.22 : 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
             ),
             child: HugeIcon(icon: icon, color: color, size: 22),
           ),
@@ -61,12 +63,10 @@ class WidgetRecentActivity extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0,
-                    color: isDarkTheme
-                        ? AppColors.white
-                        : AppColors.Color3F3F3F,
+                    color: isDarkTheme ? Colors.white : Colors.black87,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -75,11 +75,9 @@ class WidgetRecentActivity extends StatelessWidget {
                   subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                     letterSpacing: 0,
-                    color: isDarkTheme
-                        ? AppColors.whiteColor
-                        : AppColors.Color4E4E4E,
+                    color: isDarkTheme ? Colors.grey[400] : Colors.grey[600],
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -88,22 +86,10 @@ class WidgetRecentActivity extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           if (statusText != null && statusText!.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-              decoration: BoxDecoration(
-                color:
-                    statusColor?.withOpacity(0.12) ??
-                    Colors.grey.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                statusText!,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: statusColor ?? Colors.grey,
-                ),
-              ),
+            StatusColors.buildStatusBadge(
+              statusText!,
+              color: statusColor ?? StatusColors.grey,
+              isDark: isDarkTheme,
             ),
           if (onTap != null)
             Padding(

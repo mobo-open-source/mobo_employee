@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_snake_navigationbar/flutter_snake_navigationbar.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/features/company/providers/company_provider.dart';
@@ -19,6 +18,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/const/all_design.dart';
 import '../../../widgets/snackbar_widgets.dart';
 import '../../../shared/providers/clear_provider.dart';
+import 'package:mobo_employees/shared/widgets/navigation/mobo_bottom_nav_bar.dart';
 
 class ManagerBottomNavbarPage extends StatefulWidget {
   final int initialIndex;
@@ -62,7 +62,6 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
     ManagerAttendancePage(),
     ManagerEmployeesPage(),
     ManagerApprovalsPage(),
-
   ];
 
   final List<String> _titles = const [
@@ -70,7 +69,6 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
     "Attendance",
     'Employees',
     'Approvals',
-
   ];
 
   void _onItemTapped(int index) {
@@ -95,6 +93,16 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
       appBar: AppBar(
         surfaceTintColor: Colors.transparent,
         backgroundColor: scaffold,
+
+        /// The status bar is the page's own colour — `#FAFAFA` in the Figma
+        /// frames — flush with the title bar under it, with icons that
+        /// contrast with it. Stated rather than left to AppBar's guess from the
+        /// background, so it can't drift from the design.
+        systemOverlayStyle:
+            (isDarkTheme
+                    ? SystemUiOverlayStyle.light
+                    : SystemUiOverlayStyle.dark)
+                .copyWith(statusBarColor: scaffold),
         automaticallyImplyLeading: false,
         elevation: 0,
         title: Text(
@@ -112,33 +120,9 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
         key: ValueKey(_companyGeneration),
         child: screens[_currentIndex],
       ),
-      bottomNavigationBar: SnakeNavigationBar.color(
-        backgroundColor: isDarkTheme
-            ? AppColors.greyShade900Color
-            : AppColors.whiteColor,
-        unselectedItemColor: isDarkTheme
-            ? AppColors.grey50
-            : AppColors.blackColor,
-        selectedItemColor: isDarkTheme
-            ? AppColors.whiteColor
-            : AppColors.appColor,
-        snakeViewColor: AppColors.appColor,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
+      bottomNavigationBar: MoboBottomNavBar(
         currentIndex: _currentIndex,
         onTap: _onItemTapped,
-        snakeShape: SnakeShape.indicator,
-        height: 70,
-        elevation: 8,
-        shadowColor: isDarkTheme ? Colors.black26 : Colors.grey[200]!,
-        selectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
         items: [
           BottomNavigationBarItem(
             icon: HugeIcon(
@@ -233,16 +217,16 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     InitialsAvatar(
-                                  name: profileProvider.userData?['name']
-                                      ?.toString(),
-                                  diameter: 32,
-                                ),
+                                      name: profileProvider.userData?['name']
+                                          ?.toString(),
+                                      diameter: 32,
+                                    ),
                               ),
                             )
                           : InitialsAvatar(
                               key: const ValueKey('avatar_placeholder'),
-                              name:
-                                  profileProvider.userData?['name']?.toString(),
+                              name: profileProvider.userData?['name']
+                                  ?.toString(),
                               diameter: 32,
                             )),
               ),

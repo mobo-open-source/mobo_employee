@@ -25,21 +25,32 @@ class _WidgetManagerCalenderViewPageState
   /// The day whose details were last brought into view.
   DateTime? _revealedDate;
 
-  /// The day's details sit above the calendar, so after tapping a day low in
-  /// the calendar they can be scrolled out of sight: bring them back into
-  /// view (and leave the scroll alone when they already are).
+  /// The day's details sit under the calendar, so after tapping a day they can
+  /// be off the bottom of the screen: scroll down to them — by only as much as
+  /// it takes to bring them into view (nothing at all when they already are),
+  /// so the calendar stays on screen as long as the details allow. A list too
+  /// long for the screen is aligned to its top instead, so the date heading
+  /// isn't the part that gets cut off.
   void _revealDayDetails(DateTime? selectedDate) {
     if (selectedDate == _revealedDate) return;
     _revealedDate = selectedDate;
     if (selectedDate == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final detailsContext = _dayDetailsKey.currentContext;
-      if (detailsContext == null) return;
+      if (detailsContext == null || !detailsContext.mounted) return;
+      final size = (detailsContext.findRenderObject() as RenderBox?)?.size;
+      final viewport = Scrollable.maybeOf(
+        detailsContext,
+      )?.position.viewportDimension;
+      final tallerThanScreen =
+          size != null && viewport != null && size.height > viewport;
       Scrollable.ensureVisible(
         detailsContext,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        alignmentPolicy: tallerThanScreen
+            ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
+            : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
       );
     });
   }
@@ -94,26 +105,26 @@ class _WidgetManagerCalenderViewPageState
 
             const SizedBox(height: 12),
 
-            /// ───── Selected day: above the calendar, where it's seen ─────
+            /// ───── Calendar (MUST have fixed width) ─────
+            Consumer<ManagerApprovalsProvider>(
+              builder: (context, provider, _) {
+                if (provider.isCalendarLoading) {
+                  return const CalendarShimmer();
+                }
+                return const WidgetLeaveCalendar();
+              },
+            ),
+
+            /// ───── Selected day: under the calendar, the day's requests ─────
             if (selectedDate != null && !provider.isCalendarLoading) ...[
+              const SizedBox(height: 12),
               _SelectedDayLeaves(
                 key: _dayDetailsKey,
                 date: selectedDate,
                 leaves: provider.selectedDateEvents,
                 onClose: provider.clearSelectedDate,
               ),
-              const SizedBox(height: 12),
             ],
-
-            /// ───── Calendar (MUST have fixed width) ─────
-            Consumer<ManagerApprovalsProvider>(
-              builder: (context, provider, _) {
-                if (provider.isCalendarLoading) {
-                  return CalendarShimmer();
-                }
-                return const WidgetLeaveCalendar();
-              },
-            ),
           ],
         ),
       ),
@@ -214,13 +225,14 @@ class _SelectedDayLeaves extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : AppColors.color000000;
     final detailColor = isDark ? Colors.white70 : AppColors.color6A7282;
+    final dividerColor = isDark ? Colors.white12 : AppColors.colorEDEDEB;
+    final headerLineColor = isDark ? Colors.white38 : AppColors.colorBDBDBD;
     final countLabel = leaves.length == 1
         ? '1 request'
         : '${leaves.length} requests';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 8, 6, 12),
       decoration: BoxDecoration(
         color: isDark ? AppColors.greyShade800Color : AppColors.colorFFFFFF,
         borderRadius: BorderRadius.circular(12),
@@ -232,115 +244,124 @@ class _SelectedDayLeaves extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           /// ───── Header: the day, how many are off, close ─────
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  DateFormat('EEE, MMM dd, yyyy').format(date),
-                  style: GoogleFonts.manrope(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: titleColor,
-                  ),
-                ),
-              ),
-              if (leaves.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.appColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 6, 0),
+            child: Row(
+              children: [
+                Expanded(
                   child: Text(
-                    countLabel,
+                    DateFormat('EEE, MMM dd, yyyy').format(date),
                     style: GoogleFonts.manrope(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.appColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
                     ),
                   ),
                 ),
-              IconButton(
-                tooltip: 'Close',
-                visualDensity: VisualDensity.compact,
-                onPressed: onClose,
-                icon: Icon(Icons.close_rounded, size: 18, color: detailColor),
-              ),
-            ],
-          ),
-
-          if (leaves.isEmpty)
-            Text(
-              'No time off on this day',
-              style: GoogleFonts.manrope(fontSize: 12, color: detailColor),
-            ),
-
-          /// ───── One row per time off ─────
-          for (var i = 0; i < leaves.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 16,
-                color: isDark ? Colors.white12 : AppColors.colorEDEDEB,
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: WidgetLeaveCalendar.eventColor(leaves[i].state),
+                if (leaves.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.appColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      countLabel,
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.appColor,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
+                IconButton(
+                  tooltip: 'Close',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onClose,
+                  icon: Icon(Icons.close_rounded, size: 18, color: detailColor),
+                ),
+              ],
+            ),
+          ),
+
+          /// Grey line separating the heading from the requests below. It sits
+          /// outside the card padding so it runs the full width of the card.
+          Divider(height: 12, thickness: 1, color: headerLineColor),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 6, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (leaves.isEmpty)
+                  Text(
+                    'No time off on this day',
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      color: detailColor,
+                    ),
+                  ),
+
+                /// ───── One row per time off ─────
+                for (var i = 0; i < leaves.length; i++) ...[
+                  if (i > 0) Divider(height: 16, color: dividerColor),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          leaves[i].description,
-                          style: GoogleFonts.manrope(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: titleColor,
+                        // The status is the dot's colour, as in the calendar's legend —
+                        // not spelled out again on the right of each request.
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: WidgetLeaveCalendar.eventColor(
+                                leaves[i].state,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          [
-                            _rangeLabel(leaves[i]),
-                            _daysLabel(leaves[i]),
-                          ].where((part) => part.isNotEmpty).join(' · '),
-                          style: GoogleFonts.manrope(
-                            fontSize: 11,
-                            color: detailColor,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                leaves[i].description,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                [
+                                  _rangeLabel(leaves[i]),
+                                  _daysLabel(leaves[i]),
+                                ].where((part) => part.isNotEmpty).join(' · '),
+                                style: GoogleFonts.manrope(
+                                  fontSize: 11,
+                                  color: detailColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    WidgetLeaveCalendar.eventStatusLabel(leaves[i].state),
-                    style: GoogleFonts.manrope(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: WidgetLeaveCalendar.eventColor(leaves[i].state),
-                    ),
-                  ),
                 ],
-              ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

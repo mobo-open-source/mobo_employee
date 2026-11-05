@@ -282,6 +282,47 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     AttendanceGroupBy.employee,
   ];
 
+  /// How many top-level groups the grouped view shows (it reads them from
+  /// the [baseDomain] cache), or null before they have loaded.
+  int? get rootGroupCount {
+    if (groupBy.isEmpty) return null;
+    return groupBy.first == AttendanceGroupBy.month
+        ? getMonthGroups(baseDomain)?.groups.length
+        : getEmployeeGroups(baseDomain)?.groups.length;
+  }
+
+  /// The pager text of a grouped list: it counts the top-level groups shown,
+  /// not records — each group's header carries its own record count.
+  String get groupCountLabel {
+    final shown = rootGroupCount ?? 0;
+    if (shown == 0) return '0-0/0';
+    final total = groupBy.first == AttendanceGroupBy.month
+        ? totalMonthGroups
+        : totalEmployeeGroups;
+    return '1-$shown/${total > shown ? total : shown}';
+  }
+
+  /// Whether a filter chip, the date range or a search narrows the list.
+  /// Grouping alone never hides a record, so it doesn't count.
+  bool get narrowsResults =>
+      activeFilters.isNotEmpty ||
+      filterStartDate != null ||
+      filterEndDate != null ||
+      currentSearch.trim().isNotEmpty;
+
+  /// "Clear All Filters" on the no-results screen: drops the filters, the
+  /// date range, the grouping and the search together, back to the first
+  /// page of the plain list.
+  Future<void> clearFiltersGroupingAndSearch() async {
+    resetDraftFilters();
+    selectedMonth = null;
+    _searchDebounce?.cancel();
+    searchController.clear();
+    currentSearch = '';
+    _currentPage = 0;
+    await fetchAllAttendances();
+  }
+
   bool hasGroupBy(AttendanceGroupBy g) => groupBy.contains(g);
   bool isEmployeeLoading(int id) => _loadingEmployees.contains(id);
   bool isMonthLoading(String month) => _loadingMonths.contains(month);

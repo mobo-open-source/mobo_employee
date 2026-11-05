@@ -45,11 +45,41 @@ class MoboDateTimeField extends StatelessWidget {
       initialTime: TimeOfDay.fromDateTime(initial),
       builder: (context, child) {
         final base = Theme.of(context);
+        final isDark = base.brightness == Brightness.dark;
+        final surface = isDark ? AppColors.cardDark : Colors.white;
+        final onSurface = isDark ? Colors.white : Colors.black;
+        final fieldFill = isDark ? Colors.grey[800]! : Colors.grey[100]!;
+
+        /// Neutral surfaces like [MoboDatePicker] — the seeded Material 3
+        /// containers are tinted red — with the picked hour/minute and AM/PM
+        /// filled Mobo so the selection still reads.
+        Color selectedFill(Set<WidgetState> states) =>
+            states.contains(WidgetState.selected)
+            ? AppColors.appColor
+            : fieldFill;
+        Color selectedText(Set<WidgetState> states) =>
+            states.contains(WidgetState.selected) ? Colors.white : onSurface;
+
         return Theme(
           data: base.copyWith(
             colorScheme: base.colorScheme.copyWith(
               primary: AppColors.appColor,
               onPrimary: Colors.white,
+              surface: surface,
+              onSurface: onSurface,
+            ),
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: surface,
+              dialBackgroundColor: fieldFill,
+              dialHandColor: AppColors.appColor,
+              hourMinuteColor: WidgetStateColor.resolveWith(selectedFill),
+              hourMinuteTextColor: WidgetStateColor.resolveWith(selectedText),
+              dayPeriodColor: WidgetStateColor.resolveWith(selectedFill),
+              dayPeriodTextColor: WidgetStateColor.resolveWith(selectedText),
+              entryModeIconColor: onSurface,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: AppColors.appColor),
             ),
           ),
           child: child!,
@@ -121,8 +151,11 @@ class MoboDateTimeField extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // A calendar, as every other date field (and the events app's) —
+            // the field picks a date first and then a time, so a clock alone
+            // undersold it.
             HugeIcon(
-              icon: HugeIcons.strokeRoundedClock01,
+              icon: HugeIcons.strokeRoundedCalendar03,
               size: 20,
               color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
             ),

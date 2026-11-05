@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 
 class ModuleCheckDialog extends StatelessWidget {
   final List<String> moduleName;
@@ -17,8 +18,9 @@ class ModuleCheckDialog extends StatelessWidget {
         .map((m) => readableNames[m] ?? m)
         .toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(
@@ -28,12 +30,16 @@ class ModuleCheckDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.error_outline, color: Colors.red, size: 26),
-                SizedBox(width: 10),
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 26),
+                const SizedBox(width: 10),
                 Text(
                   "Module Missing",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.labelColor(isDark),
+                  ),
                 ),
               ],
             ),
@@ -45,7 +51,10 @@ class ModuleCheckDialog extends StatelessWidget {
               '${readableModules.length > 1 ? 's are' : ' is'} not installed. '
               'Please contact your administrator to enable '
               '${readableModules.length > 1 ? 'them.' : 'it.'}',
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
             ),
 
             const SizedBox(height: 24),

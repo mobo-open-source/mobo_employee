@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_snake_navigationbar/flutter_snake_navigationbar.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/routing/page_transition.dart';
 import 'package:mobo_employees/widgets/snackbar_widgets.dart';
@@ -20,6 +18,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/const/all_design.dart';
 import '../../../shared/providers/clear_provider.dart';
+import 'package:mobo_employees/shared/widgets/navigation/mobo_bottom_nav_bar.dart';
 
 class BottonnavbarPage extends StatefulWidget {
   final int initialIndex;
@@ -67,11 +66,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
     });
   }
 
-  List<Widget> get screens => [
-    DashboardPage(),
-    AttendancePage(),
-    LeavePage(),
-  ];
+  List<Widget> get screens => [DashboardPage(), AttendancePage(), LeavePage()];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -111,33 +106,9 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
         key: ValueKey(_companyGeneration),
         child: screens[_currentIndex],
       ),
-      bottomNavigationBar: SnakeNavigationBar.color(
-        backgroundColor: isDarkTheme
-            ? AppColors.greyShade900Color
-            : AppColors.whiteColor,
-        unselectedItemColor: isDarkTheme
-            ? AppColors.grey50
-            : AppColors.blackColor,
-        selectedItemColor: isDarkTheme
-            ? AppColors.whiteColor
-            : AppColors.appColor,
-        snakeViewColor: AppColors.appColor,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
+      bottomNavigationBar: MoboBottomNavBar(
         currentIndex: _currentIndex,
         onTap: _onItemTapped,
-        snakeShape: SnakeShape.indicator,
-        height: 70,
-        elevation: 8,
-        shadowColor: isDarkTheme ? Colors.black26 : Colors.grey[200]!,
-        selectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: GoogleFonts.montserrat(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
         items: [
           BottomNavigationBarItem(
             icon: HugeIcon(
@@ -159,7 +130,6 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
     );
   }
 
-
   List<Widget> _buildProfileActions(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -170,6 +140,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
           final provider = context.read<CompanyProvider>();
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
+
           /// Clear first, then reload: clearing resets ProfileProvider, so
           /// fetching before it (as this used to) left the avatar/name empty.
           await ClearProviders.clearAllProviders(context);
@@ -178,6 +149,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
           if (!mounted) return;
           await context.read<BottomNavProvider>().refreshAll(context);
           if (!mounted) return;
+
           /// After the dashboard reload: Attendance needs its employee id.
           setState(() => _companyGeneration++);
           CustomSnackbar.showSuccess(context, 'Switched to $companyName');
@@ -223,16 +195,16 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     InitialsAvatar(
-                                  name: profileProvider.userData?['name']
-                                      ?.toString(),
-                                  diameter: 32,
-                                ),
+                                      name: profileProvider.userData?['name']
+                                          ?.toString(),
+                                      diameter: 32,
+                                    ),
                               ),
                             )
                           : InitialsAvatar(
                               key: const ValueKey('avatar_placeholder'),
-                              name:
-                                  profileProvider.userData?['name']?.toString(),
+                              name: profileProvider.userData?['name']
+                                  ?.toString(),
                               diameter: 32,
                             )),
               ),

@@ -552,10 +552,9 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                           }
                                         });
                                       },
+                                /// Locked (active company) checkbox keeps the
+                                /// ticked look, so it still reads as checked.
                                 size: 26,
-                                /// Locked (active company) checkbox still reads as checked.
-                                disabledBorderColor: primaryColor,
-                                disabledFillColor: primaryColor,
                               ),
                             ),
                             const SizedBox(width: 8),
