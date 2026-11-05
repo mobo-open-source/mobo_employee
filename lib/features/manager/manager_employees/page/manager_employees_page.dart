@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
-import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_employees/provider/manager_employees_provider.dart';
 import 'package:mobo_employees/features/manager/manager_employees/widgets/employee_filter_sheet.dart';
 import 'package:mobo_employees/features/manager/manager_employees/widgets/widget_employee_card.dart';
@@ -9,8 +7,20 @@ import 'package:mobo_employees/features/manager/manager_employees/model/model_fe
     show ModelFetchManagerEmployeeDetails;
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
+import '../../../../shared/widgets/cards/group_section_card.dart';
+import '../../../../shared/widgets/no_results_empty_state.dart';
 import '../../../../shared/widgets/filters/filter_status_row.dart';
 import '../../../../shared/widgets/search/mobo_search_bar.dart';
+
+/// The side inset of the toolbar (search bar and filter row).
+const EdgeInsets _sideInset = EdgeInsets.symmetric(horizontal: 16);
+
+/// The lists' own padding: the 16px side inset, a little room above the first
+/// card and 16 under the last, so their shadows aren't clipped.
+const EdgeInsets _listPadding = EdgeInsets.fromLTRB(16, 4, 16, 16);
+
+/// Between two cards. As mobo CRM's customer list; Figma's is 11.
+const double _cardGap = 12;
 
 class ManagerEmployeesPage extends StatefulWidget {
   const ManagerEmployeesPage({super.key});
@@ -41,80 +51,82 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
 
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        // The side inset belongs to the toolbar and (as list padding) to the
+        // lists, not to the whole body: a list clips what it paints to its own
+        // bounds, so with the inset outside it the cards' soft shadows were cut
+        // off flat at the 16px line.
+        padding: const EdgeInsets.only(top: 16),
         child: Column(
           children: [
-            MoboSearchBar(
-              controller: provider.searchEmployeeController,
-              hintText: 'Search employees...',
-              hasActiveFilter: provider.hasActiveFilter,
-              onFilterTap: () => EmployeeFilterSheet.show(context),
-              onChanged: (value) => provider.updateSearch(value),
+            Padding(
+              padding: _sideInset,
+              child: MoboSearchBar(
+                controller: provider.searchEmployeeController,
+                hintText: 'Search employees...',
+                hasActiveFilter: provider.hasActiveFilter,
+                onFilterTap: () => EmployeeFilterSheet.show(context),
+                onChanged: (value) => provider.updateSearch(value),
+              ),
             ),
 
             const SizedBox(height: 10),
 
-            FilterStatusRow(
-              filterCount: provider.activeFilters.length,
-              groupByLabel: provider.groupBy == EmployeeGroupBy.none
-                  ? null
-                  : provider.groupBy.label,
-              isDark: isDarkTheme,
-              paginationText: provider.paginationText,
-              canPrev: provider.canGoPrevious,
-              canNext: provider.canGoNext,
-              onPrev: provider.previousPage,
-              onNext: provider.nextPage,
-              showPagination: provider.totalPages > 1,
+            Padding(
+              padding: _sideInset,
+              child: FilterStatusRow(
+                filterCount: provider.activeFilters.length,
+                groupByLabel: provider.groupBy == EmployeeGroupBy.none
+                    ? null
+                    : provider.groupBy.label,
+                isDark: isDarkTheme,
+                paginationText: provider.paginationText,
+                canPrev: provider.canGoPrevious,
+                canNext: provider.canGoNext,
+                onPrev: provider.previousPage,
+                onNext: provider.nextPage,
+
+                /// The count shows on a single page too; the arrows drop out
+                /// on their own when there is nowhere to go.
+                showPagination:
+                    provider.totalRecords > 0 && !provider.isLoading,
+              ),
             ),
 
             const SizedBox(height: 10),
             Expanded(
               child: provider.loadError != null
-                  ? ConnectionStatusWidget(
-                      error: provider.loadError,
-                      onRetry: provider.fetchEmployees,
+                  ? Padding(
+                      padding: _sideInset,
+                      child: ConnectionStatusWidget(
+                        error: provider.loadError,
+                        onRetry: provider.fetchEmployees,
+                      ),
                     )
                   : provider.isLoading || provider.initialLoading == false
                   ? ListView.separated(
-                      itemCount: 12, /// shimmer count
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      padding: _listPadding,
+                      itemCount: 12,
+
+                      /// shimmer count
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: _cardGap),
                       itemBuilder: (_, __) => const WidgetEmployeeCardShimmer(),
                     )
                   : provider.employees.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: 120,
-                            width: 120,
-                            child: Lottie.asset(
-                              'assets/lotties/empty ghost.json',
-                              repeat: true,
-                              animate: true,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            "No Employee Records Found",
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: isDarkTheme
-                                  ? Colors.white
-                                  : AppColors.blackColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        NoResultsEmptyState(
+                          emptyTitle: 'No Employee Records Found',
+                          showClearFilters: provider.narrowsResults,
+                          onClearFilters:
+                              provider.clearFiltersGroupingAndSearch,
+                        ),
+                      ],
                     )
                   : RefreshIndicator(
                       onRefresh: provider.refreshEmployees,
-                      child: _EmployeeListBody(
-                        grouped: provider.grouped,
-                        isDark: isDarkTheme,
-                      ),
+                      child: _EmployeeListBody(grouped: provider.grouped),
                     ),
             ),
           ],
@@ -124,72 +136,64 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
   }
 }
 
-class _EmployeeListBody extends StatelessWidget {
+class _EmployeeListBody extends StatefulWidget {
   final Map<String, List<ModelFetchManagerEmployeeDetails>> grouped;
-  final bool isDark;
 
-  const _EmployeeListBody({required this.grouped, required this.isDark});
+  const _EmployeeListBody({required this.grouped});
+
+  @override
+  State<_EmployeeListBody> createState() => _EmployeeListBodyState();
+}
+
+class _EmployeeListBodyState extends State<_EmployeeListBody> {
+  /// Groups the user closed. They start open: grouping happens on the page
+  /// already loaded, so the employees are there to show.
+  final Set<String> _collapsed = {};
 
   @override
   Widget build(BuildContext context) {
+    final grouped = widget.grouped;
     final flat = grouped.length == 1 && grouped.containsKey('');
 
     if (flat) {
       final employees = grouped['']!;
       return ListView.separated(
+        padding: _listPadding,
         itemCount: employees.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) => _EmployeeTile(employee: employees[index]),
+        separatorBuilder: (_, __) => const SizedBox(height: _cardGap),
+        itemBuilder: (context, index) =>
+            _EmployeeTile(employee: employees[index]),
       );
     }
 
     final groupKeys = grouped.keys.toList();
     return ListView.builder(
+      padding: _listPadding,
       itemCount: groupKeys.length,
       itemBuilder: (context, groupIndex) {
         final key = groupKeys[groupIndex];
         final employees = grouped[key]!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.only(top: groupIndex == 0 ? 0 : 16, bottom: 8),
-              child: Row(
-                children: [
-                  Text(
-                    key,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppColors.color101828,
-                    ),
+        final isExpanded = !_collapsed.contains(key);
+        return GroupSectionCard(
+          title: key,
+          subtitle: employees.length == 1
+              ? '1 employee'
+              : '${employees.length} employees',
+          isExpanded: isExpanded,
+          onToggle: () => setState(() {
+            isExpanded ? _collapsed.add(key) : _collapsed.remove(key);
+          }),
+          body: Column(
+            children: [
+              for (var i = 0; i < employees.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: i == employees.length - 1 ? 0 : 8,
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.appColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${employees.length}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.appColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ...employees.map(
-              (e) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _EmployeeTile(employee: e),
-              ),
-            ),
-          ],
+                  child: _EmployeeTile(employee: employees[i]),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -211,10 +215,11 @@ class _EmployeeTile extends StatelessWidget {
       child: employee.avatarBytes != null
           ? Image.memory(
               employee.avatarBytes!,
-              height: 56,
-              width: 56,
+              height: WidgetEmployeeCard.avatarSize,
+              width: WidgetEmployeeCard.avatarSize,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _AvatarFallback(name: employee.name),
+              errorBuilder: (context, error, stackTrace) =>
+                  _AvatarFallback(name: employee.name),
             )
           : _AvatarFallback(name: employee.name),
     );
@@ -230,8 +235,8 @@ class _AvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      height: 56,
-      width: 56,
+      height: WidgetEmployeeCard.avatarSize,
+      width: WidgetEmployeeCard.avatarSize,
       color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
       alignment: Alignment.center,
       child: name.isNotEmpty

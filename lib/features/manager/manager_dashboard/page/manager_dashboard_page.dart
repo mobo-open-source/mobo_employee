@@ -170,13 +170,12 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 16),
-                    GridView.count(
-                      crossAxisCount: 2,
+                    GridView(
+                      gridDelegate: WidgetQuickOverview.gridDelegate,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.2,
+                      // Room for the cards' shadows at the grid's edges.
+                      clipBehavior: Clip.none,
                       children: [
                         WidgetQuickOverview(
                           count: provider.dashboard.overview.totalEmployees
@@ -184,7 +183,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                           title: "Employees",
                           subtitle: "Total Employees",
                           color: AppColors.Color43B75D,
-                          icon: HugeIcons.strokeRoundedUserMultiple,
                           isDarkTheme: isDarkTheme,
                         ),
                         WidgetQuickOverview(
@@ -193,7 +191,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                           title: "Todays attendance",
                           subtitle: "Daily attendance",
                           color: AppColors.color007AFF,
-                          icon: HugeIcons.strokeRoundedUserCheck01,
                           isDarkTheme: isDarkTheme,
                           onTap: _openTodayAttendance,
                         ),
@@ -204,7 +201,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                           title: "Leaves",
                           subtitle: "Leaves on today",
                           color: AppColors.colorF30B0B,
-                          icon: HugeIcons.strokeRoundedUserRemove01,
                         ),
                         WidgetQuickOverview(
                           isDarkTheme: isDarkTheme,
@@ -214,7 +210,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                           subtitle:
                               "${provider.dashboard.overview.leaveRequests} Leave requests",
                           color: AppColors.Color009688,
-                          icon: HugeIcons.strokeRoundedDocumentValidation,
                           onTap: _openPendingApprovals,
                         ),
                       ],
@@ -232,8 +227,8 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage>
                     const SizedBox(height: 16),
                     StaggeredGrid.count(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
                       children: [
                         StaggeredGridTile.fit(
                           crossAxisCellCount: 2,

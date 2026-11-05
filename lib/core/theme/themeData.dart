@@ -18,17 +18,77 @@ class AppTheme {
   static const Color darkScaffold = Color(0xFF181A20);
   static const Color darkSurface = Color(0xFF1E1E1E);
 
+  /// Light Mobo wash (primary at 8%) behind the filter-sheet option chips and
+  /// date fields. Translucent, unlike `AppColors.primaryTint`, so it reads on
+  /// the dark sheet too.
+  static const Color primaryWash = Color(0x14C03355);
+
+  /// Dark mode, a filter option at rest (an unselected chip): a neutral grey box
+  /// with a grey outline, as in the events app. Opaque on purpose — the brand
+  /// wash above is translucent, and over the dark sheet it glows pink.
+  static final Color darkOptionFill = Colors.grey[700]!;
+  static final Color darkOptionBorder = Colors.grey[600]!;
+
+  /// Fill of an inactive submit button in light mode — a form with nothing to
+  /// save yet. Dark mode keeps `grey[700]`.
+  static const Color disabledButtonFill = Color(0xFFBDBDBD);
+
+  /// Label and icon colour of an inactive submit button, in both themes.
+  static const Color disabledButtonText = Color(0xFFFFFFFF);
+
   static Color labelColor(bool isDark) => isDark ? Colors.white : dark;
   static Color secondaryLabelColor(bool isDark) =>
       isDark ? Colors.grey[400]! : Colors.grey[600]!;
 
+  /// Inactive submit-button fill for the current theme.
+  static Color disabledButtonFillFor(bool isDark) =>
+      isDark ? Colors.grey[700]! : disabledButtonFill;
+
+  /// Checkbox with a Mobo-coloured outline that fills Mobo with a white tick
+  /// when ticked — rather than Material's near-black outline.
+  static final CheckboxThemeData checkboxTheme = CheckboxThemeData(
+    fillColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.selected)
+          ? primaryColor
+          : Colors.transparent,
+    ),
+    checkColor: WidgetStateProperty.all(white),
+    side: WidgetStateBorderSide.resolveWith(
+      (states) => const BorderSide(color: primaryColor, width: 2),
+    ),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.chip),
+    ),
+  );
+
+  /// Dialogs (§19): flat, fully rounded, white / [darkSurface]. Screens that
+  /// pass their own `backgroundColor` still win.
+  static DialogThemeData _dialogTheme(Color background) => DialogThemeData(
+    backgroundColor: background,
+    elevation: 0,
+    shadowColor: Colors.transparent,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+    ),
+  );
+
+  /// Bare `Card`s get the §8 card fill instead of Material 3's tinted
+  /// surface.
+  static CardThemeData _cardTheme(Color background) =>
+      CardThemeData(color: background, surfaceTintColor: Colors.transparent);
+
   /// Define a custom TextTheme using Manrope font for all text styles
   static TextTheme _buildTextTheme(TextTheme base) {
     return base.copyWith(
-      /// Display styles
-      displayLarge: GoogleFonts.qahiri(textStyle: base.displayLarge),
-      displayMedium: GoogleFonts.qahiri(textStyle: base.displayMedium),
-      displaySmall: GoogleFonts.qahiri(textStyle: base.displaySmall),
+      /// Display styles — Manrope like the rest. These were Qahiri, a
+      /// calligraphic face that nothing in the app asks for: the only thing
+      /// that draws them is Material's time picker (its big hour/minute
+      /// digits), which then looked nothing like the events app's, whose theme
+      /// leaves them at the app font.
+      displayLarge: GoogleFonts.manrope(textStyle: base.displayLarge),
+      displayMedium: GoogleFonts.manrope(textStyle: base.displayMedium),
+      displaySmall: GoogleFonts.manrope(textStyle: base.displaySmall),
 
       /// Headline styles
       headlineLarge: GoogleFonts.manrope(textStyle: base.headlineLarge),
@@ -91,12 +151,16 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
       elevation: 4,
     ),
+
     /// Override the M3 default pale tonal header with the brand color.
     datePickerTheme: DatePickerThemeData(
       backgroundColor: Colors.white,
       headerBackgroundColor: primaryColor,
       headerForegroundColor: Colors.white,
     ),
+    checkboxTheme: checkboxTheme,
+    dialogTheme: _dialogTheme(white),
+    cardTheme: _cardTheme(white),
     primaryTextTheme: _buildTextTheme(TextTheme()),
     textTheme: _buildTextTheme(TextTheme()),
   );
@@ -110,6 +174,11 @@ class AppTheme {
       brightness: Brightness.dark,
       primary: primaryColor,
       secondary: secondaryColor,
+
+      /// Neutral dark surfaces, as in mobo_billing — the seeded defaults are
+      /// tinted red by the brand colour.
+      surface: darkSurface,
+      onSurface: Colors.white,
     ),
     scaffoldBackgroundColor: darkScaffold,
     appBarTheme: const AppBarTheme(
@@ -140,12 +209,16 @@ class AppTheme {
       surfaceTintColor: Colors.transparent,
       elevation: 4,
     ),
+
     /// Same header override as the light theme.
     datePickerTheme: DatePickerThemeData(
       backgroundColor: Colors.grey[900],
       headerBackgroundColor: primaryColor,
       headerForegroundColor: Colors.white,
     ),
+    checkboxTheme: checkboxTheme,
+    dialogTheme: _dialogTheme(darkSurface),
+    cardTheme: _cardTheme(Colors.grey[850]!),
 
     /// Apply the custom TextTheme
     textTheme: _buildTextTheme(TextTheme()),
@@ -175,10 +248,28 @@ class StatusColors {
   /// unknown/default fallback
   static const Color grey = Color(0xFF6B7280);
 
+  // --- Tinted icon/background pairs (§1, §16) ----------------------------
+  static const Color infoIcon = Color(0xFF60A5FA);
+  static const Color successIcon = Color(0xFF4ADE80);
+  static const Color warningIcon = Color(0xFFFBBF24);
+  static const Color errorIcon = Color(0xFFF87171);
+
+  static Color iconBackground(Color color) => color.withValues(alpha: 0.12);
+
+  static Color backgroundLight(Color color) => color.withValues(alpha: 0.12);
+  static Color backgroundDark(Color color) => color.withValues(alpha: 0.2);
+
   /// Maps a status string (case-insensitive) to its semantic color. Falls
   /// back to [grey] for anything unrecognised rather than guessing.
+  ///
+  /// Time off / allocation states (`hr.leave.state`) map by meaning:
+  /// `validate` (Approved) is green, `confirm` (To Approve) and `validate1`
+  /// (Second Approval) are waiting on someone — in progress, blue — and
+  /// `refuse`/`cancel` are red. The leave calendar keeps its own Odoo-style
+  /// legend colours; this is for status badges.
   static Color forState(String? state) {
     switch (state?.toLowerCase().trim()) {
+      case 'validate':
       case 'approved':
       case 'done':
       case 'posted':
@@ -196,9 +287,13 @@ class StatusColors {
       case 'in-progress':
       case 'proposal':
       case 'pending':
+      case 'confirm':
+      case 'validate1':
         return blue;
       case 'draft':
         return orange;
+      case 'refuse':
+      case 'cancel':
       case 'cancelled':
       case 'canceled':
       case 'lost':
@@ -221,7 +316,9 @@ class StatusColors {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.15) : color.withValues(alpha: 0.12),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(
@@ -253,10 +350,10 @@ class AppShadows {
   /// "Panel" shadow — bigger surfaces like chart containers, dashboard
   /// sections.
   static BoxShadow panelShadow(bool isDark) => BoxShadow(
-        color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.08),
-        blurRadius: 12,
-        offset: const Offset(0, 4),
-      );
+    color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.08),
+    blurRadius: 12,
+    offset: const Offset(0, 4),
+  );
 
   /// Soft shadow for pill-shaped search bars only.
   static const searchShadow = BoxShadow(
@@ -265,6 +362,16 @@ class AppShadows {
     blurRadius: 8.5,
     spreadRadius: -3,
   );
+}
+
+/// Layout constants shared across screens.
+class AppSpacing {
+  const AppSpacing._();
+
+  /// Bottom padding for a scrolling list that has a floating action button
+  /// over it: the button's 56px height, its 16px margin and a 16px gap, so the
+  /// last row can scroll up clear of the button instead of ending under it.
+  static const double fabClearance = 88;
 }
 
 /// Spacing/radius scale (§4). Default to [defaultRadius] when unsure.

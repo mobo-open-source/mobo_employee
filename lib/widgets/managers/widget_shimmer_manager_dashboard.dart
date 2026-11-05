@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/widgets/widget_costoverviewcard.dart';
+import 'package:mobo_employees/widgets/widget_recentActivity.dart';
 
 /// Mirrors ManagerDashboardPage's own layout so there's no visible jump in
 /// size or alignment when the real data swaps in.
@@ -99,39 +101,26 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
       );
     }
 
-    /// Matches WidgetQuickOverview: count/title/subtitle lines + icon chip.
+    /// Matches WidgetQuickOverview: title on top, value and caption in the
+    /// middle, accent bar at the bottom.
     Widget quickOverviewCardShimmer() {
       return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        padding: const EdgeInsets.all(20),
+        decoration: WidgetQuickOverview.decoration(isDark),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  line(width: 36, height: 26),
-                  const SizedBox(height: 6),
-                  line(width: 80, height: 12),
-                  const SizedBox(height: 4),
-                  line(width: 100, height: 10),
-                ],
-              ),
+            line(width: 80, height: 13),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                line(width: 48, height: 24),
+                const SizedBox(height: 6),
+                line(width: 96, height: 10),
+              ],
             ),
-            const SizedBox(width: 10),
-            box(height: 40, width: 40, radius: 12),
+            line(width: 40, height: 3, radius: 2),
           ],
         ),
       );
@@ -141,17 +130,7 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
     Widget recentActivityCardShimmer() {
       return Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.greyShade800Color : AppColors.whiteColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+        decoration: WidgetRecentActivity.decoration(isDark),
         padding: const EdgeInsets.all(15),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,13 +165,11 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
           /// "Quick Overview" title
           line(width: 150, height: 18),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
+          GridView(
+            gridDelegate: WidgetQuickOverview.gridDelegate,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.2,
+            clipBehavior: Clip.none,
             children: List.generate(4, (_) => quickOverviewCardShimmer()),
           ),
           const SizedBox(height: 18),
@@ -201,9 +178,9 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
           line(width: 150, height: 18),
           const SizedBox(height: 16),
           recentActivityCardShimmer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           recentActivityCardShimmer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           recentActivityCardShimmer(),
         ],
       ),

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 
 class WidgetShowRoleTypeDialog extends StatelessWidget {
   const WidgetShowRoleTypeDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(
@@ -16,12 +18,16 @@ class WidgetShowRoleTypeDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.error_outline, color: Colors.red, size: 26),
-                SizedBox(width: 10),
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 26),
+                const SizedBox(width: 10),
                 Text(
                   "No Permission",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.labelColor(isDark),
+                  ),
                 ),
               ],
             ),
@@ -30,7 +36,10 @@ class WidgetShowRoleTypeDialog extends StatelessWidget {
 
             Text(
               'This user does not have the access to this module\n',
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
             ),
 
             const SizedBox(height: 24),

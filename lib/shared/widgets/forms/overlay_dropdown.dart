@@ -246,7 +246,9 @@ class _OverlayDropdownFieldState<T> extends State<OverlayDropdownField<T>> {
                             ? Icons.keyboard_arrow_down
                             : Icons.keyboard_arrow_up,
                         size: 20,
-                        color: widget.enabled ? Colors.black54 : Colors.black26,
+                        color: isDark
+                            ? (widget.enabled ? Colors.white70 : Colors.white24)
+                            : (widget.enabled ? Colors.black54 : Colors.black26),
                       ),
                     ],
                   ),

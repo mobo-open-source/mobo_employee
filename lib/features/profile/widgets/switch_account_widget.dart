@@ -29,8 +29,7 @@ class SwitchAccountWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color subtitleColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
-    final Color iconColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+    final Color secondary = isDark ? Colors.grey[400]! : Colors.grey[600]!;
 
     return Consumer<SessionService>(
       builder: (context, sessionService, child) {
@@ -44,19 +43,29 @@ class SwitchAccountWidget extends StatelessWidget {
         final accountCount = otherAccounts.length;
 
         return ExpansionTile(
+          // Without these, an expanded ExpansionTile draws divider-coloured
+          // lines above and below itself.
+          shape: const Border(),
+          collapsedShape: const Border(),
+          // The chevron turns brand-coloured while the row is open.
+          iconColor: AppTheme.primaryColor,
+          collapsedIconColor: secondary,
           leading: HugeIcon(
             icon: HugeIcons.strokeRoundedUserSwitch,
-            color: iconColor,
+            color: secondary,
           ),
-          title: const Text(
+          title: Text(
             'Switch Accounts',
-            style: TextStyle(fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           subtitle: Text(
             accountCount > 0
                 ? '$accountCount other account${accountCount != 1 ? 's' : ''} available'
                 : 'Add multiple accounts to switch quickly',
-            style: TextStyle(color: subtitleColor),
+            style: TextStyle(color: secondary),
           ),
           children: [
             if (accountCount == 0)
@@ -102,13 +111,15 @@ class SwitchAccountWidget extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedUserAdd01,
-              size: 30,
-              color: Theme.of(context).primaryColor,
+            child: const Center(
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedUserAdd01,
+                size: 30,
+                color: AppTheme.primaryColor,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -256,6 +267,31 @@ class SwitchAccountWidget extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (!isCurrent)
+                PopupMenuButton<String>(
+                  position: PopupMenuPosition.under,
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: isDark ? Colors.white : Colors.black,
+                    size: 20,
+                  ),
+                  onSelected: (value) async {
+                    if (value == 'remove') {
+                      await _removeAccount(context, account, sessionService);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem<String>(
+                      value: 'remove',
+                      child: Text(
+                        'Remove',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -267,6 +303,7 @@ class SwitchAccountWidget extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(16),
       width: double.infinity,
+      height: 48,
       child: ElevatedButton.icon(
         onPressed: () {
           final sessionService = Provider.of<SessionService>(
@@ -288,14 +325,19 @@ class SwitchAccountWidget extends StatelessWidget {
           );
         },
         icon: const HugeIcon(icon: HugeIcons.strokeRoundedUserAdd01, size: 18),
-        label: const Text('Add Account'),
+        label: const Text(
+          'Add Account',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: AppTheme.primaryColor,
           foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );

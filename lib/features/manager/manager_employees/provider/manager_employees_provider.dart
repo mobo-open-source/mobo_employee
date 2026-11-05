@@ -286,6 +286,19 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     fetchEmployees(reset: true);
   }
 
+  /// Whether a filter chip or a search narrows the list. Grouping alone
+  /// never hides an employee, so it doesn't count.
+  bool get narrowsResults =>
+      activeFilters.isNotEmpty || currentSearch.trim().isNotEmpty;
+
+  /// "Clear All Filters" on the no-results screen: drops the filters, the
+  /// grouping and the search together.
+  void clearFiltersGroupingAndSearch() {
+    searchEmployeeController.clear();
+    currentSearch = '';
+    clearAllFilters();
+  }
+
   void clearOnManagerLogout() {
     /// User session
     currentUserId = null;

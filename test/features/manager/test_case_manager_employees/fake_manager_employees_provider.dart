@@ -14,7 +14,7 @@ class FakeManagerEmployeesProvider extends ManagerEmployeesProvider {
   }
 
   @override
-  Future<void> fetchEmployees({bool reset = false, String search = ''}) async {
+  Future<void> fetchEmployees({bool reset = false, String? search}) async {
     isLoading = true;
     notifyListeners();
   }

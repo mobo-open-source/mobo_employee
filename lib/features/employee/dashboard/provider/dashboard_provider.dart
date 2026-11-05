@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/services/connectivity_service.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 import 'package:mobo_employees/features/employee/dashboard/model/model_dashboard_data.dart';
 import 'package:mobo_employees/features/employee/dashboard/model/model_hr_leave_dashboard.dart';
@@ -755,19 +756,8 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  Color getLeaveStatusColor(String state) {
-    switch (state) {
-      case 'validate':
-        return Colors.green;
-      case 'refuse':
-        return Colors.red;
-      case 'confirm':
-      case 'validate1':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
+  /// Badge colour of a time off in [state] (`hr.leave.state`).
+  Color getLeaveStatusColor(String state) => StatusColors.forState(state);
 
   String getWorkedDuration() {
     if (!isAttendanceCheckedIn || checkInDateTime == null) return '';

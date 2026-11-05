@@ -3,6 +3,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:mobo_employees/widgets/shimmer_widgets/shimmer_dashboard.dart';
 import 'package:mobo_employees/widgets/widget_checkin_card.dart';
@@ -50,16 +51,16 @@ class _DashboardPageState extends State<DashboardPage> {
   Color _payslipStateColor(String? state) {
     switch (state) {
       case 'paid':
-        return Colors.green;
+        return StatusColors.green;
       case 'done':
       case 'validated':
-        return Colors.blue;
+        return StatusColors.blue;
       case 'verify':
-        return Colors.orange;
+        return StatusColors.orange;
       case 'cancel':
-        return Colors.red;
+        return StatusColors.red;
       default:
-        return Colors.grey;
+        return StatusColors.grey;
     }
   }
 
@@ -139,13 +140,12 @@ class _DashboardPageState extends State<DashboardPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 16),
-                    GridView.count(
-                      crossAxisCount: 2,
+                    GridView(
+                      gridDelegate: WidgetQuickOverview.gridDelegate,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.2,
+                      // Room for the cards' shadows at the grid's edges.
+                      clipBehavior: Clip.none,
                       children: [
                         WidgetQuickOverview(
                           count:
@@ -153,7 +153,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           title: "Productive hrs",
                           subtitle: "Yesterdays",
                           color: AppColors.Color0095FF,
-                          icon: HugeIcons.strokeRoundedClock01,
                           isDarkTheme: isDarkTheme,
                         ),
                         if (payslips != null)
@@ -166,7 +165,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ? "Salary for ${lastCredited.periodLabel}"
                                 : "No salary credited yet",
                             color: AppColors.Color43B75D,
-                            icon: HugeIcons.strokeRoundedDollar02,
                             isDarkTheme: isDarkTheme,
                           ),
                         WidgetQuickOverview(
@@ -176,7 +174,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           title: "Leave",
                           subtitle: "Leave Balance",
                           color: AppColors.Color9C27B0,
-                          icon: HugeIcons.strokeRoundedCalendar04,
                         ),
                         WidgetQuickOverview(
                           isDarkTheme: isDarkTheme,
@@ -184,7 +181,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           title: "Requests",
                           subtitle: "Leave Requests",
                           color: AppColors.ColorFF9800,
-                          icon: HugeIcons.strokeRoundedAlertCircle,
                         ),
                         WidgetQuickOverview(
                           isDarkTheme: isDarkTheme,
@@ -196,7 +192,6 @@ class _DashboardPageState extends State<DashboardPage> {
                               ? "Next: ${provider.nextHolidayName}"
                               : "Next Holiday",
                           color: AppColors.colorC03355,
-                          icon: HugeIcons.strokeRoundedProfile,
                         ),
                         if (payslips != null)
                           WidgetQuickOverview(
@@ -207,7 +202,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ? "Payslip issued"
                                 : "Payslips issued",
                             color: AppColors.Color009688,
-                            icon: HugeIcons.strokeRoundedInvoice01,
                           ),
                       ],
                     ),
@@ -224,8 +218,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 16),
                     StaggeredGrid.count(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
                       children: [
                         StaggeredGridTile.fit(
                           crossAxisCellCount: 2,
@@ -239,7 +233,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 : "No recent leave activity",
                             color: data.recentLeave != null
                                 ? AppColors.colorC03355
-                                : Colors.grey,
+                                : StatusColors.grey,
                             icon: HugeIcons.strokeRoundedCalendar04,
                             statusText: data.recentLeave != null
                                 ? provider.getLeaveStatusText(
@@ -250,7 +244,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ? provider.getLeaveStatusColor(
                                     data.recentLeave!.state,
                                   )
-                                : Colors.grey,
+                                : StatusColors.grey,
                           ),
                         ),
                         if (payslips != null)

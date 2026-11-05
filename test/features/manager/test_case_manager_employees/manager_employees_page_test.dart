@@ -125,6 +125,29 @@ void main() {
       expect(provider.draftFilters.contains(EmployeeFilter.absent), true);
     });
 
+    test("No-results Clear All Filters also clears grouping and search", () {
+      provider.searchEmployeeController.text = "abc";
+      provider.currentSearch = "abc";
+      provider.activeFilters.add(EmployeeFilter.absent);
+      provider.groupBy = EmployeeGroupBy.department;
+      expect(provider.narrowsResults, true);
+
+      provider.clearFiltersGroupingAndSearch();
+
+      expect(provider.searchEmployeeController.text, "");
+      expect(provider.currentSearch, "");
+      expect(provider.activeFilters.isEmpty, true);
+      expect(provider.groupBy, EmployeeGroupBy.none);
+      expect(provider.narrowsResults, false);
+    });
+
+    test("Grouping alone doesn't narrow the results", () {
+      provider.activeFilters.clear();
+      provider.currentSearch = "";
+      provider.groupBy = EmployeeGroupBy.jobPosition;
+      expect(provider.narrowsResults, false);
+    });
+
     test("Clear On Manager Logout", () {
       provider.searchEmployeeController.text = "abcdef";
       provider.activeFilters.add(EmployeeFilter.atWork);

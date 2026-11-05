@@ -1,16 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+  import 'package:flutter/material.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/provider/manager_attendance_provider.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/service/manager_attendance_data_service.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:provider/provider.dart';
+import '../../../../shared/widgets/cards/group_tile_card.dart';
+import '../../../../shared/widgets/no_results_empty_state.dart';
 import '../../../../shared/widgets/filters/filter_status_row.dart';
 import '../../../../shared/widgets/search/mobo_search_bar.dart';
 import '../model/model_manager_attendance_data.dart';
 import '../../../../widgets/snackbar_widgets.dart';
+import '../widgets/attendance_card.dart';
 import '../widgets/attendance_create_sheet.dart';
 import '../widgets/attendance_filter_sheet.dart';
+import '../widgets/attendance_table.dart';
 import '../widgets/widget_shimmer_attendance_page.dart';
 
 class ManagerAttendancePage extends StatefulWidget {
@@ -21,7 +25,6 @@ class ManagerAttendancePage extends StatefulWidget {
 }
 
 class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
-
   @override
   void initState() {
     super.initState();
@@ -110,59 +113,71 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
                     return const WidgetShimmerAttendancePage();
                   }
 
-                  final groupLabel = provider.groupBy.isEmpty
-                      ? null
-                      : provider.groupBy.map((g) => g.label).join(', ');
+                  final grouped = provider.groupBy.isNotEmpty;
+                  final groupLabel = grouped
+                      ? provider.groupBy.map((g) => g.label).join(', ')
+                      : null;
+
+                  /// Room under the last row so it can scroll clear of the
+                  /// New Attendance button.
+                  final bottomPadding = provider.canCreateAttendance
+                      ? AppSpacing.fabClearance
+                      : 0.0;
 
                   return Column(
                     children: [
                       FilterStatusRow(
-                        filterCount: provider.activeFilters.length +
-                            ((provider.filterStartDate != null || provider.filterEndDate != null) ? 1 : 0),
+                        filterCount:
+                            provider.activeFilters.length +
+                            ((provider.filterStartDate != null ||
+                                    provider.filterEndDate != null)
+                                ? 1
+                                : 0),
                         groupByLabel: groupLabel,
                         isDark: isDarkTheme,
-                        paginationText: provider.pageCountLabel,
-                        canPrev: provider.canGoPrev,
-                        canNext: provider.canGoNext,
+
+                        /// A grouped list counts its groups and has no pages
+                        /// to move through.
+                        paginationText: grouped
+                            ? provider.groupCountLabel
+                            : provider.pageCountLabel,
+                        canPrev: !grouped && provider.canGoPrev,
+                        canNext: !grouped && provider.canGoNext,
                         onPrev: provider.loadPrevPage,
                         onNext: provider.loadNextPage,
-                        showPagination: true,
+                        showPagination: grouped
+                            ? (provider.rootGroupCount ?? 0) > 0
+                            : provider.totalAttendanceCount > 0 &&
+                                  !provider.isLoading,
                       ),
                       const SizedBox(height: 10),
                       Expanded(
-                        child: Card(
-                          color: isDarkTheme
-                              ? AppColors.greyShade800Color
-                              : Colors.white,
-                          elevation: 1,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            child: RefreshIndicator(
-                              onRefresh: provider.refreshPage,
-                              child: ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: [
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: MediaQuery.of(context).size.width,
-                                      child: Column(
-                                        children: [
-                                          const AttendanceTableHeader(),
-                                          const SizedBox(height: 10),
-                                          _buildAttendanceBody(provider),
-                                        ],
-                                      ),
-                                    ),
+                        child: grouped
+                            ? RefreshIndicator(
+                                onRefresh: provider.refreshPage,
+                                child: ListView(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: EdgeInsets.only(
+                                    top: 4,
+                                    bottom: bottomPadding,
                                   ),
-                                ],
+                                  children: [
+                                    _RecursiveGroupView(
+                                      provider: provider,
+                                      groupOrder: provider.groupBy,
+                                      level: 0,
+                                      accumulatedDomain: provider.baseDomain,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _buildAttendanceTable(
+                                context,
+                                provider,
+                                isDarkTheme,
+                                bottomPadding,
                               ),
-                            ),
-                          ),
-                        ),
                       ),
                     ],
                   );
@@ -171,30 +186,90 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
             ),
           ],
         ),
-
       ),
     );
   }
 }
 
-Widget _buildAttendanceBody(ManagerAttendanceProvider provider) {
-  /// No grouping → flat list
-  if (provider.groupBy.isEmpty) {
-    if (provider.modelManagerAttendanceData == null) {
-      return const Center(child: Text('No attendance data'));
-    }
-    return _MonthAttendanceList(
-      records: provider.modelManagerAttendanceData!.attendanceRecords,
-      provider: provider,
+/// The ungrouped list: one card — a heading band over the rows (see
+/// [AttendanceTable]).
+Widget _buildAttendanceTable(
+  BuildContext context,
+  ManagerAttendanceProvider provider,
+  bool isDark,
+  double bottomPadding,
+) {
+  final records = provider.modelManagerAttendanceData?.attendanceRecords;
+  if (records == null || records.isEmpty) {
+    return RefreshIndicator(
+      onRefresh: provider.refreshPage,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [_buildEmptyList(provider)],
+      ),
     );
   }
 
-  /// Multi-group recursive view
-  return _RecursiveGroupView(
-    provider: provider,
-    groupOrder: provider.groupBy,
-    level: 0,
-    accumulatedDomain: provider.baseDomain,
+  return RefreshIndicator(
+    onRefresh: provider.refreshPage,
+    child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      // Room under the card for the shadow, and for the New Attendance button.
+      padding: EdgeInsets.only(top: 4, bottom: bottomPadding + 12),
+      children: [AttendanceTable(entries: _tableEntries(provider, records))],
+    ),
+  );
+}
+
+/// Whether [r] was checked out on a later day than it was checked in (an
+/// overnight shift), so the check-out needs its own date.
+bool _endsOnLaterDay(AttendanceRecord r) {
+  final checkIn = r.checkIn;
+  final checkOut = r.checkOut;
+  if (checkIn == null || checkOut == null) return false;
+  return DateUtils.dateOnly(checkOut).isAfter(DateUtils.dateOnly(checkIn));
+}
+
+/// [records] as the table shows them, and a nudge for the photo of each
+/// employee not loaded yet (it arrives later and the table redraws).
+List<AttendanceTableEntry> _tableEntries(
+  ManagerAttendanceProvider provider,
+  List<AttendanceRecord> records,
+) {
+  return [
+    for (final r in records)
+      () {
+        final employeeId = r.employee?.id;
+        final avatar = employeeId == null
+            ? null
+            : provider.getEmployeeImage(employeeId);
+        if (employeeId != null && avatar == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            provider.loadEmployeeImage(employeeId);
+          });
+        }
+        return AttendanceTableEntry(
+          name: r.employee?.name ?? '-',
+          avatar: avatar,
+          date: provider.formatDate(r.checkIn, pattern: 'MMM dd'),
+          checkIn: provider.formatTimeAMPM(r.checkIn),
+          checkOut: provider.formatTimeAMPM(r.checkOut),
+          checkOutDate: _endsOnLaterDay(r)
+              ? provider.formatDate(r.checkOut, pattern: 'MMM dd')
+              : null,
+          worked: provider.formatWorkedHours(r.workedHours),
+        );
+      }(),
+  ];
+}
+
+/// What an empty list shows: with a filter, the date range or a search
+/// narrowing it, the way back out; otherwise just that there is nothing.
+Widget _buildEmptyList(ManagerAttendanceProvider provider) {
+  return NoResultsEmptyState(
+    emptyTitle: 'No attendance data',
+    showClearFilters: provider.narrowsResults,
+    onClearFilters: provider.clearFiltersGroupingAndSearch,
   );
 }
 
@@ -218,6 +293,49 @@ class _RecursiveGroupView extends StatefulWidget {
 class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
   final Set<int> expandedIndexes = {};
 
+  static const Widget _spinner = Center(
+    child: Padding(
+      padding: EdgeInsets.all(12),
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    ),
+  );
+
+  /// Opens or closes group [index], fetching the level below it on open.
+  void _setExpanded(int index, AttendanceGroupNode g, bool expanded) {
+    setState(() {
+      if (expanded) {
+        expandedIndexes.add(index);
+      } else {
+        expandedIndexes.remove(index);
+      }
+    });
+
+    if (!expanded) return;
+    if (widget.level + 1 >= widget.groupOrder.length) return;
+
+    final nextLevel = widget.groupOrder[widget.level + 1];
+    final nextDomain = [...widget.accumulatedDomain, ...g.extraDomain];
+
+    if (nextLevel == AttendanceGroupBy.month) {
+      widget.provider.fetchMonthGroupsForDomain(nextDomain);
+    } else {
+      widget.provider.fetchEmployeeGroupsForDomain(nextDomain);
+    }
+  }
+
+  Widget _levelBelow(AttendanceGroupNode g) {
+    return _RecursiveGroupView(
+      provider: widget.provider,
+      groupOrder: widget.groupOrder,
+      level: widget.level + 1,
+      accumulatedDomain: [...widget.accumulatedDomain, ...g.extraDomain],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -229,13 +347,10 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           widget.provider.fetchAttendanceForDomain(widget.accumulatedDomain);
         });
-        return const Padding(
-          padding: EdgeInsets.all(12),
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
+        return _spinner;
       }
 
-      return _MonthAttendanceList(
+      return _AttendanceCardList(
         provider: widget.provider,
         records: data.attendanceRecords,
       );
@@ -251,11 +366,7 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           widget.provider.fetchMonthGroupsForDomain(widget.accumulatedDomain);
         });
-
-        return const Padding(
-          padding: EdgeInsets.all(12),
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
+        return _spinner;
       }
       groups = data.groups;
     } else {
@@ -266,21 +377,45 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
             widget.accumulatedDomain,
           );
         });
-        return const Padding(
-          padding: EdgeInsets.all(12),
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
+        return _spinner;
       }
       groups = data.groups;
     }
 
     if (groups.isEmpty) {
+      if (widget.level == 0) return _buildEmptyList(widget.provider);
       return const Padding(
         padding: EdgeInsets.all(12),
         child: Text('No grouped data'),
       );
     }
 
+    /// Top level: one group tile each, as mobo Sales' grouped lists — the
+    /// records beneath an open group are cards, so there are no column
+    /// headings.
+    if (widget.level == 0) {
+      return Column(
+        children: [
+          for (var index = 0; index < groups.length; index++)
+            GroupTileCard(
+              title: groups[index].label,
+              subtitle: groups[index].count == 1
+                  ? '1 record'
+                  : '${groups[index].count} records',
+              isExpanded: expandedIndexes.contains(index),
+              onToggle: () => _setExpanded(
+                index,
+                groups[index],
+                !expandedIndexes.contains(index),
+              ),
+              body: _levelBelow(groups[index]),
+            ),
+        ],
+      );
+    }
+
+    /// Deeper levels sit inside a group card, so they get a compact
+    /// hairline header rather than another shadowed card.
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -296,7 +431,7 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
               color: isDark ? Colors.white12 : AppColors.colorE5E7EB,
               width: 1,
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.control),
           ),
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -315,42 +450,10 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
                 ),
               ),
 
-              onExpansionChanged: (expanded) {
-                setState(() {
-                  if (expanded) {
-                    expandedIndexes.add(index);
-                  } else {
-                    expandedIndexes.remove(index);
-                  }
-                });
+              onExpansionChanged: (expanded) =>
+                  _setExpanded(index, g, expanded),
 
-                if (!expanded) return;
-                if (widget.level + 1 >= widget.groupOrder.length) return;
-
-                final nextLevel = widget.groupOrder[widget.level + 1];
-                final nextDomain = [
-                  ...widget.accumulatedDomain,
-                  ...g.extraDomain,
-                ];
-
-                if (nextLevel == AttendanceGroupBy.month) {
-                  widget.provider.fetchMonthGroupsForDomain(nextDomain);
-                } else {
-                  widget.provider.fetchEmployeeGroupsForDomain(nextDomain);
-                }
-              },
-
-              children: [
-                _RecursiveGroupView(
-                  provider: widget.provider,
-                  groupOrder: widget.groupOrder,
-                  level: widget.level + 1,
-                  accumulatedDomain: [
-                    ...widget.accumulatedDomain,
-                    ...g.extraDomain,
-                  ],
-                ),
-              ],
+              children: [_levelBelow(g)],
             ),
           ),
         );
@@ -359,227 +462,31 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
   }
 }
 
-class AttendanceTableHeader extends StatelessWidget {
-  const AttendanceTableHeader({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelStyle = GoogleFonts.inter(
-      fontSize: 14,
-      fontWeight: FontWeight.w500,
-      color: isDark ? Colors.white : AppColors.color000000,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[700] : AppColors.colorF9FAFB,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isDark ? Colors.white12 : AppColors.colorE5E7EB,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 6,
-            child: Text(
-              'Employee',
-              style: labelStyle,
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              'Check In',
-              style: labelStyle,
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              'Check Out',
-              style: labelStyle,
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              'Worked',
-              textAlign: TextAlign.right,
-              style: labelStyle,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MonthAttendanceList extends StatelessWidget {
+/// The records of one group, as cards (see [AttendanceCard]). The ungrouped
+/// list is the table of [AttendanceTable].
+class _AttendanceCardList extends StatelessWidget {
   final List<AttendanceRecord> records;
   final ManagerAttendanceProvider provider;
 
-  const _MonthAttendanceList({required this.records, required this.provider});
-
-  /// Whether [r] was checked out on a later day than it was checked in
-  /// (an overnight shift), so the check-out needs its own date.
-  bool _endsOnLaterDay(AttendanceRecord r) {
-    final checkIn = r.checkIn;
-    final checkOut = r.checkOut;
-    if (checkIn == null || checkOut == null) return false;
-    return DateUtils.dateOnly(checkOut).isAfter(DateUtils.dateOnly(checkIn));
-  }
+  const _AttendanceCardList({required this.records, required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : AppColors.color000000;
-    final dateStyle = GoogleFonts.manrope(
-      fontSize: 10,
-      fontWeight: FontWeight.w500,
-      color: isDark ? Colors.white70 : AppColors.color6A7282,
-    );
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: records.length,
-      separatorBuilder: (_, __) =>
-          Divider(height: .1, color: Colors.transparent),
-      itemBuilder: (context, index) {
-        final r = records[index];
-        final name = r.employee?.name ?? '-';
-        final userId = r.employee?.id;
-        final imageBytes = userId != null
-            ? provider.getEmployeeImage(userId)
-            : null;
-
-        if (userId != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            provider.loadEmployeeImage(userId);
-          });
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Container(
-            padding: EdgeInsets.symmetric(vertical: 2, horizontal: 2),
-
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.colorE53E5A,
-                  child: ClipOval(
-                    child: imageBytes != null && imageBytes.isNotEmpty
-                        ? Image.memory(
-                            imageBytes,
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Center(
-                                child: Text(
-                                  name.isNotEmpty
-                                      ? name.substring(0, 2).toUpperCase()
-                                      : '--',
-                                  style: TextStyle(
-                                    color: AppColors.colorFFFFFF,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        : Center(
-                            child: Text(
-                              name.isNotEmpty
-                                  ? name.substring(0, 2).toUpperCase()
-                                  : '--',
-                              style: TextStyle(
-                                color: AppColors.colorFFFFFF,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  flex: 5,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      /// The day of the attendance, so records of different
-                      /// days can be told apart.
-                      Text(provider.formatDate(r.checkIn), style: dateStyle),
-                    ],
-                  ),
-                ),
-
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    provider.formatTimeAMPM(r.checkIn),
-                    style: GoogleFonts.manrope(fontSize: 11, color: textColor),
-                  ),
-                ),
-
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        provider.formatTimeAMPM(r.checkOut),
-                        style: GoogleFonts.manrope(
-                          fontSize: 11,
-                          color: textColor,
-                        ),
-                      ),
-                      if (_endsOnLaterDay(r)) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          provider.formatDate(r.checkOut, pattern: 'MMM dd'),
-                          style: dateStyle,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    provider.formatWorkedHours(r.workedHours),
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.manrope(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        for (final r in records)
+          AttendanceCard(
+            employee: r.employee?.name ?? '-',
+            date: provider.formatDate(r.checkIn),
+            checkIn: provider.formatTimeAMPM(r.checkIn),
+            checkOut: provider.formatTimeAMPM(r.checkOut),
+            checkOutDate: _endsOnLaterDay(r)
+                ? provider.formatDate(r.checkOut, pattern: 'MMM dd')
+                : null,
+            worked: provider.formatWorkedHours(r.workedHours),
+            isCheckedIn: r.checkOut == null,
           ),
-        );
-      },
+      ],
     );
   }
 }

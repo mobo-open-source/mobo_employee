@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
-import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/providers/manager_approvals_provider.dart';
-import 'package:mobo_employees/features/manager/manager_approvals/widgets/app_shimmer.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
+import 'package:mobo_employees/shared/widgets/empty_state.dart';
+import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
 import 'package:provider/provider.dart';
 
 class WidgetManagerAllocationViewPage extends StatelessWidget {
@@ -13,20 +13,17 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ManagerApprovalsProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (provider.allocationLoadError != null) {
       return ConnectionStatusWidget(
         error: provider.allocationLoadError,
         onRetry: provider.fetchAllocationDetails,
       );
     }
-    if (provider.isAllocationLoading) {
-      return ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        itemCount: 6,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, __) => const WidgetTimeOffCardShimmer(),
-      );
+    // Only the very first read (or a retry after a failure) is "loading" — and
+    // it is a small loader, not a list of shimmering cards. Every later read
+    // happens in place under the list that is already on screen.
+    if (provider.isAllocationLoading && provider.allocationList.isEmpty) {
+      return const LoadingWidget(size: 44);
     }
 
     if (provider.allocationList.isEmpty) {
@@ -35,25 +32,10 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
         children: [
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.6,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: Lottie.asset('assets/lotties/empty ghost.json'),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "No Allocation Records Found",
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: isDark ? Colors.white : AppColors.blackColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+            child: const Center(
+              child: EmptyState(
+                title: "No Allocation Records Found",
+                lottieAsset: 'assets/lotties/empty ghost.json',
               ),
             ),
           ),
@@ -62,7 +44,12 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      // Room under the last card so it scrolls clear of the New Allocation
+      // button, when it's shown.
+      padding: EdgeInsets.only(
+        top: 12,
+        bottom: provider.canCreateAllocation ? AppSpacing.fabClearance : 12,
+      ),
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemCount: provider.allocationList.length,
       itemBuilder: (context, index) {
@@ -77,8 +64,12 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
           employeeName: item.employeeName,
           leaveType: item.leaveTypeName,
 
-          dateRange:
-              "${item.durationDisplay} • Remaining: ${item.remainingLeaves}/${item.maxLeaves}",
+          duration: item.durationDisplay,
+          // What is left of the allocation, out of what was given.
+          balance: WidgetTimeOffCard.balanceLabel(
+            item.remainingLeaves,
+            item.maxLeaves,
+          ),
 
           reason: item.notes.isNotEmpty ? item.notes : "",
 
@@ -87,6 +78,8 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
               : item.state == 'refuse'
               ? 'Refused'
               : 'To Approve',
+
+          state: item.state,
 
           actionName: "Validate",
 
@@ -102,7 +95,7 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
               ? null
               : () => provider.refuseAllocation(context, item.id),
 
-            isValidating: isValidating,
+          isValidating: isValidating,
           isRefusing: isRefusing,
         );
       },

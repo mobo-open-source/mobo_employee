@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:hugeicons/hugeicons.dart';
-import 'package:mobo_employees/core/const/all_design.dart';
 
+/// A "Quick Overview" figure: title at the top, the value and its caption in
+/// the middle, and a short accent bar in [color] at the bottom.
+///
+/// The card is the dashboards' metric card — radius 18, 20px padding, soft
+/// shadow — laid out in a two-column grid ([gridDelegate]).
 class WidgetQuickOverview extends StatelessWidget {
   final String count;
   final String title;
   final String subtitle;
+
+  /// The figure's semantic colour, shown as the accent bar.
   final Color color;
-  final List<List<dynamic>> icon;
   final bool isDarkTheme;
 
-  /// Opens the screen behind this figure; shows a chevron when set.
+  /// Opens the screen behind this figure; shows an arrow when set.
   final VoidCallback? onTap;
 
   const WidgetQuickOverview({
@@ -19,104 +23,135 @@ class WidgetQuickOverview extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.color,
-    required this.icon,
     required this.isDarkTheme,
     this.onTap,
   });
 
+  /// Height of every card in the grid — tall enough for the title, value,
+  /// caption and accent bar to spread out.
+  static const double height = 144;
+
+  /// Two equal columns with a 12px gap, every card [height] tall.
+  static const SliverGridDelegate gridDelegate =
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        mainAxisExtent: height,
+      );
+
+  static const double radius = 18;
+
+  /// The card's surface, shared with the dashboard shimmers so loading and
+  /// loaded cards don't jump.
+  static BoxDecoration decoration(bool isDark) => BoxDecoration(
+    color: isDark ? Colors.grey[850] : Colors.white,
+    borderRadius: BorderRadius.circular(radius),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+        blurRadius: 4,
+        spreadRadius: 2,
+        offset: const Offset(0, 2),
+      ),
+    ],
+    border: isDark
+        ? Border.all(
+            color: Colors.grey[800]!.withValues(alpha: 0.5),
+            width: 0.5,
+          )
+        : null,
+  );
+
   @override
   Widget build(BuildContext context) {
-    final card = Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDarkTheme ? AppColors.greyShade800Color : AppColors.whiteColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    count,
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: isDarkTheme ? Colors.white : AppColors.color101828,
-                      height: 1.1,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isDarkTheme ? Colors.white : AppColors.color101828,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.35,
-                    color: isDarkTheme
-                        ? Colors.white38
-                        : AppColors.color6A7282,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+    final borderRadius = BorderRadius.circular(radius);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: decoration(isDarkTheme),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(isDarkTheme ? 0.22 : 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: HugeIcon(icon: icon, color: color, size: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                        color: isDarkTheme
+                            ? Colors.grey[300]
+                            : Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                  if (onTap != null)
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: Colors.grey[400],
+                    ),
+                ],
               ),
-              if (onTap != null) ...[
-                const SizedBox(height: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: isDarkTheme ? Colors.white54 : AppColors.color6A7282,
+
+              // Value and caption stay together; the title, this pair and
+              // the accent bar spread over the card's height.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Shrinks a long value to fit instead of cutting it off.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      count,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: isDarkTheme ? Colors.white : Colors.grey[900],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
+                      color: isDarkTheme ? Colors.grey[400] : Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+
+              Container(
+                height: 3,
+                width: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
-    );
-    if (onTap == null) return card;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: card,
     );
   }
 }

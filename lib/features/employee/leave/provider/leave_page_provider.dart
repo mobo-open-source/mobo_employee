@@ -148,21 +148,29 @@ class LeavePageProvider extends ChangeNotifier {
   }
 
   /// Navigates to the previous month in the calendar and refreshes events.
+  ///
+  /// In place: the calendar stays on screen, already showing the new month, and
+  /// its dots fill in when the events arrive. (With the loader on, every tap on
+  /// Next / Previous raised [isLoading], which replaced the whole My Calendar
+  /// tab — balance cards and calendar — with a shimmer.)
   void goToPreviousMyMonth() async {
     try {
       _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
-      await fetchLeaveMyCalendarEventsFunction();
+      notifyListeners();
+      await fetchLeaveMyCalendarEventsFunction(showLoader: false);
       notifyListeners();
     } catch (e) {
       _recordConnectivityFailure(e);
     }
   }
 
-  /// Navigates to the next month in the calendar and refreshes events.
+  /// Navigates to the next month in the calendar and refreshes events, in
+  /// place (see [goToPreviousMyMonth]).
   void goToNextMyMonth() async {
     try {
       _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
-      await fetchLeaveMyCalendarEventsFunction();
+      notifyListeners();
+      await fetchLeaveMyCalendarEventsFunction(showLoader: false);
       notifyListeners();
     } catch (e) {
       _recordConnectivityFailure(e);
@@ -254,10 +262,19 @@ class LeavePageProvider extends ChangeNotifier {
     }
   }
 
+  /// Counts calendar fetches, so a reply that has been overtaken is dropped.
+  int _calendarRequest = 0;
+
   /// Fetches leave events for the currently viewed month.
+  ///
+  /// Only the latest fetch's answer is kept: month navigation fetches without
+  /// the loader, so tapping Next twice quickly starts two, and the slower reply
+  /// for the earlier month must not land on top of the later one's.
   Future<void> fetchLeaveMyCalendarEventsFunction({
     bool showLoader = true,
   }) async {
+    final request = ++_calendarRequest;
+
     if (showLoader) {
       _isLoading = true;
       notifyListeners();
@@ -278,12 +295,14 @@ class LeavePageProvider extends ChangeNotifier {
         to: to,
       );
 
+      // A newer fetch (another month) has started since: its answer wins.
+      if (request != _calendarRequest) return;
       _calendarEvents
         ..clear()
         ..addAll(events);
     } catch (e) {
       if (ConnectivityService.isConnectivityError(e)) rethrow;
-      _calendarEvents.clear();
+      if (request == _calendarRequest) _calendarEvents.clear();
     } finally {
       if (showLoader) {
         _isLoading = false;

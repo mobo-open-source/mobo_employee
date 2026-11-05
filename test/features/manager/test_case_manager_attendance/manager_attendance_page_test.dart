@@ -101,6 +101,38 @@ void main() {
       expect(provider.draftGroupBy.isEmpty, true);
     });
 
+    test("Grouping alone doesn't narrow the results", () {
+      provider.activeFilters.clear();
+      provider.filterStartDate = null;
+      provider.filterEndDate = null;
+      provider.currentSearch = '';
+      provider.groupBy = [AttendanceGroupBy.month];
+      expect(provider.narrowsResults, false);
+
+      provider.currentSearch = 'John';
+      expect(provider.narrowsResults, true);
+    });
+
+    test("No-results Clear All Filters drops filters, dates, grouping and "
+        "search", () async {
+      provider.activeFilters.add(AttendanceFilter.today);
+      provider.filterStartDate = DateTime(2026, 1, 1);
+      provider.groupBy = [AttendanceGroupBy.employee];
+      provider.searchController.text = 'John';
+      provider.currentSearch = 'John';
+      provider.isFetchAllAttendance = false;
+
+      await provider.clearFiltersGroupingAndSearch();
+
+      expect(provider.activeFilters, isEmpty);
+      expect(provider.filterStartDate, isNull);
+      expect(provider.groupBy, isEmpty);
+      expect(provider.searchController.text, '');
+      expect(provider.currentSearch, '');
+      expect(provider.narrowsResults, false);
+      expect(provider.isFetchAllAttendance, true);
+    });
+
     test("Can Go Next & Previous Page", () {
       provider.groupBy.clear();
       provider.totalAttendanceCount = 100;

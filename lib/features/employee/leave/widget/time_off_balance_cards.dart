@@ -50,17 +50,23 @@ class TimeOffBalanceCards extends StatelessWidget {
       ),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < cards.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              SizedBox(width: _cardWidth, child: cards[i]),
+    // At the start: the scroll view is only as wide as its cards, so with one
+    // card — or a few that don't fill the row — a parent that centres its
+    // children (the Approvals page's Column does) would float them mid-screen.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                SizedBox(width: _cardWidth, child: cards[i]),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

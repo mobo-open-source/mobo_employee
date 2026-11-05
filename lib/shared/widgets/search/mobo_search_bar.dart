@@ -83,13 +83,10 @@ class _MoboSearchBarState extends State<MoboSearchBar> {
     final hasFilter = widget.onFilterTap != null;
 
     final surface = isDark ? AppColors.elevatedDark : AppColors.surfaceLight;
-    final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final hintColor = isDark
-        ? Colors.white.withValues(alpha: 0.55)
-        : AppColors.textHint;
-    final iconColor = isDark
-        ? Colors.white.withValues(alpha: 0.70)
-        : AppColors.textHint;
+    // Same text, hint and icon colours as the events app's search field.
+    final textColor = isDark ? Colors.white : const Color(0xFF1E1E1E);
+    final hintColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+    final iconColor = hintColor;
 
     return Row(
       children: [
@@ -137,21 +134,26 @@ class _MoboSearchBarState extends State<MoboSearchBar> {
                 _debounceTimer?.cancel();
                 widget.onChanged!(value);
               },
-        style: TextStyle(fontSize: 14, color: textColor),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 0,
+          color: textColor,
+        ),
         decoration: InputDecoration(
           isCollapsed: true,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           hintText: widget.hintText,
-          hintStyle:
-              TextStyle(color: hintColor, fontWeight: FontWeight.w400, fontSize: 14),
+          hintStyle: TextStyle(
+            color: hintColor,
+            fontWeight: FontWeight.w400,
+            fontSize: 15,
+            letterSpacing: 0,
+          ),
           prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: 14, right: 8),
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedSearch01,
-              size: 20,
-              color: iconColor,
-            ),
+            padding: const EdgeInsets.only(left: 14, right: 10),
+            child: Icon(Icons.search, size: 22, color: iconColor),
           ),
           prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
           suffixIcon: widget.controller.text.isNotEmpty

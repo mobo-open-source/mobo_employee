@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/employee/leave/widget/my_calender_widget.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
+import 'package:mobo_employees/shared/widgets/empty_state.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../widgets/managers/index_click_common_widget/page_index_click.dart';
@@ -109,22 +110,10 @@ class _LeavePageState extends State<LeavePage> {
         }
 
         if (provider.timeOffList.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  height: 120,
-                  width: 120,
-                  child: Lottie.asset(
-                    'assets/lotties/empty ghost.json',
-                    repeat: true,
-                    animate: true,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text("No leave records found"),
-              ],
+          return const Center(
+            child: EmptyState(
+              title: "No leave records found",
+              lottieAsset: 'assets/lotties/empty ghost.json',
             ),
           );
         }
@@ -132,6 +121,8 @@ class _LeavePageState extends State<LeavePage> {
         return RefreshIndicator(
           onRefresh: provider.refreshMyTimeOff,
           child: ListView.separated(
+            // Room under the last card so it scrolls clear of the speed dial.
+            padding: const EdgeInsets.only(bottom: AppSpacing.fabClearance),
             itemCount: provider.timeOffList.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -152,6 +143,7 @@ class _LeavePageState extends State<LeavePage> {
                     : item.state == "validate1"
                     ? "Second Approval"
                     : item.state,
+                state: item.state,
                 reason: item.description,
                 appliedDate: item.create_date,
                 leaveTypeandTime:

@@ -17,6 +17,7 @@ class MyCalenderWidger extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Consumer<LeavePageProvider>(
       builder: (context, provider, _) {
         if (provider.loadError != null) {
@@ -34,8 +35,9 @@ class MyCalenderWidger extends StatelessWidget {
               children: [
                 SizedBox(height: 110, child: _buildShimmerLoading()),
                 const SizedBox(height: 20),
+                /// The same inset as the calendar it stands in for.
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 5),
                   child: CalendarShimmer(),
                 ),
               ],
@@ -76,14 +78,17 @@ class MyCalenderWidger extends StatelessWidget {
                       width: MediaQuery.of(context).size.width,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        color: AppColors.colorFFFFFF,
+                        color: isDark
+                            ? AppColors.greyShade800Color
+                            : AppColors.colorFFFFFF,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Column(
                           children: List.generate(
                             provider.selectedDateEvents.length,
-                            (index) => _buildLeaveItem(provider, index),
+                            (index) =>
+                                _buildLeaveItem(provider, index, isDark),
                           ),
                         ),
                       ),
@@ -99,7 +104,7 @@ class MyCalenderWidger extends StatelessWidget {
   }
 
   /// Leave List Item
-  Widget _buildLeaveItem(LeavePageProvider provider, int index) {
+  Widget _buildLeaveItem(LeavePageProvider provider, int index, bool isDark) {
     final leave = provider.selectedDateEvents[index];
 
     final from = leave.dateFrom ?? DateTime.now();
@@ -147,7 +152,7 @@ class MyCalenderWidger extends StatelessWidget {
             Text(
               formattedDate,
               style: GoogleFonts.manrope(
-                color: AppColors.color000000,
+                color: isDark ? Colors.white : AppColors.color000000,
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),
@@ -163,7 +168,7 @@ class MyCalenderWidger extends StatelessWidget {
                 style: GoogleFonts.manrope(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
-                  color: AppColors.Color4E4E4E,
+                  color: isDark ? Colors.white70 : AppColors.Color4E4E4E,
                 ),
               ),
             ],

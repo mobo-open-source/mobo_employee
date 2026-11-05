@@ -41,6 +41,8 @@ class AttendanceFilterSheet {
         filterSections: _sections,
         initialSelected: p.draftFilters,
         allowMultipleGroupBy: true,
+        // Month and Employee are both real fields; there is no "None" row.
+        groupByHasNone: false,
         groupByOptions: _groupByOptions,
         initialGroupBy: {...p.draftGroupBy},
         dateRangeTitle: 'Attendance Date',

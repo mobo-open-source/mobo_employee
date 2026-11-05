@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -51,8 +52,20 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   bool _isCalendarInitialLoaded = false;
   bool _isTimeOffLoading = false;
   bool _isCalendarLoading = false;
+
+  /// Counts calendar fetches, so a reply that has been overtaken is dropped.
+  int _calendarRequest = 0;
   bool _isSaveMyTimeOffLoading = false;
   bool _isAllocationLoading = false;
+
+  /// Whether the allocation list has been read once. Until it has, the tab
+  /// shows a loader; after that every reload happens in place, over the list
+  /// that is already there.
+  bool _isAllocationInitialLoaded = false;
+
+  /// Counts allocation fetches, so a reply that has been overtaken (tabs
+  /// switched back and forth quickly) is dropped.
+  int _allocationRequest = 0;
   bool _isEmployeesLoading = false;
 
   /// Set when the last full load of the Calendar tab (events, balance cards,
@@ -146,21 +159,29 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// Advances the calendar by one month and refetches its events.
   Future<void> goToNextMonth() async {
     _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+    notifyListeners();
     await _fetchMonthEvents();
   }
 
   /// Moves the calendar back one month and refetches its events.
   Future<void> goToPreviousMonth() async {
     _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
+    notifyListeners();
     await _fetchMonthEvents();
   }
 
   /// Fetches the events of the month just navigated to; if the server
   /// can't be reached the Calendar tab shows [loadError] instead of an
   /// empty month.
+  ///
+  /// In place: the calendar stays on screen, already showing the new month, and
+  /// its dots fill in when the events arrive. (With the loader on, every tap on
+  /// Next / Previous swapped the whole calendar for a shimmer.) The month is
+  /// announced above, before the fetch, so the title and grid move at once.
   Future<void> _fetchMonthEvents() async {
     try {
-      await fetchLeaveCalendarEventsFunction();
+      await fetchLeaveCalendarEventsFunction(showLoader: false);
+      notifyListeners();
     } catch (e) {
       loadError = e;
       notifyListeners();
@@ -293,6 +314,10 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         fetchUnusualDays(),
         _loadAllocationAccess(),
       ]);
+      // Read the allocations in the background, so the first tap on the
+      // Allocation tab shows them straight away instead of waiting on them.
+      // Not awaited: the Calendar tab is ready now and mustn't wait.
+      unawaited(fetchAllocationDetails());
     } catch (e) {
       loadError = e;
     } finally {
@@ -418,10 +443,17 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// Pass [showLoader] = `false` for silent background refreshes. On error
   /// the existing event list is cleared; an unreachable server is rethrown
   /// and leaves it as it was.
+  ///
+  /// Only the latest fetch's answer is kept: silent fetches (month
+  /// navigation) don't hold the guard above, so tapping Next twice quickly
+  /// starts two, and the slower reply for the earlier month must not land on
+  /// top of the later one's.
   Future<void> fetchLeaveCalendarEventsFunction({
     bool showLoader = true,
   }) async {
     if (_isCalendarLoading) return;
+
+    final request = ++_calendarRequest;
 
     if (showLoader) {
       _isCalendarLoading = true;
@@ -441,13 +473,15 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         from: from,
         to: to,
       );
+      // A newer fetch (another month) has started since: its answer wins.
+      if (request != _calendarRequest) return;
       _calendarEvents
         ..clear()
         ..addAll(events);
       _isCalendarInitialLoaded = true;
     } catch (e) {
       if (ConnectivityService.isConnectivityError(e)) rethrow;
-      _calendarEvents.clear();
+      if (request == _calendarRequest) _calendarEvents.clear();
     } finally {
       if (showLoader) {
         _isCalendarLoading = false;
@@ -528,7 +562,11 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// `action_approve` (manager approval, may still need second-level
   /// validation). Re-entrancy is guarded via [_validatingIds] so the per-row
   /// spinner only triggers once.
-  Future<void> validateTimeOff(BuildContext context, int leaveId, String state) async {
+  Future<void> validateTimeOff(
+    BuildContext context,
+    int leaveId,
+    String state,
+  ) async {
     if (_validatingIds.contains(leaveId)) return;
     _validatingIds.add(leaveId);
     notifyListeners();
@@ -570,25 +608,50 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// kicks off avatar fetches for any employee not yet cached. On error
   /// clears the list and records the failure in [allocationLoadError].
   /// Never throws.
+  ///
+  /// Only the first read — or a retry after a failure, when there is nothing
+  /// good on screen — raises [isAllocationLoading]. Every other read (each tap
+  /// on the Allocation tab, a refresh, an approval) happens in place: the list
+  /// stays on screen and is swapped for the new one when it arrives, instead of
+  /// being replaced by a shimmer each time.
   Future<void> fetchAllocationDetails() async {
+    final request = ++_allocationRequest;
+    final showLoader =
+        !_isAllocationInitialLoaded || allocationLoadError != null;
     try {
-      _isAllocationLoading = true;
+      if (showLoader) _isAllocationLoading = true;
       allocationLoadError = null;
       notifyListeners();
 
-      final data =
-          await ManagerCalendarService.fetchManagerLeaveAllocationDetailsView();
+      final data = await readAllocations();
+      // A newer read has started since: its answer wins.
+      if (request != _allocationRequest) return;
       _allocationList
         ..clear()
         ..addAll(data);
-      await _preloadEmployeeImages(_allocationList.map((e) => e.employeeId));
     } catch (e) {
-      _allocationList.clear();
-      allocationLoadError = e;
+      if (request == _allocationRequest) {
+        _allocationList.clear();
+        allocationLoadError = e;
+      }
     } finally {
-      _isAllocationLoading = false;
-      notifyListeners();
+      if (request == _allocationRequest) {
+        _isAllocationLoading = false;
+        _isAllocationInitialLoaded = true;
+        notifyListeners();
+      }
     }
+  }
+
+  /// Reads the allocation requests from Odoo, and the avatars of the employees
+  /// in them. The one place [fetchAllocationDetails] reaches the server, so a
+  /// test can stand in for it.
+  @protected
+  Future<List<ModelAllocationData>> readAllocations() async {
+    final data =
+        await ManagerCalendarService.fetchManagerLeaveAllocationDetailsView();
+    await _preloadEmployeeImages(data.map((e) => e.employeeId));
+    return data;
   }
 
   /// Opens the system file picker and stores the chosen file in
@@ -957,6 +1020,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     _isCalendarInitialLoaded = false;
     _canCreateAllocation = false;
     _allocationList.clear();
+    _isAllocationLoading = false;
+    _isAllocationInitialLoaded = false;
+    _allocationRequest++;
 
     notifyListeners();
   }

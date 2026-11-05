@@ -57,12 +57,22 @@ class _ActivityTabItem extends StatelessWidget {
   Widget build(BuildContext context) {
     /// Dark mode inverts the chips (as the company selector's Confirm does):
     /// a black selected chip would vanish into the dark background.
-    final selectedFill =
-        isDarkTheme ? AppColors.whiteColor : AppColors.blackColor;
-    final selectedText =
-        isDarkTheme ? AppColors.blackColor : AppColors.whiteColor;
-    final idleFill =
-        isDarkTheme ? AppColors.greyShade800Color : AppColors.colorEDEDEB;
+    final selectedFill = isDarkTheme
+        ? AppColors.whiteColor
+        : AppColors.blackColor;
+    final selectedText = isDarkTheme
+        ? AppColors.blackColor
+        : AppColors.whiteColor;
+
+    /// An idle chip is white with a 1px `#EDEDEB` outline (the Figma chip:
+    /// fill #FFFFFF, border #EDEDEB). It was filled with that grey, which made
+    /// it read as a disabled button. Dark mode keeps its grey fill.
+    final idleFill = isDarkTheme
+        ? AppColors.greyShade800Color
+        : AppColors.whiteColor;
+    final idleBorder = isDarkTheme
+        ? AppColors.greyShade800Color
+        : AppColors.colorEDEDEB;
     final idleText = isDarkTheme ? AppColors.whiteColor : AppColors.blackColor;
     return InkWell(
       key: Key('activity_tab_$index'),
@@ -77,7 +87,7 @@ class _ActivityTabItem extends StatelessWidget {
             color: isSelected ? selectedFill : idleFill,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? selectedFill : idleFill,
+              color: isSelected ? selectedFill : idleBorder,
               width: 1,
             ),
           ),

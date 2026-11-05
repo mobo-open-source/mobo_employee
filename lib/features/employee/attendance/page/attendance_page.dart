@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/shared/widgets/connection_status_widget.dart';
 import 'package:mobo_employees/widgets/snackbar_widgets.dart';
 import 'package:mobo_employees/features/employee/attendance/provider/attendance_provider.dart';
@@ -225,6 +226,7 @@ Widget _attendanceStatusCard() {
               _attendanceChip(
                 !provider1.isPresent(provider1.selectedDay!),
                 provider1.isLeave(provider1.selectedDay!),
+                isDark,
               ),
             ],
           ),
@@ -236,6 +238,7 @@ Widget _attendanceStatusCard() {
 
 Widget _attendanceSkeleton(bool isDark) {
   return Card(
+    color: isDark ? AppColors.greyShade800Color : Colors.white,
     elevation: 1,
     child: Padding(
       padding: const EdgeInsets.all(12),
@@ -245,13 +248,13 @@ Widget _attendanceSkeleton(bool isDark) {
           Container(
             height: 16,
             width: 120,
-            color: isDark ? Colors.grey[800]! : Colors.grey.shade300,
+            color: isDark ? Colors.grey[700]! : Colors.grey.shade300,
           ),
           const SizedBox(height: 8),
           Container(
             height: 12,
             width: 180,
-            color: isDark ? Colors.grey[800]! : Colors.grey.shade300,
+            color: isDark ? Colors.grey[700]! : Colors.grey.shade300,
           ),
         ],
       ),
@@ -344,38 +347,26 @@ Widget _monthlyOverviewCard() {
   );
 }
 
-Widget _attendanceChip(bool isPrecent, bool isleave) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: isPrecent
-          ? isleave
-                ? Colors.red.shade100
-                : Colors.orange.withOpacity(0.1)
-          : AppColors.Color43B75D.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      isPrecent == false
-          ? 'Present'
-          : isleave
-          ? "Leave"
-          : ' Absent',
-      style: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        color: isPrecent
-            ? isleave
-                  ? Colors.red
-                  : Colors.orange
-            : AppColors.Color43B75D,
-      ),
-    ),
+/// The selected day's status as the canonical badge: Present, Leave or
+/// Absent.
+Widget _attendanceChip(bool isAbsent, bool isLeave, bool isDark) {
+  if (!isAbsent) {
+    return StatusColors.buildStatusBadge(
+      'Present',
+      color: StatusColors.green,
+      isDark: isDark,
+    );
+  }
+  return StatusColors.buildStatusBadge(
+    isLeave ? 'Leave' : 'Absent',
+    color: isLeave ? StatusColors.red : StatusColors.orange,
+    isDark: isDark,
   );
 }
 
 Widget _monthlySkeleton(bool isDark) {
   return Card(
+    color: isDark ? AppColors.greyShade800Color : Colors.white,
     elevation: 1,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     child: Padding(
@@ -403,7 +394,7 @@ Widget _skeletonRow(bool isDark) {
         height: 12,
         width: 100,
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[800]! : Colors.grey.shade300,
+          color: isDark ? Colors.grey[700]! : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(4),
         ),
       ),
@@ -411,7 +402,7 @@ Widget _skeletonRow(bool isDark) {
         height: 14,
         width: 50,
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[800]! : Colors.grey.shade300,
+          color: isDark ? Colors.grey[700]! : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(4),
         ),
       ),

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
+
+import '../../../widgets/snackbar_widgets.dart';
+import '../filters/date_range_filter_fields.dart';
 
 /// A titled group of filter chips within [FilterBottomSheet]'s Filter tab.
 /// Pass a single section with no [title] for a flat (ungrouped) chip list.
@@ -40,6 +44,13 @@ class FilterBottomSheet<F, G> extends StatefulWidget {
   final List<GroupByOption<G>> groupByOptions;
   final Set<G> initialGroupBy;
 
+  /// Whether [groupByOptions] starts with a "None" entry. The grey rule on
+  /// the Group By tab then sits under that entry alone (as in the events
+  /// app); with no "None" entry — the options are all real fields to group
+  /// on — it sits between the "Group by" heading and the first option, and
+  /// the options themselves are not separated.
+  final bool groupByHasNone;
+
   /// If false (default), the Group By tab behaves like a radio group — one
   /// value at a time, rendered as [RadioListTile]s. If true, it behaves like
   /// a checkbox group so multiple dimensions can be combined/nested
@@ -59,7 +70,8 @@ class FilterBottomSheet<F, G> extends StatefulWidget {
     Set<G> groupBy,
     DateTime? startDate,
     DateTime? endDate,
-  ) onApply;
+  )
+  onApply;
   final Future<void> Function() onClearAll;
 
   const FilterBottomSheet({
@@ -72,6 +84,7 @@ class FilterBottomSheet<F, G> extends StatefulWidget {
     required this.onClearAll,
     this.allowMultipleFilters = true,
     this.allowMultipleGroupBy = false,
+    this.groupByHasNone = true,
     this.filterTabLabel = 'Filter',
     this.dateRangeTitle,
     this.initialStartDate,
@@ -85,6 +98,11 @@ class FilterBottomSheet<F, G> extends StatefulWidget {
 
 class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
     with TickerProviderStateMixin {
+  /// Side inset shared by everything in the sheet — the Filter / Group By
+  /// switch's margin — so the title, chips, date fields, Group By rows and
+  /// buttons all start and end on the same line.
+  static const double _inset = 16;
+
   late final TabController _tabController;
   late Set<F> _selected;
   late Set<G> _groupBy;
@@ -123,9 +141,7 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
   void _toggleGroupBy(G value) {
     setState(() {
       if (widget.allowMultipleGroupBy) {
-        _groupBy.contains(value)
-            ? _groupBy.remove(value)
-            : _groupBy.add(value);
+        _groupBy.contains(value) ? _groupBy.remove(value) : _groupBy.add(value);
       } else {
         _groupBy = {value};
       }
@@ -133,28 +149,15 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
   }
 
   void _apply() {
+    if (!DateRangeFilterFields.isValid(_startDate, _endDate)) {
+      // The toast is a dialog route, so it shows above the sheet.
+      CustomSnackbar.showError(context, DateRangeFilterFields.rangeError);
+      return;
+    }
     Navigator.pop(context);
-    Future.microtask(() => widget.onApply(_selected, _groupBy, _startDate, _endDate));
-  }
-
-  Future<void> _pickDate({required bool isStart}) async {
-    final now = DateTime.now();
-    final initial = (isStart ? _startDate : _endDate) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-      helpText: isStart ? 'Select Start Date' : 'Select End Date',
+    Future.microtask(
+      () => widget.onApply(_selected, _groupBy, _startDate, _endDate),
     );
-    if (picked == null) return;
-    setState(() {
-      if (isStart) {
-        _startDate = picked;
-      } else {
-        _endDate = picked;
-      }
-    });
   }
 
   void _clearAll() {
@@ -180,10 +183,7 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildFilterTab(isDark),
-                _buildGroupByTab(isDark),
-              ],
+              children: [_buildFilterTab(isDark), _buildGroupByTab(isDark)],
             ),
           ),
           _buildBottomActions(isDark),
@@ -210,7 +210,7 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
 
   Widget _buildHeader(bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: _inset, vertical: 16),
       child: Row(
         children: [
           Expanded(
@@ -225,7 +225,10 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
           ),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
+            icon: Icon(
+              Icons.close,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
             splashRadius: 20,
           ),
         ],
@@ -235,7 +238,7 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
 
   Widget _buildTabBar(bool isDark) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: _inset),
       decoration: BoxDecoration(
         color: isDark ? Colors.grey[900] : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
@@ -251,8 +254,15 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
         dividerColor: Colors.transparent,
         labelColor: Colors.white,
         unselectedLabelColor: isDark ? Colors.grey[500] : Colors.grey[600],
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+        // TabBar applies these as-is, without the theme's font.
+        labelStyle: GoogleFonts.manrope(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+        unselectedLabelStyle: GoogleFonts.manrope(
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+        ),
         splashFactory: NoSplash.splashFactory,
         overlayColor: WidgetStateProperty.all(Colors.transparent),
         tabs: [
@@ -269,20 +279,27 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
     final active = allItems.where((e) => _selected.contains(e.$1)).toList();
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(_inset, 10, _inset, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (active.isNotEmpty) ...[
-            Text('Active Filters',
-                style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.appColor)),
+            Text(
+              'Active Filters',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : AppColors.appColor,
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: active
-                  .map((e) => _buildActiveChip(e.$2, isDark, () => _toggle(e.$1)))
+                  .map(
+                    (e) => _buildActiveChip(e.$2, isDark, () => _toggle(e.$1)),
+                  )
                   .toList(),
             ),
             const SizedBox(height: 4),
@@ -298,7 +315,9 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
                 ),
               ),
             ),
-          ...widget.filterSections.map((section) => _buildSection(section, isDark)),
+          ...widget.filterSections.map(
+            (section) => _buildSection(section, isDark),
+          ),
           if (widget.dateRangeTitle != null) _buildDateRangeSection(isDark),
         ],
       ),
@@ -311,73 +330,31 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(0, 24, 0, 12),
-          child: Text(widget.dateRangeTitle!,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600])),
+          child: Text(
+            widget.dateRangeTitle!,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+            ),
+          ),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: _buildDateField(
-                isDark,
-                'Start Date',
-                _startDate,
-                () => _pickDate(isStart: true),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDateField(
-                isDark,
-                'End Date',
-                _endDate,
-                () => _pickDate(isStart: false),
-              ),
-            ),
-          ],
+        DateRangeFilterFields(
+          startDate: _startDate,
+          endDate: _endDate,
+          startPlaceholder: 'Start Date',
+          endPlaceholder: 'End Date',
+          onStartChanged: (date) => setState(() => _startDate = date),
+          onEndChanged: (date) => setState(() => _endDate = date),
         ),
       ],
     );
   }
 
-  Widget _buildDateField(bool isDark, String placeholder, DateTime? value, VoidCallback onTap) {
-    final label = value == null ? placeholder : DateFormat('MMM d, yyyy').format(value);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isDark ? Colors.grey[700]! : Colors.grey[350]!),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.calendar_today_outlined,
-                size: 16, color: isDark ? Colors.grey[300] : Colors.black87),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildActiveChip(String label, bool isDark, VoidCallback onRemove) {
+    // As in the events app, the × takes the label's colour (brand in light
+    // mode) rather than a neutral grey.
+    final chipColor = isDark ? Colors.white : AppColors.appColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -388,9 +365,19 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: AppColors.appColor, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: chipColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(width: 6),
-          GestureDetector(onTap: onRemove, child: Icon(Icons.close, size: 14, color: AppColors.appColor)),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close, size: 14, color: chipColor),
+          ),
         ],
       ),
     );
@@ -403,32 +390,48 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
         if (section.title != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(0, 24, 0, 12),
-            child: Text(section.title!,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600])),
+            child: Text(
+              section.title!,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
           ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: section.items.map((e) {
             final selected = _selected.contains(e.$1);
+            // An option at rest: in dark mode a neutral grey box with white text
+            // and a grey outline, as the events app's filter chips (the pale
+            // brand wash that suits the light sheet glows pink on a dark one).
             return ChoiceChip(
               label: Text(
                 e.$2,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? Colors.white : (isDark ? Colors.grey[300] : Colors.black87),
+                  fontWeight: selected || isDark
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                  color: selected || isDark ? Colors.white : Colors.black87,
                 ),
               ),
               selected: selected,
               selectedColor: AppColors.appColor,
-              backgroundColor: AppColors.appColor.withOpacity(0.08),
+              backgroundColor: isDark
+                  ? AppTheme.darkOptionFill
+                  : AppTheme.primaryWash,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: selected ? AppColors.appColor : (isDark ? Colors.grey[800]! : Colors.grey[300]!)),
+                side: BorderSide(
+                  color: selected
+                      ? AppColors.appColor
+                      : (isDark
+                            ? AppTheme.darkOptionBorder
+                            : Colors.grey[300]!),
+                ),
               ),
               onSelected: (_) => _toggle(e.$1),
               showCheckmark: false,
@@ -440,23 +443,29 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
   }
 
   Widget _buildGroupByTab(bool isDark) {
+    final rule = Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]);
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: _inset, vertical: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Group by',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.grey[800])),
-          const SizedBox(height: 16),
+          Text(
+            'Group by',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.grey[800],
+            ),
+          ),
+          // The rule's own 8px either side makes up the rest of the gap.
+          SizedBox(height: widget.groupByHasNone ? 16 : 8),
+          if (!widget.groupByHasNone) rule,
           for (var i = 0; i < widget.groupByOptions.length; i++) ...[
             _buildGroupByTile(widget.groupByOptions[i], isDark),
-            if (i == 0) ...[
+            if (widget.groupByHasNone && i == 0) ...[
               const SizedBox(height: 8),
-              Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
+              rule,
             ],
           ],
         ],
@@ -466,10 +475,13 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
 
   Widget _buildGroupByTile(GroupByOption<G> option, bool isDark) {
     final titleStyle = TextStyle(
-        color: isDark ? Colors.white : Colors.black87,
-        fontWeight: FontWeight.w500);
+      color: isDark ? Colors.white : Colors.black87,
+      fontWeight: FontWeight.w500,
+    );
     final subtitleStyle = TextStyle(
-        color: isDark ? Colors.grey[500] : Colors.grey[600], fontSize: 12);
+      color: isDark ? Colors.grey[500] : Colors.grey[600],
+      fontSize: 12,
+    );
 
     if (widget.allowMultipleGroupBy) {
       return CheckboxListTile(
@@ -477,7 +489,6 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
         subtitle: Text(option.subtitle, style: subtitleStyle),
         value: _groupBy.contains(option.value),
         onChanged: (_) => _toggleGroupBy(option.value),
-        activeColor: AppColors.appColor,
         controlAffinity: ListTileControlAffinity.leading,
         contentPadding: EdgeInsets.zero,
       );
@@ -496,10 +507,20 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
 
   Widget _buildBottomActions(bool isDark) {
     return Container(
-      padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.only(
+        left: _inset,
+        right: _inset,
+        top: 20,
+        bottom: 20 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[50],
-        border: Border(top: BorderSide(color: isDark ? Colors.grey[800]! : Colors.grey[200]!, width: 1)),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+            width: 1,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -511,9 +532,14 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.appColor,
                   side: BorderSide(color: AppColors.appColor, width: 1.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Clear All', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+                child: const Text(
+                  'Clear All',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+                ),
               ),
             ),
           ),
@@ -526,11 +552,16 @@ class _FilterBottomSheetState<F, G> extends State<FilterBottomSheet<F, G>>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.appColor,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                   shadowColor: Colors.transparent,
                 ),
-                child: const Text('Apply', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                child: const Text(
+                  'Apply',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
               ),
             ),
           ),

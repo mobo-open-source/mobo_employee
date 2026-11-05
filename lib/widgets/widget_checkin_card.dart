@@ -18,6 +18,27 @@ class WidgetCheckInCard extends StatelessWidget {
     required this.color,
   });
 
+  /// The card surface, shared with the dashboard's loading placeholder. In dark
+  /// mode it is the same grey as the Quick Overview and Recent Activity cards
+  /// beside it (and the events app's cards): it had a lighter `#424242` of its
+  /// own, with a bright `#616161` outline.
+  static BoxDecoration decoration(bool isDark) => BoxDecoration(
+    color: isDark ? Colors.grey[850] : Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(
+      color: isDark
+          ? Colors.grey[800]!.withValues(alpha: 0.5)
+          : const Color(0xFFE0E0E0),
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+        blurRadius: 12,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     return Consumer<DashboardProvider>(
@@ -25,22 +46,7 @@ class WidgetCheckInCard extends StatelessWidget {
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          decoration: BoxDecoration(
-            color: isDarkTheme ? AppColors.greyShade800Color : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDarkTheme
-                  ? AppColors.greyShade700Color
-                  : const Color(0xFFE0E0E0),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDarkTheme ? 0.25 : 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: decoration(isDarkTheme),
           child: Row(
             children: [
               Container(
