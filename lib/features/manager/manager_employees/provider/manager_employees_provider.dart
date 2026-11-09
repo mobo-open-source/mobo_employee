@@ -125,8 +125,6 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     EmployeeFilter.myDepartment: ["member_of_department", "=", true],
   };
 
-
-
   List<dynamic> buildDomain() {
     final attendanceConditions = <List<dynamic>>[];
     final scopeConditions = <List<dynamic>>[];
@@ -200,7 +198,6 @@ class ManagerEmployeesProvider extends ChangeNotifier {
     domain.addAll(conditions);
     return domain;
   }
-
 
   Future<void> fetchEmployees({bool reset = false, String? search}) async {
     if (search != null) currentSearch = search;
@@ -329,8 +326,6 @@ class ManagerEmployeesProvider extends ChangeNotifier {
 
     notifyListeners();
   }
-
-
 
   void updateSearch(String value) {
     fetchEmployees(reset: true, search: value);

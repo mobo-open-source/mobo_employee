@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
@@ -587,8 +588,10 @@ class LeavePageProvider extends ChangeNotifier {
         'kwargs': {},
       });
 
-      clearForm();
-      await refreshInPlace();
+      // The request exists: let the sheet close now rather than hold it open
+      // while the form is emptied (blanking its fields on screen) and the
+      // lists reload.
+      unawaited(finishLeaveRequest());
 
       return null;
     } catch (e) {
@@ -597,6 +600,20 @@ class LeavePageProvider extends ChangeNotifier {
       _isSaveMyTimeOffLoading = false;
       notifyListeners();
     }
+  }
+
+  /// What follows a created request, once the sheet has been let go: the lists
+  /// reload in place at once, and the form is emptied after the sheet has had
+  /// time to slide away ([closeDelay]) — emptied sooner, its fields would blank
+  /// as it went down.
+  @visibleForTesting
+  Future<void> finishLeaveRequest({
+    Duration closeDelay = const Duration(milliseconds: 350),
+  }) async {
+    final refresh = refreshInPlace();
+    await Future<void>.delayed(closeDelay);
+    clearForm();
+    await refresh;
   }
 
   /// Resets the leave application form and removes any attachments.

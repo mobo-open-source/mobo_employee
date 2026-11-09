@@ -4,8 +4,6 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/core/theme/app_theme.dart';
 
-import '../loaders/loading_widget.dart';
-
 /// The frame of a create form that opens over a screen — a bottom sheet (New
 /// Allocation, Apply for Leave) or a centred popup (New Attendance): a heading
 /// band with a subtle grey rule under it, the fields, and one full-width
@@ -38,10 +36,10 @@ class FormSheetShell extends StatelessWidget {
   /// rising from the bottom.
   final bool centered;
 
-  /// While non-null the fields and the action are covered by a loading
-  /// animation with this message, and ignore input. Drawn inside the frame —
-  /// not as a second dialog on top — so a pop can only ever close this one.
-  final String? busyMessage;
+  /// While true the fields and the action ignore input — for a form that is
+  /// saving. Nothing is drawn over the form: its own [SheetSubmitButton] shows
+  /// the progress, so the form stays put and in view until it closes.
+  final bool locked;
 
   const FormSheetShell({
     super.key,
@@ -50,7 +48,7 @@ class FormSheetShell extends StatelessWidget {
     required this.children,
     required this.footer,
     this.centered = false,
-    this.busyMessage,
+    this.locked = false,
   });
 
   /// Side inset shared by the heading, the fields and the footer.
@@ -75,7 +73,6 @@ class FormSheetShell extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final media = MediaQuery.of(context);
     final surface = isDark ? AppTheme.darkSurface : Colors.white;
-    final busy = busyMessage != null;
 
     final frame = Column(
       mainAxisSize: MainAxisSize.min,
@@ -120,33 +117,25 @@ class FormSheetShell extends StatelessWidget {
         Divider(height: 1, color: ruleColor(isDark)),
 
         /// ───── Fields and action ─────
-        Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                inset,
-                16,
-                inset,
-                footerGap + (centered ? 0 : media.padding.bottom),
-              ),
-              child: IgnorePointer(
-                ignoring: busy,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ...children,
-                    const SizedBox(height: footerGap),
-                    footer,
-                  ],
-                ),
-              ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            inset,
+            16,
+            inset,
+            footerGap + (centered ? 0 : media.padding.bottom),
+          ),
+          child: IgnorePointer(
+            ignoring: locked,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...children,
+                const SizedBox(height: footerGap),
+                footer,
+              ],
             ),
-            if (busy)
-              Positioned.fill(
-                child: _BusyOverlay(message: busyMessage!, surface: surface),
-              ),
-          ],
+          ),
         ),
       ],
     );
@@ -182,35 +171,6 @@ class FormSheetShell extends StatelessWidget {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: frame,
-        ),
-      ),
-    );
-  }
-}
-
-/// The loading state of [FormSheetShell]: the app's loading animation and a
-/// message, over the form, which fades in under it. It nearly covers the form
-/// (it is the form's own surface at 92%), so the frame doesn't change size.
-class _BusyOverlay extends StatelessWidget {
-  final String message;
-  final Color surface;
-
-  const _BusyOverlay({required this.message, required this.surface});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 200),
-      builder: (context, opacity, child) =>
-          Opacity(opacity: opacity, child: child),
-      child: Semantics(
-        container: true,
-        liveRegion: true,
-        label: message,
-        child: ColoredBox(
-          color: surface.withValues(alpha: 0.92),
-          child: LoadingWidget(size: 48, message: message),
         ),
       ),
     );

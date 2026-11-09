@@ -99,6 +99,7 @@ class LeaveCalendarEvent {
     if (v == null || v == false) return null;
     final raw = v.toString().trim();
     if (raw.isEmpty) return null;
+
     /// Date-only values have no clock to shift; Dart can't parse "…Z" on them.
     final needsUtcMarker =
         raw.contains(':') &&

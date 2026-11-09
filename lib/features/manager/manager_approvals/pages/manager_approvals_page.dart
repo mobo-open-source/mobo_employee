@@ -22,9 +22,7 @@ class _ManagerApprovalsPageState extends State<ManagerApprovalsPage> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context
-          .read<ManagerApprovalsProvider>()
-          .loadInitialData();
+      context.read<ManagerApprovalsProvider>().loadInitialData();
     });
   }
 
@@ -71,7 +69,12 @@ class _ManagerApprovalsPageState extends State<ManagerApprovalsPage> {
               const SizedBox(height: 10),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  // The calendar sits in the page's 15px side inset. The Time
+                  // Off and Allocation lists carry it in their own padding
+                  // instead, so their cards' shadows aren't clipped at the edge.
+                  padding: EdgeInsets.symmetric(
+                    horizontal: provider.selectedTabIndex == 0 ? 15 : 0,
+                  ),
                   child: buildSelectedView(provider.selectedTabIndex, context),
                 ),
               ),

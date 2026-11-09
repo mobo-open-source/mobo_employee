@@ -85,6 +85,7 @@ class ModelAllocationData {
       id: (json['id'] as num?)?.toInt() ?? 0,
       userId: userId,
       employeeId: empId,
+
       /// hr.leave.allocation has no `notes` field — the reason/description
       /// text an employee enters is stored in `name` (same convention as
       /// hr.leave), which is what was actually missing here.

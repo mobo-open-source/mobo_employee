@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobo_employees/core/const/all_design.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/models/model_time_off_add_employees.dart';
 import 'package:mobo_employees/features/manager/manager_attendance/widgets/attendance_create_sheet.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
@@ -195,9 +196,16 @@ void main() {
   });
 
   group('saving', () {
-    testWidgets('shows the loading animation over the form until it is saved', (
-      tester,
-    ) async {
+    /// The Save button, as the user sees it.
+    ElevatedButton saveButton(WidgetTester tester) => tester.widget(
+      find.descendant(
+        of: find.byType(SheetSubmitButton),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+
+    testWidgets('the Save button shows the loading, and the popup closes once '
+        'it is saved', (tester) async {
       _tall(tester);
       final saving = Completer<void>();
       await tester.pumpWidget(
@@ -209,15 +217,36 @@ void main() {
       );
       await _open(tester);
       await _pickEmployee(tester);
-      expect(find.byType(LoadingWidget), findsNothing);
+      expect(find.text('Save'), findsOneWidget);
 
       await tester.tap(find.byType(SheetSubmitButton));
       await tester.pump(const Duration(milliseconds: 300));
 
-      // The animation and its message cover the form...
-      expect(find.byType(LoadingWidget), findsOneWidget);
-      expect(find.text('Saving attendance...'), findsOneWidget);
-      // ...inside the same popup — not a second dialog on top of it.
+      // The progress is in the button — "Saving..." and its dots — in place of
+      // "Save"...
+      expect(find.text('Saving...'), findsOneWidget);
+      expect(find.text('Save'), findsNothing);
+      // ...which stays brand-coloured, and cannot be pressed twice.
+      final button = saveButton(tester);
+      expect(button.onPressed, isNull);
+      expect(
+        button.style!.backgroundColor!.resolve({WidgetState.disabled}),
+        AppColors.colorC03355,
+      );
+      // Nothing covers the form any more: no loading animation or message, and
+      // the fields are still there to see.
+      expect(find.byType(LoadingWidget), findsNothing);
+      expect(find.text('Saving attendance...'), findsNothing);
+      // (Required fields' labels are rich text, with their red *.)
+      expect(
+        find.textContaining('Employee', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Check In', findRichText: true),
+        findsOneWidget,
+      );
+      // Still the one popup — not a second dialog on top of it.
       expect(find.byType(Dialog), findsOneWidget);
       // The × is dead while it saves.
       expect(
@@ -234,11 +263,38 @@ void main() {
         isNull,
       );
 
+      // Not yet saved: it has not closed.
+      expect(result.value, isNull);
+
       saving.complete();
       await tester.pumpAndSettle();
 
+      // Saved: the popup closes, and says it created the attendance.
       expect(find.byType(Dialog), findsNothing);
       expect(result.value, isTrue);
+    });
+
+    testWidgets('the fields cannot be changed while it saves', (tester) async {
+      _tall(tester);
+      final saving = Completer<void>();
+      await tester.pumpWidget(
+        _app(
+          result: result,
+          save: ({required employeeId, required checkIn, checkOut}) =>
+              saving.future,
+        ),
+      );
+      await _open(tester);
+      await _pickEmployee(tester);
+      await tester.tap(find.byType(SheetSubmitButton));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.text('Still checked in'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(DatePickerDialog), findsNothing);
+
+      saving.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('a failed save brings the form back', (tester) async {

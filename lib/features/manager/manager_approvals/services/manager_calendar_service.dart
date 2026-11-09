@@ -124,6 +124,7 @@ class ManagerCalendarService {
             'state',
             'date_from',
             'date_to',
+
             /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
             majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'activity_state',
@@ -177,6 +178,7 @@ class ManagerCalendarService {
             'id',
             'name',
             'state',
+
             /// Plain dates: Odoo 20's request_date_hour_from/to are
             /// timezone-shifted and end at the *next* midnight, which put
             /// full-day leaves one day off in the calendar.
@@ -189,6 +191,7 @@ class ManagerCalendarService {
             ],
             'display_name',
             if (majorVersion >= 19) 'duration_display',
+
             /// The report's time off type (holiday_status_id on 18/19,
             /// work_entry_type_id on 20) is readable by Time Off Officers
             /// only: asking for it made the whole read fail with an
@@ -250,6 +253,7 @@ class ManagerCalendarService {
             'date_from',
             'date_to',
             majorVersion >= 18 ? 'duration_display' : 'number_of_days_display',
+
             /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
             majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'employee_id',
@@ -313,6 +317,7 @@ class ManagerCalendarService {
 
     await odooClient({
       'model': 'hr.leave',
+
       /// Odoo 20 dropped action_validate; action_approve does both steps
       'method': majorVersion >= 20 ? 'action_approve' : 'action_validate',
       'args': [

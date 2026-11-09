@@ -43,6 +43,51 @@ void main() {
     });
   });
 
+  group('the caption under the figure', () {
+    Widget card(String subtitle, {bool dark = false}) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 180,
+          height: WidgetQuickOverview.height,
+          child: WidgetQuickOverview(
+            count: '12',
+            title: 'Employees',
+            subtitle: subtitle,
+            color: Colors.green,
+            isDarkTheme: dark,
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('is semi-bold — Total Employees, Daily attendance, Leaves on '
+        'today', (tester) async {
+      for (final caption in [
+        'Total Employees',
+        'Daily attendance',
+        'Leaves on today',
+      ]) {
+        await tester.pumpWidget(card(caption));
+        expect(
+          tester.widget<Text>(find.text(caption)).style?.fontWeight,
+          FontWeight.w600,
+          reason: caption,
+        );
+      }
+    });
+
+    testWidgets('keeps its size and grey, and is the same in dark mode', (
+      tester,
+    ) async {
+      await tester.pumpWidget(card('Total Employees', dark: true));
+
+      final style = tester.widget<Text>(find.text('Total Employees')).style!;
+      expect(style.fontWeight, FontWeight.w600);
+      expect(style.fontSize, 11);
+      expect(style.color, Colors.grey[400]);
+    });
+  });
+
   testWidgets('the loading placeholder wears the same card', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

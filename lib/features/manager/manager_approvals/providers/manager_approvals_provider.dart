@@ -51,6 +51,12 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   bool _isTimeOffInitialLoaded = false;
   bool _isCalendarInitialLoaded = false;
   bool _isTimeOffLoading = false;
+
+  /// Counts time off reads, so a reply that has been overtaken is dropped. After
+  /// the first read of the list (see [_isTimeOffInitialLoaded]) every reload —
+  /// after a request is created, approved or refused — happens in place, over
+  /// the list already on screen.
+  int _timeOffRequest = 0;
   bool _isCalendarLoading = false;
 
   /// Counts calendar fetches, so a reply that has been overtaken is dropped.
@@ -512,26 +518,51 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   }
 
   /// Loads the pending time-off requests visible to this manager into
-  /// [timeOffList]. Toggles [isTimeOffLoading]; on error clears the list
-  /// and records the failure in [timeOffLoadError]. Never throws.
+  /// [timeOffList]. On error clears the list and records the failure in
+  /// [timeOffLoadError]. Never throws.
+  ///
+  /// Only the first read — or a retry after a failure — raises
+  /// [isTimeOffLoading]. Every other read (after a request is created,
+  /// approved or refused) happens in place: the list stays on screen and is
+  /// swapped for the new one when it arrives, rather than flashing a shimmer
+  /// behind a sheet that is closing.
   Future<void> fetchTimeOffDetails() async {
+    final request = ++_timeOffRequest;
+    // `_isTimeOffInitialLoaded` is the flag that says the list has been read once
+    // (set when the tab is first opened, and again on every successful read).
+    final showLoader = !_isTimeOffInitialLoaded || timeOffLoadError != null;
     try {
-      _isTimeOffLoading = true;
+      if (showLoader) _isTimeOffLoading = true;
       timeOffLoadError = null;
       notifyListeners();
-      final data = await ManagerCalendarService.fetchLeaveTimeOffDetails();
+      final data = await readTimeOff();
+      // A newer read has started since: its answer wins.
+      if (request != _timeOffRequest) return;
       _timeOffList
         ..clear()
         ..addAll(data);
-      await _preloadEmployeeImages(_timeOffList.map((e) => e.employeeId));
       _isTimeOffInitialLoaded = true;
     } catch (e) {
-      _timeOffList.clear();
-      timeOffLoadError = e;
+      if (request == _timeOffRequest) {
+        _timeOffList.clear();
+        timeOffLoadError = e;
+      }
     } finally {
-      _isTimeOffLoading = false;
-      notifyListeners();
+      if (request == _timeOffRequest) {
+        _isTimeOffLoading = false;
+        notifyListeners();
+      }
     }
+  }
+
+  /// Reads the time off requests from Odoo, and the avatars of the employees in
+  /// them. The one place [fetchTimeOffDetails] reaches the server, so a test
+  /// can stand in for it.
+  @protected
+  Future<List<ModelTimeOffData>> readTimeOff() async {
+    final data = await ManagerCalendarService.fetchLeaveTimeOffDetails();
+    await _preloadEmployeeImages(data.map((e) => e.employeeId));
+    return data;
   }
 
   /// Turns a raw RPC failure into something worth showing the user.
@@ -555,6 +586,22 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     }
   }
 
+  /// Sends the manager's [decision] — 'approve', 'validate' (the final approval
+  /// of a second-level request) or 'refuse' — on request [leaveId] to Odoo. The
+  /// one call [validateTimeOff] and [refuseTimeOff] make to it, so a test can
+  /// stand in for it.
+  @protected
+  Future<void> decideTimeOff(String decision, int leaveId) async {
+    switch (decision) {
+      case 'validate':
+        await ManagerCalendarService.actionValidate(leaveId);
+      case 'refuse':
+        await ManagerCalendarService.actionRefuse(leaveId);
+      default:
+        await ManagerCalendarService.actionApprove(leaveId);
+    }
+  }
+
   /// Approves the leave request [leaveId] and refreshes the list.
   ///
   /// Picks the right Odoo action based on [state]: `validate1` calls
@@ -571,11 +618,10 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     _validatingIds.add(leaveId);
     notifyListeners();
     try {
-      if (state == "validate1") {
-        await ManagerCalendarService.actionValidate(leaveId);
-      } else {
-        await ManagerCalendarService.actionApprove(leaveId);
-      }
+      await decideTimeOff(
+        state == "validate1" ? 'validate' : 'approve',
+        leaveId,
+      );
       await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Time off request approved');
     } catch (e) {
@@ -593,7 +639,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     _refusingIds.add(leaveId);
     notifyListeners();
     try {
-      await ManagerCalendarService.actionRefuse(leaveId);
+      await decideTimeOff('refuse', leaveId);
       await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
       _showActionSnack(success: true, message: 'Time off request refused');
     } catch (e) {
@@ -746,7 +792,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         attachmentId = await _createAttachment();
       }
 
-      final majorVersion = await OdooSessionManager.getServerMajorVersion();
+      final majorVersion = await leaveServerMajorVersion();
       final values = {
         'employee_id': selectedEmployeeId,
         'state': 'confirm',
@@ -761,15 +807,13 @@ class ManagerApprovalsProvider extends ChangeNotifier {
             : [],
       };
 
-      await OdooSessionManager.callKwWithCompany({
-        'model': 'hr.leave',
-        'method': 'create',
-        'args': [values],
-        'kwargs': {},
-      });
+      await createLeaveRecord(values);
 
-      clearForm();
-      await Future.wait([fetchTimeOffDetails(), _refreshCalendarCounts()]);
+      // The request exists: let the sheet close now. What follows is not
+      // something to hold it open for — it used to wait here for the form to be
+      // emptied (blanking its fields on screen) and for the lists to reload
+      // (flashing the Time Off tab's shimmer behind it) before it went.
+      unawaited(finishLeaveRequest());
 
       return null;
     } catch (e) {
@@ -778,6 +822,41 @@ class ManagerApprovalsProvider extends ChangeNotifier {
       _isSaveMyTimeOffLoading = false;
       notifyListeners();
     }
+  }
+
+  /// The server's major version, which decides how the leave type is named in
+  /// the record. A seam for tests, like [createLeaveRecord].
+  @protected
+  Future<int> leaveServerMajorVersion() =>
+      OdooSessionManager.getServerMajorVersion();
+
+  /// Creates the `hr.leave` record. The one call [saveLeave] makes to Odoo, so a
+  /// test can stand in for it.
+  @protected
+  Future<void> createLeaveRecord(Map<String, dynamic> values) async {
+    await OdooSessionManager.callKwWithCompany({
+      'model': 'hr.leave',
+      'method': 'create',
+      'args': [values],
+      'kwargs': {},
+    });
+  }
+
+  /// What follows a created request, once the sheet has been let go: the lists
+  /// reload in place at once, and the form is emptied after the sheet has had
+  /// time to slide away ([closeDelay]) — emptied sooner, its fields would blank
+  /// as it went down.
+  @visibleForTesting
+  Future<void> finishLeaveRequest({
+    Duration closeDelay = const Duration(milliseconds: 350),
+  }) async {
+    final refresh = Future.wait([
+      fetchTimeOffDetails(),
+      _refreshCalendarCounts(),
+    ]);
+    await Future<void>.delayed(closeDelay);
+    clearForm();
+    await refresh;
   }
 
   /// Odoo's message when "From" is after "To", for the form to show inline;
@@ -1023,6 +1102,8 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     _isAllocationLoading = false;
     _isAllocationInitialLoaded = false;
     _allocationRequest++;
+    _isTimeOffLoading = false;
+    _timeOffRequest++;
 
     notifyListeners();
   }

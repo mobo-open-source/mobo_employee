@@ -123,4 +123,80 @@ void main() {
     expect(find.text(_panelHeading), findsNothing);
     expect(find.byType(LeaveMonthCalendar), findsOneWidget);
   });
+
+  group('a day with no time off', () {
+    const noTimeOff = 'No time off on this day';
+
+    /// The panel card around the message: the nearest bordered Container.
+    Finder card() => find
+        .ancestor(
+          of: find.text(noTimeOff),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is Container &&
+                w.decoration is BoxDecoration &&
+                (w.decoration! as BoxDecoration).border != null,
+          ),
+        )
+        .first;
+
+    testWidgets('gives the message room under the heading\'s line', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_page(provider));
+      provider.selectDate(DateTime(2026, 3, 25));
+      await tester.pumpAndSettle();
+
+      expect(find.text(noTimeOff), findsOneWidget);
+      final line = tester.getRect(
+        find.descendant(of: card(), matching: find.byType(Divider)),
+      );
+      final text = tester.getRect(find.text(noTimeOff));
+      // The divider's box is 12 tall around its 1px line, so it already leaves
+      // 5.5 under the line; the message's 12 of top padding comes on top.
+      expect(text.top - line.bottom, greaterThanOrEqualTo(12));
+    });
+
+    testWidgets('and above the card\'s bottom edge', (tester) async {
+      await tester.pumpWidget(_page(provider));
+      provider.selectDate(DateTime(2026, 3, 25));
+      await tester.pumpAndSettle();
+
+      final text = tester.getRect(find.text(noTimeOff));
+      final box = tester.getRect(card());
+      expect(box.bottom - text.bottom, greaterThanOrEqualTo(18));
+    });
+
+    testWidgets('the card with requests is not made any taller', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_page(provider));
+      provider.selectDate(DateTime(2026, 3, 10));
+      await tester.pumpAndSettle();
+
+      // Only the empty message was given extra room: with requests the panel is
+      // as it was — its first row is 6px under the heading's line.
+      expect(find.text(noTimeOff), findsNothing);
+      final line = tester.getRect(
+        find
+            .descendant(
+              of: find
+                  .ancestor(
+                    of: find.text('Casual Leave Description').first,
+                    matching: find.byWidgetPredicate(
+                      (w) =>
+                          w is Container &&
+                          w.decoration is BoxDecoration &&
+                          (w.decoration! as BoxDecoration).border != null,
+                    ),
+                  )
+                  .first,
+              matching: find.byType(Divider),
+            )
+            .first,
+      );
+      final row = tester.getRect(find.text('Casual Leave Description').first);
+      expect(row.top - line.bottom, lessThan(16));
+    });
+  });
 }

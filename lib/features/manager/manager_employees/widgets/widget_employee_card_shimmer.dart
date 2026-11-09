@@ -9,6 +9,21 @@ import 'widget_employee_card.dart';
 class WidgetEmployeeCardShimmer extends StatelessWidget {
   const WidgetEmployeeCardShimmer({super.key});
 
+  /// A bar of [barHeight] centred in a line box of [lineHeight]; full width
+  /// when [width] is null.
+  static Widget _line(double lineHeight, double barHeight, double? width) =>
+      SizedBox(
+        height: lineHeight,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            height: barHeight,
+            width: width ?? double.infinity,
+            color: Colors.grey,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -33,21 +48,18 @@ class WidgetEmployeeCardShimmer extends StatelessWidget {
 
             const SizedBox(width: WidgetEmployeeCard.avatarGap),
 
-            /// Text shimmer — 15 + 11 + 11 + 11 + 11 = 59, the height of the
-            /// card's name / phone / email column.
+            /// Text shimmer — in the same fixed line boxes as the card's name /
+            /// phone / email column, so it is the same height.
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 15, width: 140, color: Colors.grey),
-                  const SizedBox(height: 11),
-                  Container(height: 11, width: 90, color: Colors.grey),
-                  const SizedBox(height: 11),
-                  Container(
-                    height: 11,
-                    width: double.infinity,
-                    color: Colors.grey,
-                  ),
+                  _line(WidgetEmployeeCard.nameLineHeight, 14, 140),
+                  const SizedBox(height: WidgetEmployeeCard.lineGap),
+                  _line(WidgetEmployeeCard.detailLineHeight, 11, 90),
+                  const SizedBox(height: WidgetEmployeeCard.lineGap),
+                  _line(WidgetEmployeeCard.detailLineHeight, 11, null),
                 ],
               ),
             ),

@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 
 import 'dashed_border_box.dart';
 
 /// A labelled file field: a subtle dotted-border box with an upload icon and
 /// "Attach File" — as the events app's upload box — that becomes the chosen
-/// file's name (with a remove ×) once one is picked.
+/// file's name (with the Mobo delete icon) once one is picked.
 ///
 /// This replaced a separate "Attach File" button under a "File" label, and a
 /// filename chip shown above it.
@@ -95,7 +96,8 @@ class MoboFileUploadBox extends StatelessWidget {
     );
   }
 
-  /// The chosen file: its name, and a × to take it back out.
+  /// The chosen file: its name, and the delete icon the other Mobo apps use for
+  /// removing an attachment (a bin, in red) to take it back out.
   Widget _fileChip(String name) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -121,9 +123,21 @@ class MoboFileUploadBox extends StatelessWidget {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: onRemove,
-            child: const Icon(Icons.close, size: 18, color: Colors.red),
+          Tooltip(
+            message: 'Delete attachment',
+            child: InkResponse(
+              onTap: onRemove,
+              radius: 20,
+              // A bin is a small target: the padding makes it easy to hit.
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDelete02,
+                  size: 20,
+                  color: isDark ? StatusColors.errorIcon : StatusColors.red,
+                ),
+              ),
+            ),
           ),
         ],
       ),

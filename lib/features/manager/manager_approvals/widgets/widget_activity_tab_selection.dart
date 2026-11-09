@@ -15,4 +15,3 @@ Widget buildSelectedView(int index, BuildContext context) {
       return const SizedBox.shrink();
   }
 }
-

@@ -3,7 +3,6 @@ import 'package:mobo_employees/core/services/connectivity_service.dart';
 import 'package:mobo_employees/core/services/odoo_session_manager.dart';
 
 class ManagerEmployeesDataService {
-
   ///fetch all employees from odoo
   static Future<ModelManagerEmployeesResponse> fetchAllEmployees({
     required String search,
@@ -39,6 +38,7 @@ class ManagerEmployeesDataService {
             'active',
             'work_phone',
             'work_email',
+
             /// Odoo 20 replaced employee_type with employee_type_id
             if (majorVersion < 20) 'employee_type',
             'job_id',
@@ -71,8 +71,6 @@ class ManagerEmployeesDataService {
       throw Exception("Failed to fetch employees: $e");
     }
   }
-
-
 
   ///fetch employees count from odoo
 

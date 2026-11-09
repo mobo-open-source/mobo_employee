@@ -132,7 +132,9 @@ class WidgetQuickOverview extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      // Semi-bold, as the title above it: at 11px the lighter
+                      // weight read as faint beside the figure.
+                      fontWeight: FontWeight.w600,
                       height: 1.3,
                       color: isDarkTheme ? Colors.grey[400] : Colors.grey[500],
                     ),

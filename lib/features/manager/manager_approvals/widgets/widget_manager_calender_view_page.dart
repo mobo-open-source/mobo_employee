@@ -297,11 +297,18 @@ class _SelectedDayLeaves extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (leaves.isEmpty)
-                  Text(
-                    'No time off on this day',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      color: detailColor,
+                  // A lone line of text would sit hard against the heading's
+                  // line and the card's bottom edge: give it room — about 18
+                  // under the line (the divider's own 6, and 12 more) and 18
+                  // above the edge (the body's 12, and 6 more).
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 6),
+                    child: Text(
+                      'No time off on this day',
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        color: detailColor,
+                      ),
                     ),
                   ),
 

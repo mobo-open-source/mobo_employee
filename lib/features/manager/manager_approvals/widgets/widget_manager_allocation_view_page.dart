@@ -46,11 +46,11 @@ class WidgetManagerAllocationViewPage extends StatelessWidget {
     return ListView.separated(
       // Room under the last card so it scrolls clear of the New Allocation
       // button, when it's shown.
-      padding: EdgeInsets.only(
-        top: 12,
+      padding: WidgetTimeOffCard.listPadding(
         bottom: provider.canCreateAllocation ? AppSpacing.fabClearance : 12,
       ),
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) =>
+          const SizedBox(height: WidgetTimeOffCard.listGap),
       itemCount: provider.allocationList.length,
       itemBuilder: (context, index) {
         final item = provider.allocationList[index];

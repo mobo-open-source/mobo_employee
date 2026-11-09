@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:mobo_employees/core/const/all_design.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/core/widgets/mobo_date_picker.dart';
 
 /// Labeled date + time field: tapping opens [MoboDatePicker], then the time
@@ -78,6 +79,9 @@ class MoboDateTimeField extends StatelessWidget {
               dayPeriodTextColor: WidgetStateColor.resolveWith(selectedText),
               entryModeIconColor: onSurface,
             ),
+            // Typing a time: a white caret and selection, which show on the
+            // brand-filled hour or minute — the brand-coloured default didn't.
+            textSelectionTheme: AppTheme.timePickerTextSelection,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: AppColors.appColor),
             ),
