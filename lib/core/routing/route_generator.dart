@@ -23,7 +23,6 @@ class RouteGenerator {
   /// Returns a [MaterialPageRoute] for the requested route, or an error
   /// route if the route name is not recognized.
   static Route<dynamic> generateRoute(RouteSettings settings) {
-    /// Extract arguments if any
     final args = settings.arguments;
 
     switch (settings.name) {
@@ -35,7 +34,6 @@ class RouteGenerator {
         );
 
       case AppRoutes.login:
-        /// Login requires URL and database arguments
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
             builder: (_) => CredentialsScreen(
@@ -45,7 +43,6 @@ class RouteGenerator {
             settings: settings,
           );
         }
-        /// Fallback if arguments are missing
         return MaterialPageRoute(
           builder: (_) => const CredentialsScreen(url: '', database: ''),
           settings: settings,
@@ -58,7 +55,6 @@ class RouteGenerator {
         );
 
       case AppRoutes.appLock:
-        /// App lock requires onAuthenticationSuccess callback
         if (args is Map<String, dynamic>) {
           return MaterialPageRoute(
             builder: (_) => AppLockScreen(
@@ -99,7 +95,6 @@ class RouteGenerator {
           settings: settings,
         );
    default:
-        /// Return error route for undefined routes
         return MaterialPageRoute(
           builder: (_) => _ErrorRoute(routeName: settings.name ?? 'Unknown'),
           settings: settings,

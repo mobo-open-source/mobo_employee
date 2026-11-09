@@ -23,9 +23,9 @@ String normalizeServerUrl(String url, {String defaultScheme = 'https://'}) {
         .replace(scheme: uri.scheme.toLowerCase(), host: uri.host.toLowerCase(), path: path)
         .toString();
   } catch (_) {
-    /// Malformed enough that `Uri.parse` can't make sense of it -- fall
-    /// back to a plain trailing-slash strip rather than throwing, so a
-    /// weird-but-still-usable URL doesn't crash whatever called this.
+    // Malformed enough that `Uri.parse` can't make sense of it -- fall
+    // back to a plain trailing-slash strip rather than throwing, so a
+    // weird-but-still-usable URL doesn't crash whatever called this.
     var result = trimmed;
     while (result.endsWith('/')) {
       result = result.substring(0, result.length - 1);

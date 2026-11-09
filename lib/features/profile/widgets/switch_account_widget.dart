@@ -77,7 +77,8 @@ class SwitchAccountWidget extends StatelessWidget {
                   account,
                   sessionService,
                   isCurrent:
-                      false, /// Always false since we filtered out current
+                      // Always false: the current account was filtered out.
+                      false,
                 ),
               ),
             _buildAddAccountButton(context),
@@ -156,11 +157,11 @@ class SwitchAccountWidget extends StatelessWidget {
         (account['needsReauth']?.toString() == 'true' ||
             account['password']?.toString().isEmpty == true);
 
-    /// Flat "record card" recipe (Mobo UI Style Guide §8) — this row
-    /// represents a stored account, not a settings/menu option, so it gets
-    /// the InkWell + Container card treatment instead of a stock ListTile.
-    /// The card itself has no navigation target of its own (only the
-    /// trailing "Switch" action is tappable), so `onTap` stays null.
+    // Flat "record card" recipe (Mobo UI Style Guide §8) — this row
+    // represents a stored account, not a settings/menu option, so it gets
+    // the InkWell + Container card treatment instead of a stock ListTile.
+    // The card itself has no navigation target of its own (only the
+    // trailing "Switch" action is tappable), so `onTap` stays null.
     return InkWell(
       onTap: null,
       borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
@@ -401,23 +402,23 @@ class SwitchAccountWidget extends StatelessWidget {
       if (context.mounted) {
         Navigator.pop(context);
 
-        /// Matched by type, not by substring: the exception's message
-        /// contains words like "authentication" that would otherwise
-        /// misclassify it below as bad credentials.
+        // Matched by type, not by substring: the exception's message
+        // contains words like "authentication" that would otherwise
+        // misclassify it below as bad credentials.
         if (e is MfaRequiredException) {
           await _promptForTotp(context, account, sessionService);
           return;
         }
 
-        /// The account's database has expired: re-entering the password
-        /// can't help, so say so instead of offering the sign-in screen.
+        // The account's database has expired: re-entering the password
+        // can't help, so say so instead of offering the sign-in screen.
         if (e is DatabaseExpiredException) {
           _showErrorDialog(context, 'Database Expired', e.message);
           return;
         }
 
-        /// The account's database lacks a required module: also nothing a
-        /// password can fix.
+        // The account's database lacks a required module: also nothing a
+        // password can fix.
         if (e is RequiredModulesMissingException) {
           _showErrorDialog(context, 'Module Missing', e.message);
           return;
@@ -583,7 +584,6 @@ class SwitchAccountWidget extends StatelessWidget {
     bool isDark, [
     Map<String, dynamic>? account,
   ]) {
-    /// Prefer stored base64 image if available
     final imageBase64 = account != null
         ? account['imageBase64'] as String?
         : null;
@@ -603,13 +603,12 @@ class SwitchAccountWidget extends StatelessWidget {
       return _buildDefaultAvatar(isCurrent, isDark, account);
     }
 
-    /// Try avatar URL
     final avatarUrl =
         '$serverUrl/web/image?model=res.users&id=$userId&field=image_128';
 
-    /// Scoped to this row's own session cookie so the request can't be
-    /// resolved against a different account's ambient session; the cache key
-    /// is likewise scoped to server+database+user.
+    // Scoped to this row's own session cookie so the request can't be
+    // resolved against a different account's ambient session; the cache key
+    // is likewise scoped to server+database+user.
     final sessionId = account?['sessionId'] as String?;
     final database = account?['database'] as String?;
 
@@ -702,21 +701,21 @@ class SwitchAccountWidget extends StatelessWidget {
       final serverUrl = account['serverUrl']?.toString() ?? '';
       final database = account['database']?.toString() ?? '';
 
-      /// Absence is not fatal here: the stored-session path below needs no
-      /// password, which is what makes switching into a 2FA account possible.
+      // Absence is not fatal here: the stored-session path below needs no
+      // password, which is what makes switching into a 2FA account possible.
       final password = await sessionService.retrievePasswordWithMultiplePatterns(
         account,
       );
 
-      /// Drop the outgoing account's cached metadata and queued writes
-      /// before the new session goes live.
+      // Drop the outgoing account's cached metadata and queued writes
+      // before the new session goes live.
       await OdooSessionManager.clearAccountScopedState();
 
-      /// Preferred path: reuse this account's stored session cookie. A
-      /// password re-auth can never complete for a 2FA account (Odoo
-      /// returns a null uid while the second factor is pending), so this
-      /// restores the already-verified session instead. Runs for non-2FA
-      /// accounts too, saving them a password round-trip.
+      // Preferred path: reuse this account's stored session cookie. A
+      // password re-auth can never complete for a 2FA account (Odoo
+      // returns a null uid while the second factor is pending), so this
+      // restores the already-verified session instead. Runs for non-2FA
+      // accounts too, saving them a password round-trip.
       final storedSessionId = account['sessionId']?.toString();
       if (storedSessionId != null && storedSessionId.isNotEmpty) {
         final restored = await _restoreStoredSession(
@@ -734,8 +733,8 @@ class SwitchAccountWidget extends StatelessWidget {
         }
       }
 
-      /// Fallback: stored session is gone/expired, only a password re-auth
-      /// is left. For a 2FA account this raises [MfaRequiredException].
+      // Fallback: stored session is gone/expired, only a password re-auth
+      // is left. For a 2FA account this raises [MfaRequiredException].
       if (password == null || password.isEmpty) {
         throw Exception('No password found for account');
       }
@@ -753,7 +752,6 @@ class SwitchAccountWidget extends StatelessWidget {
         allowedCompanyIds: newSession.allowedCompanyIds,
       );
 
-      /// Save corrected session
       await fixedSession.saveToPrefs();
       await OdooSessionManager.updateSession(fixedSession);
       sessionService.updateSession(fixedSession);
@@ -783,15 +781,15 @@ class SwitchAccountWidget extends StatelessWidget {
         sessionId: sessionId,
       );
     } catch (_) {
-      /// Unreachable, expired, or MFA-pending -- nothing restorable.
+      // Unreachable, expired, or MFA-pending -- nothing restorable.
       return false;
     }
 
     final uid = info['uid'];
     if (uid == null || uid == false) return false;
 
-    /// A session is bound to one database; refuse a cookie whose
-    /// session_info reports a different db than the account being switched into.
+    // A session is bound to one database; refuse a cookie whose
+    // session_info reports a different db than the account being switched into.
     final sessionDb = info['db']?.toString();
     if (sessionDb != null && sessionDb.isNotEmpty && sessionDb != database) {
       return false;
@@ -799,8 +797,8 @@ class SwitchAccountWidget extends StatelessWidget {
 
     if (!context.mounted) return false;
 
-    /// Reuses the exact same path the 2FA login uses to turn a
-    /// get_session_info payload into a saved session.
+    // Reuses the exact same path the 2FA login uses to turn a
+    // get_session_info payload into a saved session.
     await context.read<LoginProvider>().onLoginSuccessFromSession(
           info,
           login: username,

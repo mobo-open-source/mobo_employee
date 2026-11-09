@@ -90,17 +90,15 @@ class OdooSessionManager {
       await ConnectivityService.instance.ensureInternetOrThrow();
       await ConnectivityService.instance.ensureServerReachable(saved.serverUrl);
 
-      /// Create client using stored session ID (no invalid casts)
       final OdooClient client = _newClient(
         saved.serverUrl,
         sessionId: saved.odooSession,
       );
 
-      /// Ensure allowed companies include the requested one
       List<int> allowed = [...saved.allowedCompanyIds];
 
-      /// If the allowed list is empty, we might need to fetch defaults.
-      /// But if it's populated, we trust the user's selection and just ensure the active company is added.
+      // If the allowed list is empty, we might need to fetch defaults.
+      // But if it's populated, we trust the user's selection and just ensure the active company is added.
       if (allowed.isEmpty && saved.userId != 0) {
         try {
           final userCompanies = await _fetchUserCompanies(client, saved.userId);
@@ -110,7 +108,6 @@ class OdooSessionManager {
         } catch (e) {}
       }
 
-      /// Ensure the target company is in the allowed list
       if (!allowed.contains(companyId)) {
         allowed.add(companyId);
       }
@@ -155,7 +152,6 @@ class OdooSessionManager {
   static Future<AppSessionData?> getCurrentSession() async {
     if (_cachedSession != null) return _cachedSession;
 
-    /// Try to restore from preferences
     try {
       final saved = await AppSessionData.fromPrefs();
       if (saved == null) return null;
@@ -170,7 +166,6 @@ class OdooSessionManager {
         return session;
       }
 
-      /// Re-authenticate to get fresh session
       final client = _newClient(saved.serverUrl);
       final odooSession = await client.authenticate(
         saved.database,
@@ -219,15 +214,12 @@ class OdooSessionManager {
     OdooClient? odooClient,
     String? sessionId,
   }) async {
-    /// Validate inputs
     if (serverUrl.isEmpty || database.isEmpty || userLogin.isEmpty) {
       throw Exception('Invalid login parameters');
     }
 
-    /// Normalize server URL
     String normalizedUrl = normalizeServerUrl(serverUrl);
 
-    /// Connectivity checks
     try {
       await ConnectivityService.instance.ensureInternetOrThrow();
       await ConnectivityService.instance.ensureServerReachable(normalizedUrl);
@@ -242,7 +234,6 @@ class OdooSessionManager {
       client = odooClient!;
     }
 
-    /// Retry authentication on transient failures
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
         OdooSession odooSession;
@@ -253,9 +244,9 @@ class OdooSessionManager {
             userLogin,
             password,
           );
-          /// A 2FA-enabled user gets a NEW client above (carrying the
-          /// pending-MFA session cookie) rather than mutating the existing
-          /// one, since OdooClient exposes no public session setter.
+          // A 2FA-enabled user gets a NEW client above (carrying the
+          // pending-MFA session cookie) rather than mutating the existing
+          // one, since OdooClient exposes no public session setter.
           client = _newClient(client.baseURL, sessionId: odooSession);
         } else {
           odooSession = client.sessionId!;
@@ -272,7 +263,7 @@ class OdooSessionManager {
               odooSession.userId,
             );
 
-            /// Only override if company 1 is actually allowed, otherwise keep 1 as default.
+            // Only override if company 1 is actually allowed, otherwise keep 1 as default.
             final fetchedAllowed =
                 (userInfo['company_ids'] as List?)?.cast<int>() ?? [];
 
@@ -290,7 +281,6 @@ class OdooSessionManager {
           }
         }
 
-        /// Check for stock user group
         bool isStockUser = false;
 
 
@@ -300,8 +290,8 @@ class OdooSessionManager {
           serverUrl: normalizedUrl,
           database: database,
           expiresAt: DateTime.now().add(const Duration(hours: 24)),
-          selectedCompanyId: selectedCompanyId, /// will be 1 in your forced case
-          allowedCompanyIds: allowedCompanyIds, /// will contain 1
+          selectedCompanyId: selectedCompanyId,
+          allowedCompanyIds: allowedCompanyIds,
           isStockUser: isStockUser,
         );
 
@@ -324,35 +314,32 @@ class OdooSessionManager {
           return LoginStatus.twoFactorEnabled;
         }
 
-        /// An expired database or a missing module is a verdict, not a
-        /// transient failure: don't retry it or fold it into "login failed".
+        // An expired database or a missing module is a verdict, not a
+        // transient failure: don't retry it or fold it into "login failed".
         if (e is DatabaseExpiredException ||
             e is RequiredModulesMissingException) {
           rethrow;
         }
 
-        /// Handle HTML response error
         if (e is FormatException && e.toString().contains('<html>')) {
           throw Exception(
             'Server returned HTML instead of JSON. Please check server URL and ensure Odoo is running.',
           );
         }
 
-        /// Don't retry credential errors
+        // Don't retry credential errors
         if (e.toString().toLowerCase().contains('access denied') ||
             e.toString().toLowerCase().contains('wrong login/password') ||
             e.toString().toLowerCase().contains('invalid database')) {
           return LoginStatus.failed;
         }
 
-        /// Retry on connection errors
         if (attempt < _maxRetries && _isRetryableError(e)) {
           final delay = _baseDelay * attempt;
           await Future.delayed(delay);
           continue;
         }
 
-        /// Non-retryable error or exhausted retries
         if (e is NoInternetException || e is ServerUnreachableException) {
           rethrow;
         }
@@ -382,7 +369,7 @@ class OdooSessionManager {
       if (result is List && result.isNotEmpty) {
         final userData = result[0];
 
-        /// Extract company_id (can be int or [id, name])
+        // Extract company_id (can be int or [id, name])
         int? companyId;
         if (userData['company_id'] is int) {
           companyId = userData['company_id'];
@@ -391,7 +378,6 @@ class OdooSessionManager {
           companyId = userData['company_id'][0];
         }
 
-        /// Extract company_ids
         List<int> companyIds = [];
         if (userData['company_ids'] is List) {
           companyIds = (userData['company_ids'] as List)
@@ -445,8 +431,8 @@ class OdooSessionManager {
     final sessionInfo = Map<String, dynamic>.from(result);
     var session = OdooSession.fromSessionInfo(sessionInfo);
 
-    /// The real session id lives in the Set-Cookie header, not the JSON
-    /// body — mirrors OdooClient's own private cookie handling.
+    // The real session id lives in the Set-Cookie header, not the JSON
+    // body — mirrors OdooClient's own private cookie handling.
     final setCookie = response.headers['set-cookie'];
     if (setCookie != null) {
       final lookForCommaExpression = RegExp(r'(?<=)(,)(?=[^;]+?=)');
@@ -460,9 +446,9 @@ class OdooSessionManager {
       }
     }
 
-    /// Refuse an expired database here, before any caller can save the
-    /// session: this is the one point every password sign-in passes through.
-    /// The server's own clock (Date header) decides, not the device's.
+    // Refuse an expired database here, before any caller can save the
+    // session: this is the one point every password sign-in passes through.
+    // The server's own clock (Date header) decides, not the device's.
     try {
       DatabaseExpiry.ensureActive(sessionInfo, now: _serverTime(response));
     } on DatabaseExpiredException {
@@ -470,9 +456,9 @@ class OdooSessionManager {
       rethrow;
     }
 
-    /// Likewise refuse a database without the Employee, Attendance or Time
-    /// Off modules: the app has nothing to show for it. Needs the session
-    /// just opened, so it can only run after the credentials were accepted.
+    // Likewise refuse a database without the Employee, Attendance or Time
+    // Off modules: the app has nothing to show for it. Needs the session
+    // just opened, so it can only run after the credentials were accepted.
     try {
       await RequiredModules.ensureInstalled(
         serverUrl: client.baseURL,
@@ -539,7 +525,6 @@ class OdooSessionManager {
       throw Exception('Empty password - account needs re-authentication');
     }
 
-    /// Normalize server URL
     String normalizedUrl = normalizeServerUrl(serverUrl);
 
     await ConnectivityService.instance.ensureInternetOrThrow();
@@ -607,7 +592,6 @@ class OdooSessionManager {
     _cachedSession = newSession;
     await newSession.saveToPrefs();
 
-    /// Clear client to force re-authentication
     _client = null;
     _lastAuthTime = null;
 
@@ -617,7 +601,7 @@ class OdooSessionManager {
 
   /// Refresh expired session by re-authenticating
   static Future<bool> refreshSession() async {
-    /// Prevent concurrent refresh attempts
+    // Prevent concurrent refresh attempts
     if (_isRefreshing) {
       await Future.delayed(const Duration(milliseconds: 500));
       return await isSessionValid();
@@ -688,7 +672,6 @@ class OdooSessionManager {
       throw StateError('No Odoo session available. Please login.');
     }
 
-    /// Check if session is expired
     if (session.isExpired) {
       final refreshed = await refreshSession();
       if (!refreshed) {
@@ -699,7 +682,6 @@ class OdooSessionManager {
       }
     }
 
-    /// Reuse existing client if valid
     if (_client != null &&
         _lastAuthTime != null &&
         DateTime.now().difference(_lastAuthTime!) <
@@ -707,7 +689,6 @@ class OdooSessionManager {
       return _client!;
     }
 
-    /// Create new authenticated client
     try {
       await ConnectivityService.instance.ensureInternetOrThrow();
       await ConnectivityService.instance.ensureServerReachable(
@@ -721,7 +702,6 @@ class OdooSessionManager {
       } else {
         client = _newClient(session.serverUrl);
 
-        /// Retry authentication on transient failures
         for (int attempt = 1; attempt <= _maxRetries; attempt++) {
           try {
             await client.authenticate(
@@ -741,7 +721,6 @@ class OdooSessionManager {
       _client = client;
       _lastAuthTime = DateTime.now();
 
-      /// Update session expiry
       final updatedSession = session.copyWith(
         expiresAt: DateTime.now().add(const Duration(hours: 24)),
       );
@@ -796,10 +775,9 @@ class OdooSessionManager {
     try {
       return _normalizeBinaries(await action(client));
     } catch (e) {
-      /// Don't retry on connectivity issues
+      // Don't retry on connectivity issues
       if (ConnectivityService.isConnectivityError(e)) rethrow;
 
-      /// Retry once on auth errors
       if (_isAuthError(e)) {
         final refreshed = await refreshSession();
         if (refreshed) {
@@ -855,7 +833,7 @@ class OdooSessionManager {
     final ids = (info['company_ids'] as List<int>? ?? []);
     if (ids.isEmpty) return [];
 
-    /// Use safeCallKwWithoutCompany since we're fetching company list itself
+    // Use safeCallKwWithoutCompany since we're fetching company list itself
     final companiesRes = await safeCallKwWithoutCompany({
       'model': 'res.company',
       'method': 'search_read',
@@ -914,7 +892,6 @@ class OdooSessionManager {
             : http.get(uri, headers: headers);
         final response = await future.timeout(const Duration(seconds: 20));
 
-        /// Check for HTML response (session expired)
         final contentType = response.headers['content-type'] ?? '';
         final isHtml =
             contentType.contains('text/html') ||
@@ -930,7 +907,6 @@ class OdooSessionManager {
           continue;
         }
 
-        /// Retry on server errors
         if ([502, 503, 504].contains(response.statusCode) &&
             attempt < _maxRetries) {
           lastResponse = response;
@@ -953,13 +929,12 @@ class OdooSessionManager {
 
   /// Get selected company ID from current session or preferences
   static Future<int?> getSelectedCompanyId() async {
-    /// First check if we have it in the cached session
+    // First check if we have it in the cached session
     final session = await getCurrentSession();
     if (session?.companyId != null) {
       return session!.companyId;
     }
 
-    /// Fallback to reading from preferences directly
     try {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getInt('selected_company_id');
@@ -970,13 +945,12 @@ class OdooSessionManager {
 
   /// Get selected allowed company IDs from current session or preferences
   static Future<List<int>> getSelectedAllowedCompanyIds() async {
-    /// First check if we have it in the cached session
+    // First check if we have it in the cached session
     final session = await getCurrentSession();
     if (session != null && session.allowedCompanyIds.isNotEmpty) {
       return session.allowedCompanyIds;
     }
 
-    /// Fallback to reading from preferences directly
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getStringList('selected_allowed_company_ids') ?? [];
@@ -996,13 +970,11 @@ class OdooSessionManager {
       return;
     }
 
-    /// Ensure selected company is in allowed companies
     List<int> finalAllowedIds = [...allowedCompanyIds];
     if (!finalAllowedIds.contains(companyId)) {
       finalAllowedIds.add(companyId);
     }
 
-    /// Update session with new company info
     final updatedSession = session.copyWith(
       selectedCompanyId: companyId,
       allowedCompanyIds: finalAllowedIds,
@@ -1078,7 +1050,6 @@ class OdooSessionManager {
       ctx = rawCtx.map((key, value) => MapEntry(key.toString(), value));
     }
 
-    /// Get company info from parameters, session, or preferences (in that order)
     int? selectedCompany = companyId;
     List<int>? allowed = allowedCompanyIds;
 
@@ -1110,7 +1081,6 @@ class OdooSessionManager {
   /// so a failure in one (e.g. secure storage) never skips the rest,
   /// particularly clearing `isLoggedIn`.
   static Future<void> logout() async {
-    /// Clear password from secure storage
     try {
       final session = _cachedSession ?? await getCurrentSession();
       if (session?.userId != null) {
@@ -1231,13 +1201,13 @@ class OdooSessionManager {
     String serverUrl,
     String password,
   ) async {
-    /// Normalize so the same server can't be saved under differently
-    /// formatted URLs across login paths.
+    // Normalize so the same server can't be saved under differently
+    // formatted URLs across login paths.
     serverUrl = normalizeServerUrl(serverUrl);
 
     final sessionData = AppSessionData(
       odooSession: session,
-      password: password, ///  no password
+      password: password,
       serverUrl: serverUrl,
       database: session.dbName,
       expiresAt: DateTime.now().add(const Duration(hours: 24)),

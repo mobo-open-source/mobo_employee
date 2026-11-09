@@ -78,7 +78,6 @@ class FormSheetShell extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /// ───── Heading band ─────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: inset, vertical: 16),
           child: Row(
@@ -116,7 +115,6 @@ class FormSheetShell extends StatelessWidget {
         ),
         Divider(height: 1, color: ruleColor(isDark)),
 
-        /// ───── Fields and action ─────
         Padding(
           padding: EdgeInsets.fromLTRB(
             inset,

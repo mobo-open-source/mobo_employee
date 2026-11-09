@@ -31,8 +31,8 @@ class ConnectivityService {
       final source = error.source?.toString().toLowerCase() ?? '';
       return _looksLikeHtml(message) || _looksLikeHtml(source);
     }
-    /// Errors re-wrapped as `Exception('Failed to …: $e')` keep only the
-    /// original's text.
+    // Errors re-wrapped as `Exception('Failed to …: $e')` keep only the
+    // original's text.
     final s = error.toString().toLowerCase();
     return s.contains('nointernetexception') ||
         s.contains('serverunreachableexception') ||
@@ -68,7 +68,6 @@ class ConnectivityService {
 
   /// Start monitoring connectivity (idempotent)
   void startMonitoring() {
-    /// Initial probe
     _probeInternet();
     _probeServer();
     _connectivity.onConnectivityChanged.listen((
@@ -90,9 +89,9 @@ class ConnectivityService {
   Future<void> _probeServer() async {
     final url = _currentServerUrl;
     if (url == null) return;
-    /// Only meaningful to probe server if we have internet
+    // Only meaningful to probe server if we have internet
     if (!_lastInternetReachable) {
-      /// When internet is down, we implicitly consider server unreachable, but we don't spam stream unless state changes
+      // When internet is down, we implicitly consider server unreachable, but we don't spam stream unless state changes
       if (_lastServerReachable != false) {
         _lastServerReachable = false;
         _serverController.add(false);
@@ -235,7 +234,6 @@ class ConnectivityService {
   /// Set current server URL to be monitored for reachability. Pass null to clear.
   void setCurrentServerUrl(String? serverUrl) {
     _currentServerUrl = serverUrl;
-    /// Re-probe when server changes
     _probeServer();
   }
 

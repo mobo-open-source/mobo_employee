@@ -26,7 +26,7 @@ class _Provider extends ManagerApprovalsProvider {
   @override
   Future<int> leaveServerMajorVersion() async => 19;
 
-  // The calendar's counters are not what is being tested here.
+  /// The calendar's counters are not what is being tested here.
   @override
   Future<void> fetchLeaveCalendarEventsFunction({
     bool showLoader = true,
@@ -145,8 +145,8 @@ void main() {
   });
 
   group('saving an Apply for Leave', () {
-    /// Warm: the Time Off list has been read once, as it has by the time
-    /// someone is applying for leave from that tab.
+    // Warm: the Time Off list has been read once, as it has by the time
+    // someone is applying for leave from that tab.
     Future<void> warm() async {
       final first = provider.fetchTimeOffDetails();
       provider.reads[0].complete([_row(1)]);

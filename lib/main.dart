@@ -29,8 +29,8 @@ import 'features/employee/leave/provider/leave_page_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// Must run before any provider touches secure storage, so a leftover
-  /// Keychain password from ae previous install isn't read back as this one's.
+  // Must run before any provider touches secure storage, so a leftover
+  // Keychain password from ae previous install isn't read back as this one's.
   await SecureStorageService.instance.clearIfFreshInstall();
 
   runApp(
@@ -71,7 +71,7 @@ void main() async {
           create: (_) {
             final p = CompanyProvider();
 
-            /// Kick off initial load from server; will show loading in selector
+            // Kick off initial load from server; will show loading in selector
             p.initialize();
             return p;
           },

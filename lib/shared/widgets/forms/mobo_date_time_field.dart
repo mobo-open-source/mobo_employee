@@ -51,9 +51,9 @@ class MoboDateTimeField extends StatelessWidget {
         final onSurface = isDark ? Colors.white : Colors.black;
         final fieldFill = isDark ? Colors.grey[800]! : Colors.grey[100]!;
 
-        /// Neutral surfaces like [MoboDatePicker] — the seeded Material 3
-        /// containers are tinted red — with the picked hour/minute and AM/PM
-        /// filled Mobo so the selection still reads.
+        // Neutral surfaces like [MoboDatePicker] — the seeded Material 3
+        // containers are tinted red — with the picked hour/minute and AM/PM
+        // filled Mobo so the selection still reads.
         Color selectedFill(Set<WidgetState> states) =>
             states.contains(WidgetState.selected)
             ? AppColors.appColor

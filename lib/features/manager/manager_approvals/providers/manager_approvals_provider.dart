@@ -283,7 +283,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
     try {
       await fetchTimeOffData(showLoader: false);
     } catch (_) {
-      /// Unreachable server: the cards stay as they were, still marked failed.
+      // Unreachable server: the cards stay as they were, still marked failed.
       _timeOffDataFailed = true;
     } finally {
       _isLoading = false;
@@ -297,13 +297,13 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// failed load ([loadError] set), every call retries the full load.
   Future<void> loadInitialData() async {
     if (_isInitialLoadDone && loadError == null) {
-      /// Returning to Approvals: requests may have been created, approved
-      /// or refused (here or in Odoo) since the counters were read.
+      // Returning to Approvals: requests may have been created, approved
+      // or refused (here or in Odoo) since the counters were read.
       try {
         await _refreshInPlace();
       } catch (_) {
-        /// In-place refresh: figures that couldn't be re-read (server
-        /// unreachable) keep their last loaded values.
+        // In-place refresh: figures that couldn't be re-read (server
+        // unreachable) keep their last loaded values.
       }
       return;
     }
@@ -351,7 +351,7 @@ class ManagerApprovalsProvider extends ChangeNotifier {
   /// failure instead.
   Future<void> _refreshInPlace() async {
     await Future.wait([
-      /// Groups may have changed in Odoo since the last read.
+      // Groups may have changed in Odoo since the last read.
       _loadAllocationAccess(),
       fetchLeaveCalendarEventsFunction(showLoader: false),
       fetchTimeOffData(showLoader: false),
@@ -372,9 +372,9 @@ class ManagerApprovalsProvider extends ChangeNotifier {
         fetchTimeOffData(showLoader: false),
       ]);
     } catch (_) {
-      /// In-place refresh after an action: figures that couldn't be re-read
-      /// (server unreachable) keep their last loaded values, and the
-      /// action's own result is still reported.
+      // In-place refresh after an action: figures that couldn't be re-read
+      // (server unreachable) keep their last loaded values, and the
+      // action's own result is still reported.
     }
     notifyListeners();
   }

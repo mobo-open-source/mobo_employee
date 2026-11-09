@@ -32,8 +32,6 @@ class WidgetLeaveCalendar extends StatelessWidget {
     );
   }
 
-  /// ───── Helpers ─────
-
   /// Legend color of a time off in [state] (Odoo `hr.leave.state`).
   static Color eventColor(String state) {
     switch (state) {

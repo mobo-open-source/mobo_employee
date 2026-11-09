@@ -84,7 +84,6 @@ class AppSessionData {
     );
     await prefs.setBool('isLoggedIn', true);
 
-    /// Store password in secure storage
     await SecureStorageService.instance.storePassword(
       'session_password_username_${odooSession.userLogin}',
       password,
@@ -116,7 +115,6 @@ class AppSessionData {
 
       serverUrl = normalizeServerUrl(serverUrl!);
 
-      /// Load password from secure storage
       String? password = await SecureStorageService.instance.getPassword(
         'session_password_username_$userLogin',
       );
@@ -147,13 +145,11 @@ class AppSessionData {
           .where((e) => e > 0)
           .toList();
 
-      /// Create a minimal OdooSession from stored data
-
       final odooSession = OdooSession(
         id: sessionId!,
         userId: userId!,
         partnerId: 0,
-        /// Will be updated on next auth
+        // Will be updated on next auth
         companyId: companyId ?? 0,
         allowedCompanies: [],
         userLogin: userLogin!,

@@ -92,7 +92,7 @@ class FakeEmployeeLeaveProvider extends LeavePageProvider {
     bool isRefresh = false,
     bool showLoader = true,
   }) async {
-    /// prevent API call
+    // prevent API call
     notifyListeners();
   }
 }

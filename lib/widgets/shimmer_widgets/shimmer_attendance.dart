@@ -34,17 +34,17 @@ class AttendancePageShimmer extends StatelessWidget {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            _box(height: 70), /// checkout card
+            _box(height: 70),
             const SizedBox(height: 12),
-            _box(height: 320), /// calendar
+            _box(height: 320),
             const SizedBox(height: 12),
-            _box(height: 80), /// status card
+            _box(height: 80),
             const SizedBox(height: 12),
-            _box(height: 90), /// clock timeline
+            _box(height: 90),
             const SizedBox(height: 12),
-            _box(height: 20, width: 180, radius: 6), /// title
+            _box(height: 20, width: 180, radius: 6),
             const SizedBox(height: 10),
-            _box(height: 120), /// monthly overview
+            _box(height: 120),
           ],
         ),
       ),

@@ -164,9 +164,9 @@ class ManagerEmployeesProvider extends ChangeNotifier {
       domain.addAll(scopeConditions);
     }
 
-    /// No scope of the app's own: Odoo shows an HR Officer every employee of
-    /// the allowed companies, and so does this list. The "My Team" chip
-    /// narrows it to direct reports.
+    // No scope of the app's own: Odoo shows an HR Officer every employee of
+    // the allowed companies, and so does this list. The "My Team" chip
+    // narrows it to direct reports.
     return domain;
   }
 
@@ -228,8 +228,8 @@ class ManagerEmployeesProvider extends ChangeNotifier {
         search: currentSearch,
       );
     } catch (e) {
-      /// The list was cleared above; show a lost connection rather than
-      /// "No Employee Records Found".
+      // The list was cleared above; show a lost connection rather than
+      // "No Employee Records Found".
       if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isLoading = false;
@@ -297,28 +297,22 @@ class ManagerEmployeesProvider extends ChangeNotifier {
   }
 
   void clearOnManagerLogout() {
-    /// User session
     currentUserId = null;
 
-    /// Search
     searchEmployeeController.clear();
 
-    /// Filters
     activeFilters.clear();
     draftFilters.clear();
     groupBy = EmployeeGroupBy.none;
     draftGroupBy = EmployeeGroupBy.none;
     currentSearch = '';
 
-    /// Data
     employees.clear();
     modelManagerEmployeesResponse = null;
 
-    /// Pagination
     currentPage = 1;
     totalRecords = 0;
 
-    /// States
     initialLoading = false;
     isLoading = false;
     errorMessage = null;

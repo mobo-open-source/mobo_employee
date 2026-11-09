@@ -125,7 +125,7 @@ class ManagerCalendarService {
             'date_from',
             'date_to',
 
-            /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+            // Odoo 20 replaced hr.leave.type with hr.work.entry.type
             majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'activity_state',
           ],
@@ -156,8 +156,8 @@ class ManagerCalendarService {
       final int majorVersion = int.parse(serverVersionString.split('.').first);
       final userId = session?.userId.toInt();
 
-      /// Odoo 20 dropped start_datetime/stop_datetime from the calendar
-      /// report; filter and read the stored request dates instead.
+      // Odoo 20 dropped start_datetime/stop_datetime from the calendar
+      // report; filter and read the stored request dates instead.
       final response = await odooClient({
         'model': 'hr.leave.report.calendar',
         'method': 'search_read',
@@ -179,9 +179,9 @@ class ManagerCalendarService {
             'name',
             'state',
 
-            /// Plain dates: Odoo 20's request_date_hour_from/to are
-            /// timezone-shifted and end at the *next* midnight, which put
-            /// full-day leaves one day off in the calendar.
+            // Plain dates: Odoo 20's request_date_hour_from/to are
+            // timezone-shifted and end at the *next* midnight, which put
+            // full-day leaves one day off in the calendar.
             if (majorVersion >= 20) ...[
               'request_date_from',
               'request_date_to',
@@ -192,11 +192,11 @@ class ManagerCalendarService {
             'display_name',
             if (majorVersion >= 19) 'duration_display',
 
-            /// The report's time off type (holiday_status_id on 18/19,
-            /// work_entry_type_id on 20) is readable by Time Off Officers
-            /// only: asking for it made the whole read fail with an
-            /// AccessError for any other approver, leaving the calendar
-            /// empty. The event reads the type from display_name instead.
+            // The report's time off type (holiday_status_id on 18/19,
+            // work_entry_type_id on 20) is readable by Time Off Officers
+            // only: asking for it made the whole read fail with an
+            // AccessError for any other approver, leaving the calendar
+            // empty. The event reads the type from display_name instead.
           ],
           'context': {'uid': userId},
         },
@@ -254,7 +254,7 @@ class ManagerCalendarService {
             'date_to',
             majorVersion >= 18 ? 'duration_display' : 'number_of_days_display',
 
-            /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+            // Odoo 20 replaced hr.leave.type with hr.work.entry.type
             majorVersion >= 20 ? 'work_entry_type_id' : 'holiday_status_id',
             'employee_id',
             'department_id',
@@ -318,7 +318,7 @@ class ManagerCalendarService {
     await odooClient({
       'model': 'hr.leave',
 
-      /// Odoo 20 dropped action_validate; action_approve does both steps
+      // Odoo 20 dropped action_validate; action_approve does both steps
       'method': majorVersion >= 20 ? 'action_approve' : 'action_validate',
       'args': [
         [leaveId],
@@ -377,7 +377,7 @@ class ManagerCalendarService {
 
       final version = session!.odooSession.serverVersion;
 
-      /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+      // Odoo 20 replaced hr.leave.type with hr.work.entry.type
       if (await OdooSessionManager.getServerMajorVersion() >= 20) {
         final records = await TimeOffTypeService.fetchSelectableTypes(
           employeeId: employeeId,
@@ -505,7 +505,7 @@ class ManagerCalendarService {
     try {
       final majorVersion = await OdooSessionManager.getServerMajorVersion();
 
-      /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+      // Odoo 20 replaced hr.leave.type with hr.work.entry.type
       if (majorVersion >= 20) {
         final response = await OdooSessionManager.callKwWithCompany({
           'model': 'hr.work.entry.type',
@@ -531,8 +531,8 @@ class ManagerCalendarService {
             .toList();
       }
 
-      /// `requires_allocation` is Selection('yes'/'no') up to 18 and boolean
-      /// afterwards, so filter client-side to support both.
+      // `requires_allocation` is Selection('yes'/'no') up to 18 and boolean
+      // afterwards, so filter client-side to support both.
       final response = await OdooSessionManager.callKwWithCompany({
         'model': 'hr.leave.type',
         'method': 'search_read',
@@ -578,8 +578,8 @@ class ManagerCalendarService {
     final values = <String, dynamic>{
       'employee_id': employeeId,
 
-      /// On 17, `employee_id` is computed from `employee_ids`, which
-      /// otherwise defaults to the *current user's* employee.
+      // On 17, `employee_id` is computed from `employee_ids`, which
+      // otherwise defaults to the *current user's* employee.
       if (majorVersion < 18) 'holiday_type': 'employee',
       if (majorVersion < 18)
         'employee_ids': [

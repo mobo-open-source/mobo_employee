@@ -52,7 +52,6 @@ class _ProductSelectorDialogState extends State<ProductSelectorDialog> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            /// Header
             Row(
               children: [
                 HugeIcon(
@@ -79,7 +78,6 @@ class _ProductSelectorDialogState extends State<ProductSelectorDialog> {
             ),
             const SizedBox(height: 16),
 
-            /// Search field
             TextField(
               controller: _searchController,
               autofocus: true,
@@ -124,7 +122,6 @@ class _ProductSelectorDialogState extends State<ProductSelectorDialog> {
             ),
             const SizedBox(height: 16),
 
-            /// Product count
             if (filteredProducts.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -142,7 +139,6 @@ class _ProductSelectorDialogState extends State<ProductSelectorDialog> {
                 ),
               ),
 
-            /// Product list
             Expanded(
               child: filteredProducts.isEmpty
                   ? Center(

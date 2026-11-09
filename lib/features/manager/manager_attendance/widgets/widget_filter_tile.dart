@@ -27,7 +27,6 @@ class WidgetFilterTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            /// Leading icon
             Icon(
               isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
               size: 18,
@@ -36,7 +35,6 @@ class WidgetFilterTile extends StatelessWidget {
 
             const SizedBox(width: 10),
 
-            /// Title + Subtitle
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +61,6 @@ class WidgetFilterTile extends StatelessWidget {
               ),
             ),
 
-            /// Optional trailing widget
             if (trailing != null) trailing!,
           ],
         ),

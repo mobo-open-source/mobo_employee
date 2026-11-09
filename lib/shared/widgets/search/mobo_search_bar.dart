@@ -38,7 +38,7 @@ class _MoboSearchBarState extends State<MoboSearchBar> {
   static const double _height = 48;
   static const double _radius = 12;
 
-  // How long to wait after the user stops typing before actually searching.
+  /// How long to wait after the user stops typing before actually searching.
   static const Duration _debounce = Duration(milliseconds: 450);
   Timer? _debounceTimer;
 

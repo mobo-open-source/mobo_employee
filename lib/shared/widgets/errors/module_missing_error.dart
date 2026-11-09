@@ -32,7 +32,6 @@ class ModuleMissingError extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            /// Icon
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.0, end: 1.0),
               duration: const Duration(milliseconds: 600),
@@ -59,7 +58,6 @@ class ModuleMissingError extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Title
             Text(
               isMissingModule ? 'Module Not Installed' : 'Error',
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -70,7 +68,6 @@ class ModuleMissingError extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            /// Error message
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -99,7 +96,6 @@ class ModuleMissingError extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Action buttons
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -135,7 +131,6 @@ class ModuleMissingError extends StatelessWidget {
               ],
             ),
 
-            /// Help text
             if (isMissingModule) ...[
               const SizedBox(height: 24),
               Text(

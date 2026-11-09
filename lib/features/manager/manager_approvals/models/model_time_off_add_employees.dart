@@ -33,7 +33,6 @@ class Employee {
     int? deptId;
     String? deptName;
 
-    ///  Decode image
     final image = json['avatar_128'];
     if (image is String && image.isNotEmpty) {
       try {
@@ -43,7 +42,7 @@ class Employee {
       }
     }
 
-    ///  Handle department_id (List OR false)
+    //  Handle department_id (List OR false)
     final department = json['department_id'];
 
     if (department is List && department.isNotEmpty) {

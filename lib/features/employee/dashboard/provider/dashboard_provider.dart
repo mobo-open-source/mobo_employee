@@ -119,13 +119,12 @@ class DashboardProvider extends ChangeNotifier {
   }
 
   Future<void> loadDashboardOnce(BuildContext context) async {
-    if (isInitialized) return; ///prevents reloading
+    if (isInitialized) return;
 
     isInitialized = true;
     isDashboardLoading = true;
     safeNotify();
 
-    /// Load persisted check-in state
     await init();
 
     final session = await OdooSessionManager.getCurrentSession();
@@ -143,9 +142,9 @@ class DashboardProvider extends ChangeNotifier {
     await fetchLeaveRequestCount();
     await fetchYesterdayWorkingHours();
     await fetchRecentLeave();
-    /// Reconcile the locally cached check-in flag with the server's actual
-    /// attendance state — it may have changed from another device/admin
-    /// action while the app was closed.
+    // Reconcile the locally cached check-in flag with the server's actual
+    // attendance state — it may have changed from another device/admin
+    // action while the app was closed.
     await getAttendeeState();
 
     buildDashboardModel();
@@ -172,7 +171,7 @@ class DashboardProvider extends ChangeNotifier {
           safeNotify();
         }
       } catch (_) {
-        /// Background poll; the next tick tries again.
+        // Background poll; the next tick tries again.
       }
     });
   }
@@ -220,7 +219,6 @@ class DashboardProvider extends ChangeNotifier {
           checkInDateTime = lastCheckIn;
           checkInn = DateFormat("hh:mm a").format(lastCheckIn);
           currentTime = checkInn!;
-          /// Save exact local time
           await prefs.setString(_checkInTimeKey, lastCheckIn.toIso8601String());
           notifyListeners();
         }
@@ -228,8 +226,8 @@ class DashboardProvider extends ChangeNotifier {
       } else if (state == "checked_out") {
         isAttendanceCheckedIn = false;
         await prefs.setBool(_attendanceKey, false);
-        /// The response only carries the last check-in, which used to be
-        /// shown as the check-out time; read the real one.
+        // The response only carries the last check-in, which used to be
+        // shown as the check-out time; read the real one.
         final lastCheckOut = employeeId == null
             ? null
             : await AdministratorDashboardService.fetchLastCheckOut(
@@ -238,7 +236,6 @@ class DashboardProvider extends ChangeNotifier {
         checkOutDateTime = lastCheckOut;
         if (lastCheckOut != null) {
           checkOut = DateFormat("hh:mm a").format(lastCheckOut);
-          /// Save exact local time
           await prefs.setString(
             _checkOutTimeKey,
             lastCheckOut.toIso8601String(),
@@ -261,10 +258,10 @@ class DashboardProvider extends ChangeNotifier {
       isCheckInOutLoading = true;
       safeNotify();
 
-      /// The check-in/out endpoint only toggles whatever state the server
-      /// is currently in, so a stale local flag could make this call
-      /// actually check the user OUT. Re-sync from the server first and
-      /// bail out if we're already checked in rather than blindly toggling.
+      // The check-in/out endpoint only toggles whatever state the server
+      // is currently in, so a stale local flag could make this call
+      // actually check the user OUT. Re-sync from the server first and
+      // bail out if we're already checked in rather than blindly toggling.
       await getAttendeeState();
       if (isAttendanceCheckedIn) {
         CustomSnackbar.showError(context, "You are already checked in.");
@@ -292,19 +289,16 @@ class DashboardProvider extends ChangeNotifier {
       if (e is OdooException) {
         final errorString = e.toString();
 
-        ///Permission error
         if (errorString.contains("AccessError")) {
           errorMessage =
               "Permission denied: You don’t have access to perform check-out.";
         }
-        /// Employee not linked
         else if (errorString.contains("Expected singleton")) {
           errorMessage =
               "Check-out failed: No employee record linked to your account.";
         } else if (errorString.contains("attendance")) {
           errorMessage = cleanedError(e.toString());
         }
-        ///Other server message
         else if (e.message.isNotEmpty) {
           errorMessage = e.message;
         }
@@ -350,7 +344,7 @@ class DashboardProvider extends ChangeNotifier {
     final now = DateTime.now();
     final duration = now.difference(checkInDateTime!);
 
-    workedHoursTillNow = duration.inMinutes / 60; /// precise decimal hours
+    workedHoursTillNow = duration.inMinutes / 60;
 
     safeNotify();
   }
@@ -363,8 +357,8 @@ class DashboardProvider extends ChangeNotifier {
       isCheckInOutLoading = true;
       safeNotify();
 
-      /// See performCheckIn: re-sync from the server before toggling so a
-      /// stale local flag can't cause this call to actually check-in.
+      // See performCheckIn: re-sync from the server before toggling so a
+      // stale local flag can't cause this call to actually check-in.
       await getAttendeeState();
       if (!isAttendanceCheckedIn) {
         CustomSnackbar.showError(context, "You are not currently checked in.");
@@ -393,21 +387,17 @@ class DashboardProvider extends ChangeNotifier {
       if (e is OdooException) {
         final errorString = e.toString();
 
-        ///  Permission error
         if (errorString.contains("AccessError")) {
           errorMessage =
               "Permission denied: You don’t have access to perform check-out.";
         }
-        /// Employee not linked
         else if (errorString.contains("Expected singleton")) {
           errorMessage =
               "Check-out failed: No employee record linked to your account.";
         }
-        ///  Already checked out
         else if (errorString.contains("attendance")) {
           errorMessage = "You are not currently checked in.";
         }
-        ///  Other server message
         else if (e.message.isNotEmpty) {
           errorMessage = e.message;
         }
@@ -614,8 +604,8 @@ class DashboardProvider extends ChangeNotifier {
         fetchLeaveBalance(userId),
       ]);
     } catch (_) {
-      /// In-place refresh: figures that couldn't be re-read (server
-      /// unreachable) keep their last loaded values.
+      // In-place refresh: figures that couldn't be re-read (server
+      // unreachable) keep their last loaded values.
     }
     buildDashboardModel();
     safeNotify();

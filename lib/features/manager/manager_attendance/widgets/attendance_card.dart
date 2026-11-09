@@ -122,8 +122,8 @@ class AttendanceCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
 
-              /// Still on the clock is in progress (blue); a closed
-              /// attendance is done (green).
+              // Still on the clock is in progress (blue); a closed
+              // attendance is done (green).
               StatusColors.buildStatusBadge(
                 isCheckedIn ? 'Checked In' : 'Checked Out',
                 color: isCheckedIn ? StatusColors.blue : StatusColors.green,

@@ -26,18 +26,14 @@ class LoginLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    /// Let Flutter handle system UI automatically
-
     return Scaffold(
       body: Stack(
         children: [
-          /// Background
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey[950] : Colors.grey[50],
                 image: DecorationImage(
-                  ///set your login image
                   image: AssetImage('assets/images/loginbg.png'),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
@@ -51,12 +47,10 @@ class LoginLayout extends StatelessWidget {
             ),
           ),
 
-          /// Main content
           LayoutBuilder(
             builder: (context, viewportConstraints) {
               return Column(
                 children: [
-                  /// App name and logo at the top
                   SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 68),
@@ -64,7 +58,6 @@ class LoginLayout extends StatelessWidget {
                     ),
                   ),
 
-                  /// Scrollable content area for sign-in form
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -72,7 +65,7 @@ class LoginLayout extends StatelessWidget {
                         constraints: BoxConstraints(
                           minHeight:
                               viewportConstraints.maxHeight -
-                              180, /// Account for header height
+                              180,
                         ),
                         child: Center(
                           child: ConstrainedBox(
@@ -85,11 +78,9 @@ class LoginLayout extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  /// Sign In header
                                   _buildSignInHeader(),
                                   const SizedBox(height: 40),
 
-                                  /// Form section with consistent theme
                                   Theme(
                                     data: Theme.of(context).copyWith(
                                       inputDecorationTheme: Theme.of(context)
@@ -142,7 +133,6 @@ class LoginLayout extends StatelessWidget {
             },
           ),
 
-          /// Back button (if provided)
           if (backButton != null) backButton!,
         ],
       ),
@@ -161,9 +151,9 @@ class LoginLayout extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        /// Scale the canvas until the glyph alone is [_logoSize] wide and let
-        /// the transparent margin spill outside the box, so the gap to the
-        /// wordmark is the 12px below rather than invisible padding.
+        // Scale the canvas until the glyph alone is [_logoSize] wide and let
+        // the transparent margin spill outside the box, so the gap to the
+        // wordmark is the 12px below rather than invisible padding.
         SizedBox.square(
           dimension: _logoSize,
           child: OverflowBox(
@@ -193,7 +183,6 @@ class LoginLayout extends StatelessWidget {
   Widget _buildSignInHeader() {
     return Column(
       children: [
-        /// "Sign In" text
         Text(
           title,
           style: GoogleFonts.montserrat(
@@ -205,7 +194,6 @@ class LoginLayout extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
-        /// Subtitle text
         Text(
           subtitle,
           style: GoogleFonts.manrope(
@@ -373,10 +361,8 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
   }
 
   Future<void> _handleMenuOpen(BuildContext context) async {
-    /// Close keyboard immediately
     FocusScope.of(context).unfocus();
 
-    /// Wait for keyboard to close, then open dropdown
     await Future.delayed(const Duration(milliseconds: 250));
 
     if (!mounted) return;
@@ -386,24 +372,24 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
   void _showDropdownOverlay() {
     final uniqueItems = widget.items.toSet().toList();
     if (uniqueItems.isEmpty) return;
-    if (_overlayEntry != null) return; /// already open
+    if (_overlayEntry != null) return;
 
-    /// Calculate field width
     final renderBox = context.findRenderObject() as RenderBox?;
     final fieldWidth =
         renderBox?.size.width ?? (MediaQuery.of(context).size.width - 48);
-    /// Calculate dynamic height so the dropdown doesn't hit the bottom of the screen
+    // Calculate dynamic height so the dropdown doesn't hit the bottom of the screen
     final fieldOffset = renderBox?.localToGlobal(Offset.zero) ?? Offset.zero;
     final screenHeight = MediaQuery.of(context).size.height;
     final fieldHeight = renderBox?.size.height ?? 0;
     final availableBelow =
-        screenHeight - (fieldOffset.dy + fieldHeight) - 16; /// keep 16px margin
-    /// Limit visible items to 5 rows (others scroll)
-    const double itemHeight = 44.0; /// consistent row height
-    const double listVerticalPadding = 16.0; /// 8 top + 8 bottom
+        screenHeight - (fieldOffset.dy + fieldHeight) - 16;
+    // Limit visible items to 5 rows (others scroll)
+    const double itemHeight = 44.0;
+    const double listVerticalPadding = 16.0;
     final double heightForFiveItems = itemHeight * 5 + listVerticalPadding;
     final double maxDropdownHeight = math.max(
-      120.0, /// minimum sensible height (~2 items)
+      // Minimum sensible height: about two items.
+      120.0,
       math.min(availableBelow, heightForFiveItems),
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -411,7 +397,6 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
     _overlayEntry = OverlayEntry(
       builder: (overlayContext) => Stack(
         children: [
-          /// Tap outside to dismiss
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -480,7 +465,6 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
       ),
     );
 
-    /// Insert into overlay layer after build frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _overlayEntry == null) return;
       final overlayState = Overlay.maybeOf(context);
@@ -512,18 +496,17 @@ class _LoginDropdownFieldState extends State<LoginDropdownField> {
         validator: widget.validator,
         autovalidateMode: widget.autovalidateMode,
         builder: (field) {
-          /// Keep the FormField's internal value in sync with the external widget.value
           final externalValue = uniqueItems.contains(widget.value)
               ? widget.value
               : null;
           if (field.value != externalValue) {
-            /// Schedule the change after build to avoid setState during build
+            // Schedule the change after build to avoid setState during build
             WidgetsBinding.instance.addPostFrameCallback((_) {
               field.didChange(externalValue);
             });
           }
 
-          /// Always use the external (provider-backed) value for display
+          // Always use the external (provider-backed) value for display
           final effectiveValue = externalValue;
           final showErrorIcon =
               widget.hasError &&
@@ -629,9 +612,9 @@ class LoginErrorDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /// At least 40 high, so the form below doesn't jump when a short message
-    /// appears, but free to grow: a longer one (e.g. "This database has
-    /// expired …") used to overflow the old fixed 40 and get clipped.
+    // At least 40 high, so the form below doesn't jump when a short message
+    // appears, but free to grow: a longer one (e.g. "This database has
+    // expired …") used to overflow the old fixed 40 and get clipped.
     return AnimatedSize(
       duration: const Duration(milliseconds: 200),
       alignment: Alignment.topCenter,
@@ -716,7 +699,6 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
   @override
   void initState() {
     super.initState();
-    /// Listen for user typing/pasting a full URL including protocol
     widget.controller.addListener(_handleTypedProtocolInField);
   }
 
@@ -744,22 +726,19 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
     }
 
     if (detectedProtocol != null) {
-      /// Inform parent that a full URL with protocol was entered
       widget.onProtocolAutoDetected?.call();
       _isAdjustingText = true;
       try {
-        /// Update protocol selector if different
         if (widget.onProtocolChanged != null &&
             widget.selectedProtocol != detectedProtocol) {
           widget.onProtocolChanged!(detectedProtocol);
         }
 
-        /// Strip protocol from the text field so only domain/host remains
+        // Strip protocol from the text field so only domain/host remains
         if (domain != raw) {
           widget.controller
             ..text = domain
             ..selection = TextSelection.collapsed(offset: domain.length);
-          /// Propagate sanitized value to parent listeners
           widget.onChanged?.call(domain);
         }
       } finally {
@@ -769,10 +748,8 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
   }
 
   Future<void> _handleProtocolMenuOpen(BuildContext context) async {
-    /// Close keyboard immediately
     FocusScope.of(context).unfocus();
 
-    /// Wait for keyboard to close, then open dropdown
     await Future.delayed(const Duration(milliseconds: 250));
 
     if (!mounted) return;
@@ -845,7 +822,6 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
         prefixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            /// Server icon
             Padding(
               padding: const EdgeInsets.only(left: 12, right: 8),
               child: Transform.scale(
@@ -857,7 +833,6 @@ class _LoginUrlTextFieldState extends State<LoginUrlTextField> {
                 ),
               ),
             ),
-            /// Protocol dropdown
             Container(
               decoration: BoxDecoration(
                 border: Border(

@@ -29,10 +29,9 @@ class LeaveMyCalenderModel {
     return LeaveMyCalenderModel(
       id: json['id'] ?? 0,
 
-      /// use display_name (more reliable for calendar view)
+      // use display_name (more reliable for calendar view)
       description: cleanDisplayName(json['display_name']),
 
-      /// extract leave type from display_name
       leaveTypeName: _extractLeaveType(json['display_name']),
 
       dateFrom: from,
@@ -44,8 +43,6 @@ class LeaveMyCalenderModel {
       state: _stringOrDash(json['state']),
     );
   }
-
-  /// ───── helpers ─────
 
   static String _extractLeaveType(dynamic displayName) {
     if (displayName == null) return '';

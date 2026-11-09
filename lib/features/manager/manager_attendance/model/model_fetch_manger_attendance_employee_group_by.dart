@@ -10,7 +10,7 @@ class ModelAttendanceGroupByEmployeeData {
   });
 
   factory ModelAttendanceGroupByEmployeeData.fromJson(dynamic json) {
-    /// ---------- CASE 1: web_read_group ----------
+    // CASE 1: web_read_group
     if (json is Map) {
       final rawGroups = json['groups'];
 
@@ -31,7 +31,7 @@ class ModelAttendanceGroupByEmployeeData {
       );
     }
 
-    /// ---------- CASE 2: read_group ----------
+    // CASE 2: read_group
     if (json is List) {
       final groups = json
           .whereType<Map>()
@@ -76,30 +76,26 @@ class ManagerAttendanceEmployeeGroup implements AttendanceGroupNode {
   String get label => employeeName;
 
   factory ManagerAttendanceEmployeeGroup.fromJson(Map<String, dynamic> json) {
-    /// ---------- Employee ----------
     int id = 0;
     String name = '-';
 
     final emp = json['employee_id'];
 
-    /// web_read_group → [id, name]
+    // web_read_group → [id, name]
     if (emp is List && emp.length == 2) {
       id = emp[0] is int ? emp[0] : 0;
       name = emp[1]?.toString() ?? '-';
     }
 
-    /// ---------- Numeric helpers ----------
     double toDouble(dynamic v) => v is num ? v.toDouble() : 0.0;
     int toInt(dynamic v) => v is num ? v.toInt() : 0;
 
-    /// ---------- Totals ----------
     final worked = json['worked_hours:sum'] ?? json['worked_hours'];
     final overtime = json['overtime_hours:sum'] ?? json['overtime_hours'];
     final validated =
         json['validated_overtime_hours:sum'] ??
         json['validated_overtime_hours'];
 
-    /// ---------- Domain ----------
     final domain = json['__extra_domain'] ?? json['__domain'];
     final List<dynamic> safeDomain = domain is List
         ? List<dynamic>.from(domain)

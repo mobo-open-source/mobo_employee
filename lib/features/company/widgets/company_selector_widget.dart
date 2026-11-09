@@ -26,11 +26,11 @@ class CompanySelectorWidget extends StatefulWidget {
 }
 
 class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
-  // Session we last initialised for; on account switch this changes so we
-  // re-run CompanyProvider.initialize() instead of showing stale data.
+  /// Session we last initialised for; on account switch this changes so we
+  /// re-run CompanyProvider.initialize() instead of showing stale data.
   String? _initialisedFor;
 
-  // Ensures a persistent failure auto-retries once, not indefinitely.
+  /// Ensures a persistent failure auto-retries once, not indefinitely.
   bool _hasAutoRetriedThisFailure = false;
 
   String? _sessionKey(SessionService session) {
@@ -192,7 +192,6 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
               ),
             ),
             const SizedBox(width: 4),
-            /// Show subtle loading spinner while provider is fetching from server
             if (provider.isLoading || provider.isSwitching) ...[
               SizedBox(
                 width: 14,
@@ -214,11 +213,10 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
   }
 
   void _showDropdownMenu(BuildContext context, CompanyProvider provider) async {
-    /// Always refetch on open to ensure we display up-to-date companies
-    /// Not awaited so the UI opens immediately; Confirm waits for it instead.
+    // Always refetch on open to ensure we display up-to-date companies
+    // Not awaited so the UI opens immediately; Confirm waits for it instead.
     final refreshing = provider.initialize();
     final screenSize = MediaQuery.of(context).size;
-    /// Use bottom sheet on very narrow screens
     if (screenSize.width < 1000) {
       await showModalBottomSheet(
         context: context,
@@ -238,7 +236,7 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
               provider: provider,
               refreshing: refreshing,
               onCompanyChanged: widget.onCompanyChanged,
-              width: screenSize.width, /// take full width inside sheet
+              width: screenSize.width,
             ),
           );
         },
@@ -246,7 +244,7 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
       return;
     }
 
-    /// Popover for wider screens; clamp within viewport and set responsive width
+    // Popover for wider screens; clamp within viewport and set responsive width
     final RenderBox button = context.findRenderObject() as RenderBox;
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -261,7 +259,7 @@ class _CompanySelectorWidgetState extends State<CompanySelectorWidget> {
     );
     final double top = math.min(
       buttonPosition.dy + buttonSize.height + 4,
-      screenSize.height - 16 - 300, /// leave room at bottom
+      screenSize.height - 16 - 300,
     );
 
     await showGeneralDialog(
@@ -370,12 +368,12 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
     bool changed = false;
 
     try {
-      /// Let the refresh started on open finish first: it ends by restoring
-      /// the saved company, which would otherwise undo this switch.
+      // Let the refresh started on open finish first: it ends by restoring
+      // the saved company, which would otherwise undo this switch.
       await widget.refreshing;
       if (!mounted) return;
 
-      /// -1: no company was selected when the list opened.
+      // -1: no company was selected when the list opened.
       final noActiveChange = _tempSelectedCompanyId < 0 ||
           _tempSelectedCompanyId == widget.provider.selectedCompanyId;
       final noAllowedChange = _setEquals(
@@ -383,13 +381,13 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
         widget.provider.selectedAllowedCompanyIds.toSet(),
       );
 
-      /// 1. Switch active company if changed
+      // 1. Switch active company if changed
       if (!noActiveChange) {
         await widget.provider.switchCompany(_tempSelectedCompanyId);
         changed = true;
       }
 
-      /// 2. Update allowed companies if changed (do AFTER switching)
+      // 2. Update allowed companies if changed (do AFTER switching)
       if (!noAllowedChange) {
         await widget.provider.setAllowedCompanies(
           _tempAllowedCompanyIds.toList(),
@@ -411,8 +409,8 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
     } finally {
       if (mounted) {
         setState(() => _applying = false);
-        /// Only close the list itself; if it was already dismissed while
-        /// applying, a bare pop would close the page beneath it.
+        // Only close the list itself; if it was already dismissed while
+        // applying, a bare pop would close the page beneath it.
         final route = ModalRoute.of(context);
         if (route != null && route.isCurrent) Navigator.pop(context);
       }
@@ -440,7 +438,6 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          /// Error banner (if any)
           if (widget.provider.error != null)
             Container(
               margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -468,7 +465,6 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                 ],
               ),
             ),
-          /// Company list
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
@@ -502,7 +498,7 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                               setState(() {
                                 _edited = true;
                                 _tempSelectedCompanyId = companyId;
-                                /// Odoo behavior: When you switch active company, it must be in allowed list
+                                // Odoo behavior: When you switch active company, it must be in allowed list
                                 _tempAllowedCompanyIds.add(companyId);
                               });
                             },
@@ -513,7 +509,6 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                         ),
                         child: Row(
                           children: [
-                            /// Company Name
                             Expanded(
                               child: Text(
                                 companyName,
@@ -537,7 +532,8 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                 onChanged: _applying
                                     ? null
                                     : (companyId == _tempSelectedCompanyId)
-                                    ? null /// active company cannot be unchecked
+                                    // The active company cannot be unchecked.
+                                    ? null
                                     : (val) {
                                         setState(() {
                                           _edited = true;
@@ -552,8 +548,8 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                                           }
                                         });
                                       },
-                                /// Locked (active company) checkbox keeps the
-                                /// ticked look, so it still reads as checked.
+                                // Locked (active company) checkbox keeps the
+                                // ticked look, so it still reads as checked.
                                 size: 26,
                               ),
                             ),
@@ -567,7 +563,6 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
               },
             ),
           ),
-          /// Action Buttons
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -647,10 +642,10 @@ class _CompanyDropdownContentState extends State<_CompanyDropdownContent> {
                 Expanded(
                   child: Builder(
                     builder: (context) {
-                      /// Not disabled when nothing changed: the disabled
-                      /// colors match the enabled ones (so "Applying..."
-                      /// stays readable), and a Confirm that looked enabled
-                      /// but did nothing read as broken. It just closes.
+                      // Not disabled when nothing changed: the disabled
+                      // colors match the enabled ones (so "Applying..."
+                      // stays readable), and a Confirm that looked enabled
+                      // but did nothing read as broken. It just closes.
                       final disabled =
                           _applying ||
                           _resetting ||

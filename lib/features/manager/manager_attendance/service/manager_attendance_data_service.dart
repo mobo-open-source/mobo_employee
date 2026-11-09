@@ -38,7 +38,7 @@ class ManagerAttendanceDataService {
           'check_in',
           'check_out',
           'worked_hours',
-          /// Odoo 20 removed the overtime fields from hr.attendance
+          // Odoo 20 removed the overtime fields from hr.attendance
           if (majorVersion < 20) 'overtime_hours',
           if (majorVersion >= 18 && majorVersion < 20)
             'validated_overtime_hours',
@@ -82,7 +82,7 @@ class ManagerAttendanceDataService {
       if (search.isNotEmpty) ['employee_id', 'ilike', search],
     ];
 
-    /// Odoo 20 removed the legacy read_group signature and the overtime fields
+    // Odoo 20 removed the legacy read_group signature and the overtime fields
     if (majorVersion >= 20) {
       final result = await odooClient({
         'model': 'hr.attendance',
@@ -145,7 +145,7 @@ class ManagerAttendanceDataService {
       if (search.isNotEmpty) ['employee_id', 'ilike', search],
     ];
 
-    /// Odoo 20 removed the legacy read_group signature and the overtime fields
+    // Odoo 20 removed the legacy read_group signature and the overtime fields
     if (majorVersion >= 20) {
       final result = await odooClient({
         'model': 'hr.attendance',

@@ -52,7 +52,6 @@ class WidgetSearchBarPage extends StatelessWidget {
           filled: true,
           fillColor: isDarkTheme ? AppColors.greyShade800Color : Colors.white,
 
-          /// Prefix Icon
           prefixIcon: leftIcon == null
               ? null
               : Material(
@@ -71,7 +70,6 @@ class WidgetSearchBarPage extends StatelessWidget {
                   ),
                 ),
 
-          /// Clear Icon
           suffixIcon: controller.text.isNotEmpty
               ? Material(
                   color: Colors.transparent,

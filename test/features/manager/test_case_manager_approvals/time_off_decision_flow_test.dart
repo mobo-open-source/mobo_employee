@@ -26,7 +26,7 @@ class _Provider extends ManagerApprovalsProvider {
   Future<void> decideTimeOff(String decision, int leaveId) async =>
       decisions.add('$decision $leaveId');
 
-  // The calendar's counters are not what is being tested here.
+  /// The calendar's counters are not what is being tested here.
   @override
   Future<void> fetchLeaveCalendarEventsFunction({
     bool showLoader = true,
@@ -77,8 +77,8 @@ void main() {
   });
 
   group('the provider', () {
-    /// The list read once, as it has been by the time someone is deciding on
-    /// a request in it.
+    // The list read once, as it has been by the time someone is deciding on
+    // a request in it.
     Future<void> warm() async {
       final first = provider.fetchTimeOffDetails();
       provider.reads[0].complete([_row(1), _row(2)]);

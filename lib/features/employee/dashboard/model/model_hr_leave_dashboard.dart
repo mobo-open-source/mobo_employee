@@ -3,7 +3,6 @@ class HrLeave {
   final int supportedAttachmentIdsCount;
   final String state;
 
-  // many2one
   final int employeeId;
   final String employeeName;
 
@@ -26,7 +25,6 @@ class HrLeave {
 
   final bool holidayStatusRequiresAllocation;
 
-  // many2one
   final int holidayStatusId;
   final String holidayStatusName;
 
@@ -80,8 +78,8 @@ class HrLeave {
       employeeName = employee[1]?.toString() ?? '';
     }
     final holiday = json['holiday_status_id'] ?? json['work_entry_type_id'];
-    /// Odoo 20 renamed leave_type_request_unit and dropped
-    /// request_unit_half/hours (Odoo 19 derived them from the unit).
+    // Odoo 20 renamed leave_type_request_unit and dropped
+    // request_unit_half/hours (Odoo 19 derived them from the unit).
     final requestUnit =
         json['leave_type_request_unit'] ?? json['work_entry_type_request_unit'];
     int holidayStatusId = 0;

@@ -16,7 +16,6 @@ class ModuleValidationService {
   Future<Map<String, bool>> validateRequiredModules({
     bool forceRefresh = false,
   }) async {
-    /// Check cache first
     if (!forceRefresh) {
       final cached = await _loadCachedStatus();
       if (cached != null) {
@@ -29,20 +28,17 @@ class ModuleValidationService {
     try {
       final client = await OdooSessionManager.getClientEnsured();
 
-      /// Check for Inventory module (stock)
       final inventoryInstalled = await _checkModule(client, 'stock');
       results['stock'] = inventoryInstalled;
 
-      /// Check for Product module (usually installed with stock)
       final productInstalled = await _checkModule(client, 'product');
       results['product'] = productInstalled;
 
-      /// Cache the results
       await _cacheStatus(results);
 
       return results;
     } catch (e) {
-      /// Return empty map on error - let individual features handle it
+      // Return empty map on error - let individual features handle it
       return {};
     }
   }
@@ -50,7 +46,6 @@ class ModuleValidationService {
   /// Check if a specific module is installed
   Future<bool> _checkModule(dynamic client, String moduleName) async {
     try {
-      /// Try to check if the module exists by querying ir.module.module
       final result = await client.callKw({
         'model': 'ir.module.module',
         'method': 'search_count',
@@ -65,8 +60,8 @@ class ModuleValidationService {
 
       return (result as int) > 0;
     } catch (e) {
-      /// If we can't check, assume it might be installed
-      /// Individual features will fail gracefully if not
+      // If we can't check, assume it might be installed
+      // Individual features will fail gracefully if not
       return false;
     }
   }
@@ -114,11 +109,9 @@ class ModuleValidationService {
         final lastCheck = DateTime.parse(lastCheckStr);
         final now = DateTime.now();
 
-        /// Check if cache is still valid
         if (now.difference(lastCheck) < _cacheValidDuration) {
           final statusStr = prefs.getString(_cacheKeyModuleStatus);
           if (statusStr != null) {
-            /// Parse the cached status
             final parts = statusStr.split(',');
             final status = <String, bool>{};
             for (final part in parts) {
@@ -140,7 +133,6 @@ class ModuleValidationService {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      /// Convert map to string for storage
       final statusStr = status.entries
           .map((e) => '${e.key}:${e.value}')
           .join(',');

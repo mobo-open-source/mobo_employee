@@ -47,7 +47,6 @@ class ReviewService {
   Future<void> _trackAppOpen() async {
     final prefs = await SharedPreferences.getInstance();
 
-    /// 1. First Open Date
     if (!prefs.containsKey(_keyFirstOpenDate)) {
       await prefs.setInt(
         _keyFirstOpenDate,
@@ -55,7 +54,6 @@ class ReviewService {
       );
     }
 
-    /// 2. Increment Open Count
     int currentOpens = prefs.getInt(_keyOpenCount) ?? 0;
     currentOpens++;
     await prefs.setInt(_keyOpenCount, currentOpens);
@@ -64,7 +62,6 @@ class ReviewService {
   Future<void> trackSignificantEvent() async {
     final prefs = await SharedPreferences.getInstance();
 
-    /// Increment Event Count
     int currentEvents = prefs.getInt(_keyEventCount) ?? 0;
     currentEvents++;
     await prefs.setInt(_keyEventCount, currentEvents);
@@ -82,7 +79,6 @@ class ReviewService {
       return;
     }
 
-    /// Check if we are past the next allowed date
     int? nextAllowedEpoch = prefs.getInt(_keyNextAllowedDate);
     if (nextAllowedEpoch != null) {
       final nextAllowedDate = DateTime.fromMillisecondsSinceEpoch(
@@ -96,19 +92,19 @@ class ReviewService {
     if (await _inAppReview.isAvailable()) {
       bool shouldRequest = false;
 
-      /// Criteria 1: Nth usage (open)
+      // Criteria 1: Nth usage (open)
       int openCount = prefs.getInt(_keyOpenCount) ?? 0;
       if (openCount >= _thresholdOpens) {
         shouldRequest = true;
       }
 
-      /// Criteria 2: Nth significant event
+      // Criteria 2: Nth significant event
       int eventCount = prefs.getInt(_keyEventCount) ?? 0;
       if (eventCount >= _thresholdEvents) {
         shouldRequest = true;
       }
 
-      /// Criteria 3: N days usage
+      // Criteria 3: N days usage
       int? firstOpenEpoch = prefs.getInt(_keyFirstOpenDate);
       if (firstOpenEpoch != null) {
         final firstOpenDate = DateTime.fromMillisecondsSinceEpoch(
@@ -126,8 +122,8 @@ class ReviewService {
 
           CustomRatingDialog.show(context);
         } else {
-          /// No context yet — skip this run rather than showing the dialog
-          /// over a transition screen.
+          // No context yet — skip this run rather than showing the dialog
+          // over a transition screen.
         }
       }
     }
@@ -145,9 +141,9 @@ class ReviewService {
 
   /// Track app open and show dialog if criteria met
   Future<void> checkAndShowRating(BuildContext context) async {
-    /// Count this run's open before reading the count, so the prompt lands on
-    /// the Nth open rather than the N+1th depending on which callback ran
-    /// first.
+    // Count this run's open before reading the count, so the prompt lands on
+    // the Nth open rather than the N+1th depending on which callback ran
+    // first.
     await trackAppOpen();
 
     final prefs = await SharedPreferences.getInstance();
@@ -157,10 +153,9 @@ class ReviewService {
   /// Force a review request. If the native dialog is suppressed by the store
   /// (due to quotas), it will fall back to opening the Store Listing directly.
   Future<void> forceRequestReview() async {
-    /// Update next allowed date to enforce cooldown period
     await postponeReview(const Duration(days: 30));
 
-    /// Show a small snackbar so the user knows the request is in flight
+    // Show a small snackbar so the user knows the request is in flight
     scaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(
         content: const Text('Requesting store review...'),
@@ -198,7 +193,6 @@ class ReviewService {
         scheme: 'mailto',
         path: 'cybroplay@gmail.com',
 
-        /// Support email
         query: encodeQueryParameters(<String, String>{
           'subject':
               'Feedback for Mobo Employees (${rating.toInt()} Stars)',
@@ -226,45 +220,6 @@ class ReviewService {
   Future<void> neverAskAgain() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyNeverAskAgain, true);
-  }
-
-  /// Current review tracking statistics, for debugging the prompt schedule.
-  Future<void> printReviewStats() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final int openCount = prefs.getInt(_keyOpenCount) ?? 0;
-    final int eventCount = prefs.getInt(_keyEventCount) ?? 0;
-    final int? firstOpenEpoch = prefs.getInt(_keyFirstOpenDate);
-    final int? nextAllowedEpoch = prefs.getInt(_keyNextAllowedDate);
-    final bool neverAskAgainSet = prefs.getBool(_keyNeverAskAgain) ?? false;
-
-    final buffer = StringBuffer()
-      ..writeln('[ReviewService] opens: $openCount / $_thresholdOpens')
-      ..writeln('[ReviewService] events: $eventCount / $_thresholdEvents');
-
-    if (firstOpenEpoch != null) {
-      final firstOpenDate = DateTime.fromMillisecondsSinceEpoch(firstOpenEpoch);
-      final daysSinceFirst = DateTime.now().difference(firstOpenDate).inDays;
-      buffer.writeln(
-        '[ReviewService] days since first open: '
-        '$daysSinceFirst / $_thresholdDays',
-      );
-    } else {
-      buffer.writeln('[ReviewService] first open not recorded yet');
-    }
-
-    if (nextAllowedEpoch != null) {
-      final nextAllowedDate = DateTime.fromMillisecondsSinceEpoch(
-        nextAllowedEpoch,
-      );
-      buffer.writeln('[ReviewService] next allowed: $nextAllowedDate');
-    } else {
-      buffer.writeln('[ReviewService] no cooldown set');
-    }
-
-    buffer.write('[ReviewService] never ask again: $neverAskAgainSet');
-
-    debugPrint(buffer.toString());
   }
 
   /// Reset all review tracking data (useful for testing)

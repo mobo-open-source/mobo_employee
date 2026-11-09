@@ -3,12 +3,12 @@ import 'package:mobo_employees/core/exceptions/app_exceptions.dart';
 import 'package:mobo_employees/core/models/database_expiry.dart';
 
 void main() {
-  /// The server's clock when the payloads below were captured.
+  // The server's clock when the payloads below were captured.
   final now = DateTime.utc(2026, 10, 16, 11, 5);
 
   group('DatabaseExpiry.ensureActive', () {
     test('lets a database through when session_info has no expiry keys', () {
-      /// Community, or a portal user: Odoo sends no warning/expiration_*.
+      // Community, or a portal user: Odoo sends no warning/expiration_*.
       expect(() => DatabaseExpiry.ensureActive({'uid': 7}, now: now), returnsNormally);
     });
 
@@ -53,7 +53,7 @@ void main() {
     });
 
     test('blocks an expired trial and says it was a trial', () {
-      /// A bare date means midnight UTC.
+      // A bare date means midnight UTC.
       expect(
         () => DatabaseExpiry.ensureActive({
           'warning': 'user',
@@ -90,8 +90,8 @@ void main() {
   });
 
   group('DatabaseExpiry.isExpiredAt follows Odoo\'s daysLeft <= 0 rule', () {
-    /// Odoo rounds the days left to whole days: the web client locks the
-    /// database from 12 hours before the stored expiry.
+    // Odoo rounds the days left to whole days: the web client locks the
+    // database from 12 hours before the stored expiry.
     DatabaseExpiry endingIn(Duration d) =>
         DatabaseExpiry(expirationDate: now.add(d), reason: 'renewal');
 

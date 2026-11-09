@@ -69,7 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleBiometric(bool enabled) async {
     try {
       if (enabled) {
-        /// Test authentication before enabling
         final canAuthenticate =
             await BiometricService.authenticateWithBiometrics(
               reason: 'Authenticate to enable biometric login',
@@ -86,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       await BiometricService.setBiometricEnabled(enabled);
-      await _loadBiometricSettings(); /// Refresh status
+      await _loadBiometricSettings();
 
       if (mounted) {
         if (enabled) {
@@ -167,8 +166,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      /// Clear all provider caches
-
       await Future.delayed(const Duration(milliseconds: 100));
 
       if (mounted) {
@@ -250,26 +247,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
-      /// Mark as account operation to prevent biometric prompt
+      // Mark as account operation to prevent biometric prompt
       final biometricContext = BiometricContextService();
       biometricContext.startAccountOperation('logout');
 
-      /// Clear Odoo session
+      // Clear Odoo session
       await OdooSessionManager.logout();
 
-      /// Clear all preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-      /// Finish autofill context
       await Future.delayed(const Duration(milliseconds: 100));
 
       if (context.mounted) {
-        Navigator.of(context).pop(); /// Close loading dialog
+        Navigator.of(context).pop();
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil('/server_setup', (route) => false);
-        /// Align with sales_app1 feedback timing
         Future.delayed(const Duration(milliseconds: 150), () {
           if (context.mounted) {
             CustomSnackbar.showSuccess(context, 'Logged out successfully');
@@ -278,7 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        Navigator.of(context).pop(); /// Close loading dialog
+        Navigator.of(context).pop();
         CustomSnackbar.showError(context, 'Logout failed: $e');
       }
     }
@@ -305,16 +299,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600];
 
-    /// No side padding here: each tile carries its own 16px inset, which puts
-    /// these icons in line with those of the rows in the cards above. The
-    /// block under the tiles is inset separately, to stay in line with the
-    /// tile text.
+    // No side padding here: each tile carries its own 16px inset, which puts
+    // these icons in line with those of the rows in the cards above. The
+    // block under the tiles is inset separately, to stay in line with the
+    // tile text.
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// Action items
           ActionTile(
             title: 'Visit Website',
             subtitle: 'www.cybrosys.com',
@@ -361,7 +354,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Divider(color: isDark ? Colors.grey[800] : Colors.grey[200]),
                 const SizedBox(height: 16),
 
-                /// Social links
                 Center(
                   child: Text(
                     'Follow Us',
@@ -437,8 +429,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _launchUrlSmart(String url, {String? title}) async {
     final uri = Uri.parse(url);
     try {
-      /// On emulators there may be no external browser/email apps.
-      /// Use in-app browser for http/https; external for others (mailto:, tel:, etc.).
+      // On emulators there may be no external browser/email apps.
+      // Use in-app browser for http/https; external for others (mailto:, tel:, etc.).
       final isWeb = uri.scheme == 'http' || uri.scheme == 'https';
       final mode = isWeb
           ? LaunchMode.inAppBrowserView
@@ -582,7 +574,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 16),
 
-              /// Language & Region Section
               SectionCard(
                 title: 'Language & Region',
                 icon: HugeIcons.strokeRoundedSettings02,

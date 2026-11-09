@@ -169,7 +169,7 @@ class ManagerDashboardDataService {
       );
       if (attendances is! List) return 0;
 
-      /// Ascending by check-in, so the first one seen is the day's first.
+      // Ascending by check-in, so the first one seen is the day's first.
       final firstCheckIn = <int, DateTime>{};
       for (final record in attendances) {
         final employeeId = _many2oneId(record['employee_id']);
@@ -216,9 +216,7 @@ class ManagerDashboardDataService {
     } catch (e) {
       if (ConnectivityService.isConnectivityError(e)) rethrow;
 
-      /// A failed query is indistinguishable from "nobody is late" on the
-      /// card, so at least leave a trace for whoever wonders about the 0.
-      if (kDebugMode) debugPrint('fetchLateCheckInCount failed: $e');
+      // A failed query reads as "nobody is late" on the card.
       return 0;
     }
   }
@@ -370,9 +368,9 @@ class ManagerDashboardDataService {
       ['calendar_id', 'in', calendarIds],
 
       if (hasDatedLines) ...[
-        /// Fixed schedules repeat on a weekday; variable ones have dated
-        /// lines, some recurring, which [startHoursFromLines] matches to
-        /// today.
+        // Fixed schedules repeat on a weekday; variable ones have dated
+        // lines, some recurring, which [startHoursFromLines] matches to
+        // today.
         '|',
         '&',
         ['date', '=', false],
@@ -383,16 +381,16 @@ class ManagerDashboardDataService {
       ] else ...[
         ['dayofweek', '=', '${today.weekday - 1}'],
 
-        /// Two-week schedules (up to Odoo 19): only this week's lines.
+        // Two-week schedules (up to Odoo 19): only this week's lines.
         if (fields.contains('week_type'))
           ['week_type', 'in', [false, '${_weekType(today)}']],
 
-        /// The lunch break isn't the start of the day.
+        // The lunch break isn't the start of the day.
         if (fields.contains('day_period')) ['day_period', '!=', 'lunch'],
 
-        /// A line can be limited to a period (Odoo's `_attendance_intervals_batch`
-        /// skips it outside it), so one that hasn't started or has ended
-        /// mustn't move the start of today's day.
+        // A line can be limited to a period (Odoo's `_attendance_intervals_batch`
+        // skips it outside it), so one that hasn't started or has ended
+        // mustn't move the start of today's day.
         if (fields.contains('date_from')) ...[
           '|',
           ['date_from', '=', false],
@@ -416,8 +414,8 @@ class ManagerDashboardDataService {
     'calendar_id',
     'hour_from',
     for (final field in const [
-      /// [startHoursFromLines] drops the lines that don't work; see
-      /// [startHoursDomain].
+      // [startHoursFromLines] drops the lines that don't work; see
+      // [startHoursDomain].
       'duration_hours',
       'duration_based',
       'dayofweek',
@@ -451,8 +449,8 @@ class ManagerDashboardDataService {
       final calendarId = _many2oneId(line['calendar_id']);
       if (calendarId == null || !_occursOn(line, day)) continue;
 
-      /// A line with no hours isn't working time (see [startHoursDomain] for
-      /// why this isn't asked of the server). A row that doesn't say is kept.
+      // A line with no hours isn't working time (see [startHoursDomain] for
+      // why this isn't asked of the server). A row that doesn't say is kept.
       final hours = line['duration_hours'];
       if (hours is num && hours <= 0) continue;
 
@@ -589,8 +587,6 @@ class ManagerDashboardDataService {
     }
     return null;
   }
-
-  /// ---------- Helpers ----------
 
   static String _formatOdooDate(DateTime d) =>
       "${d.year.toString().padLeft(4, '0')}-"

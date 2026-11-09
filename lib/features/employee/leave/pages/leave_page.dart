@@ -43,11 +43,11 @@ class _LeavePageState extends State<LeavePage> {
         listen: false,
       );
       if (leaveProvider.isInitialLoadDone && leaveProvider.loadError == null) {
-        /// Coming back to the page: pick up requests approved/refused or
-        /// added in Odoo meanwhile, without flashing the loader.
+        // Coming back to the page: pick up requests approved/refused or
+        // added in Odoo meanwhile, without flashing the loader.
         await leaveProvider.refreshInPlace();
       } else {
-        /// First visit, or the last load failed: load everything again.
+        // First visit, or the last load failed: load everything again.
         await leaveProvider.loadInitialOfMyCalender(isRefresh: true);
       }
     } catch (e) {}

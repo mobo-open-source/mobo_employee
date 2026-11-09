@@ -58,7 +58,6 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> initialize() async {
     await loadLocalSettings();
-    /// Fetch Language & Region data in background
     fetchAllLanguageRegionData();
   }
 
@@ -69,12 +68,10 @@ class SettingsProvider extends ChangeNotifier {
       _reduceMotion = prefs.getBool('reduce_motion') ?? false;
       _isDarkMode = prefs.getBool('dark_mode') ?? false;
 
-      /// Load Language & Region settings
       _selectedLanguage = prefs.getString('selected_language') ?? 'en_US';
       _selectedCurrency = prefs.getString('selected_currency') ?? 'USD';
       _selectedTimezone = prefs.getString('selected_timezone') ?? 'UTC';
 
-      /// Load cached data
       final cachedLangs = prefs.getString('available_languages');
       final cachedCurrencies = prefs.getString('available_currencies');
       final cachedTimezones = prefs.getString('available_timezones');
@@ -101,7 +98,6 @@ class SettingsProvider extends ChangeNotifier {
         } catch (_) {}
       }
 
-      /// Load timestamps
       final langsTs = prefs.getInt('langs_updated_at');
       final currsTs = prefs.getInt('currs_updated_at');
       final tzTs = prefs.getInt('tz_updated_at');
@@ -130,12 +126,10 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setBool('reduce_motion', _reduceMotion);
       await prefs.setBool('dark_mode', _isDarkMode);
 
-      /// Save Language & Region settings
       await prefs.setString('selected_language', _selectedLanguage);
       await prefs.setString('selected_currency', _selectedCurrency);
       await prefs.setString('selected_timezone', _selectedTimezone);
 
-      /// Save cached data
       await prefs.setString(
         'available_languages',
         jsonEncode(_availableLanguages),
@@ -149,7 +143,6 @@ class SettingsProvider extends ChangeNotifier {
         jsonEncode(_availableTimezones),
       );
 
-      /// Save timestamps
       if (_languagesUpdatedAt != null) {
         await prefs.setInt(
           'langs_updated_at',
@@ -242,7 +235,6 @@ class SettingsProvider extends ChangeNotifier {
         await saveLocalSettings();
       }
     } catch (e) {
-      /// Fallback to defaults
       if (_availableLanguages.isEmpty) {
         _availableLanguages = [
           {'code': 'en_US', 'name': 'English (US)'},
@@ -291,7 +283,6 @@ class SettingsProvider extends ChangeNotifier {
         await saveLocalSettings();
       }
     } catch (e) {
-      /// Fallback to defaults
       if (_availableCurrencies.isEmpty) {
         _availableCurrencies = [
           {'name': 'USD', 'full_name': 'US Dollar', 'symbol': '\$'},
@@ -341,7 +332,6 @@ class SettingsProvider extends ChangeNotifier {
         await saveLocalSettings();
       }
     } catch (e) {
-      /// Fallback to defaults
       if (_availableTimezones.isEmpty) {
         _availableTimezones = [
           {'code': 'UTC', 'name': 'UTC'},
@@ -439,7 +429,7 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> calculateCacheSize() async {
-    /// Placeholder for cache size calculation
+    // Placeholder for cache size calculation
     _cacheSize = 0.0;
     notifyListeners();
   }

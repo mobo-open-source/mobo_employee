@@ -118,8 +118,8 @@ class _ConnectionStatusWidgetState extends State<ConnectionStatusWidget> {
     try {
       await onRetry();
     } catch (_) {
-      /// The screen's provider records the failure and rebuilds this
-      /// widget with the new error.
+      // The screen's provider records the failure and rebuilds this
+      // widget with the new error.
     } finally {
       if (mounted) setState(() => _retrying = false);
     }
@@ -215,8 +215,8 @@ class _ConnectionStatusWidgetState extends State<ConnectionStatusWidget> {
       ),
     );
 
-    /// Scrollable even when the content fits, so pull-to-refresh works the
-    /// same as on the screen it replaces.
+    // Scrollable even when the content fits, so pull-to-refresh works the
+    // same as on the screen it replaces.
     return LayoutBuilder(
       builder: (context, constraints) {
         if (!constraints.hasBoundedHeight) return Center(child: body);

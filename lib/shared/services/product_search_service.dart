@@ -14,17 +14,14 @@ class ProductSearchService {
     try {
       final client = await OdooSessionManager.getClientEnsured();
 
-      /// Build domain for filtering
       List<dynamic> domain = [];
 
-      /// Filter for storable products (type = 'product' or 'consu')
       if (storableOnly) {
         domain.add('|');
         domain.add(['type', '=', 'product']);
         domain.add(['type', '=', 'consu']);
       }
 
-      /// Add search filter if provided
       if (searchQuery != null && searchQuery.isNotEmpty) {
         domain.add('|');
         domain.add(['name', 'ilike', searchQuery]);
@@ -76,17 +73,14 @@ class ProductSearchService {
     try {
       final client = await OdooSessionManager.getClientEnsured();
 
-      /// Build domain for filtering
       List<dynamic> domain = [];
 
-      /// Filter for storable products
       if (storableOnly) {
         domain.add('|');
         domain.add(['type', '=', 'product']);
         domain.add(['type', '=', 'consu']);
       }
 
-      /// Add search filter if provided
       if (searchQuery != null && searchQuery.isNotEmpty) {
         domain.add('|');
         domain.add(['name', 'ilike', searchQuery]);

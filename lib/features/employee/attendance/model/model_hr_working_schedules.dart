@@ -45,7 +45,7 @@ class ModelHrWorkingSchedules {
   });
 
   factory ModelHrWorkingSchedules.fromJson(Map<String, dynamic> json) {
-    /// company_id → false OR {id, display_name}
+    // company_id → false OR {id, display_name}
     final company = json['company_id'];
     int? companyId;
     String? companyName;
@@ -57,7 +57,7 @@ class ModelHrWorkingSchedules {
       companyId = company;
     }
 
-    /// attendance_ids → false OR list
+    // attendance_ids → false OR list
     final List<CalendarAttendance> attendanceLines =
         (json['attendance_ids'] is List)
         ? (json['attendance_ids'] as List)

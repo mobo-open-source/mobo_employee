@@ -46,7 +46,7 @@ class ModelAllocationData {
 
     final employee = json['employee_id'];
 
-    ///HANDLE INT CASE (IMPORTANT)
+    //HANDLE INT CASE (IMPORTANT)
     if (employee is int) {
       empId = employee;
     } else if (employee is Map) {
@@ -86,9 +86,9 @@ class ModelAllocationData {
       userId: userId,
       employeeId: empId,
 
-      /// hr.leave.allocation has no `notes` field — the reason/description
-      /// text an employee enters is stored in `name` (same convention as
-      /// hr.leave), which is what was actually missing here.
+      // hr.leave.allocation has no `notes` field — the reason/description
+      // text an employee enters is stored in `name` (same convention as
+      // hr.leave), which is what was actually missing here.
       notes: _stringOrEmpty(json['name']),
       employeeName: empName,
       leaveTypeName: leaveType,

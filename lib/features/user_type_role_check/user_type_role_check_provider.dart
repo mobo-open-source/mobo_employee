@@ -34,8 +34,6 @@ class UserTypeRoleCheckProvider extends ChangeNotifier {
 
       List<int> fetchedGroups = [];
 
-      ///  VERSION BASED HANDLING
-
       if (majorVersion >= 19) {
         fetchedGroups.clear();
 
@@ -46,7 +44,7 @@ class UserTypeRoleCheckProvider extends ChangeNotifier {
         } else if (sessionInfo['is_public'] == true) {
           fetchedGroups.add(11);
         } else {
-          /// fallback → treat as portal
+          // fallback → treat as portal
           fetchedGroups.add(10);
         }
       } else if (majorVersion == 18) {
@@ -101,7 +99,6 @@ class UserTypeRoleCheckProvider extends ChangeNotifier {
         }
       }
 
-      ///  Assign and notify
       _groupIds = fetchedGroups;
 
       if (isPortal) {}
@@ -109,7 +106,7 @@ class UserTypeRoleCheckProvider extends ChangeNotifier {
       if (isPublic) {}
       notifyListeners();
     } catch (e) {
-      /// Avoid trapping the app on a loading screen when role lookup fails.
+      // Avoid trapping the app on a loading screen when role lookup fails.
       _groupIds = [1];
       notifyListeners();
     }

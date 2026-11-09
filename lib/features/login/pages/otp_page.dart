@@ -61,9 +61,9 @@ class _TotpPageState extends State<TotpPage> {
   @override
   void initState() {
     super.initState();
-    /// Warm the pending session in the background so the first Authenticate
-    /// press doesn't pay for it. Failures here are retried silently when
-    /// the user submits a code, in _ensurePendingSession.
+    // Warm the pending session in the background so the first Authenticate
+    // press doesn't pay for it. Failures here are retried silently when
+    // the user submits a code, in _ensurePendingSession.
     _pendingSessionFuture = _startPendingSession();
   }
 
@@ -90,8 +90,8 @@ class _TotpPageState extends State<TotpPage> {
     final warmed = await (_pendingSessionFuture ?? _startPendingSession());
     if (warmed != null) return warmed;
 
-    /// Retry once — the warm-up may have raced app start or a brief
-    /// connectivity blip.
+    // Retry once — the warm-up may have raced app start or a brief
+    // connectivity blip.
     _pendingSessionFuture = _startPendingSession();
     return _pendingSessionFuture;
   }
@@ -139,8 +139,8 @@ class _TotpPageState extends State<TotpPage> {
       if (!mounted) return;
 
       if (!result.success) {
-        /// A rejected code leaves the session usable (Odoo only rotates it
-        /// on success); any other failure means it can't be trusted.
+        // A rejected code leaves the session usable (Odoo only rotates it
+        // on success); any other failure means it can't be trusted.
         if (!result.codeRejected) _invalidatePendingSession();
         setState(() {
           _error = result.errorMessage ??
@@ -149,8 +149,8 @@ class _TotpPageState extends State<TotpPage> {
         return;
       }
 
-      /// Odoo accepted the code, but an expired database still isn't let
-      /// in. Checked before _finalizeLogin, which saves "logged in" state.
+      // Odoo accepted the code, but an expired database still isn't let
+      // in. Checked before _finalizeLogin, which saves "logged in" state.
       try {
         DatabaseExpiry.ensureActive(result.sessionInfo!);
       } on DatabaseExpiredException catch (e) {
@@ -163,9 +163,9 @@ class _TotpPageState extends State<TotpPage> {
         return;
       }
 
-      /// Same for a database without the Employee, Attendance or Time Off
-      /// module: the password step can't run this check for a 2FA account
-      /// (its session isn't live until the code is accepted).
+      // Same for a database without the Employee, Attendance or Time Off
+      // module: the password step can't run this check for a 2FA account
+      // (its session isn't live until the code is accepted).
       try {
         await RequiredModules.ensureInstalled(
           serverUrl: widget.serverUrl,

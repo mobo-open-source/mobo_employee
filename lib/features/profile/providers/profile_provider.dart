@@ -104,7 +104,7 @@ class ProfileProvider extends ChangeNotifier {
       if (fieldsInfo is Map) for (final k in fieldsInfo.keys) k.toString(),
     };
 
-    /// A custom/Studio field wins over the standard one when both exist.
+    // A custom/Studio field wins over the standard one when both exist.
     _mobileFieldName = const ['mobile_phone', 'x_studio_mobile_phone', 'mobile']
         .cast<String?>()
         .firstWhere((f) => present.contains(f), orElse: () => null);
@@ -132,7 +132,7 @@ class ProfileProvider extends ChangeNotifier {
     try {
       _serverMajorVersion = await OdooSessionManager.getServerMajorVersion();
     } catch (_) {
-      /// Leave unresolved so the next fetch retries.
+      // Leave unresolved so the next fetch retries.
     }
   }
 
@@ -245,8 +245,8 @@ class ProfileProvider extends ChangeNotifier {
     if (_hrFieldsResolved) return;
 
     if (await _loadHrFieldsCache()) {
-      /// Refresh in the background in case HR was installed/uninstalled,
-      /// without blocking the caller on a round-trip.
+      // Refresh in the background in case HR was installed/uninstalled,
+      // without blocking the caller on a round-trip.
       unawaited(_probeHrFields());
       return;
     }
@@ -256,8 +256,8 @@ class ProfileProvider extends ChangeNotifier {
 
   Future<void> _probeHrFields() async {
     try {
-      /// `fields_get` covers existence and writability (`readonly`) in one
-      /// call and needs no `ir.model.access` grant, unlike `ir.model.fields`.
+      // `fields_get` covers existence and writability (`readonly`) in one
+      // call and needs no `ir.model.access` grant, unlike `ir.model.fields`.
       final fieldsInfo = await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
         'method': 'fields_get',
@@ -283,10 +283,10 @@ class ProfileProvider extends ChangeNotifier {
         return desc is Map && desc['readonly'] == true;
       }
 
-      /// `fields_get` only says a field exists. Some related HR fields also
-      /// need a group to *read* (on Odoo 19 the `private_*` address fields
-      /// require HR Officer), and requesting one the user can't read fails
-      /// the whole profile read — so confirm readability per group too.
+      // `fields_get` only says a field exists. Some related HR fields also
+      // need a group to *read* (on Odoo 19 the `private_*` address fields
+      // require HR Officer), and requesting one the user can't read fails
+      // the whole profile read — so confirm readability per group too.
       final session = await OdooSessionManager.getCurrentSession();
       final uid = session?.userId;
       Future<bool> readable(List<String> fields) async {
@@ -321,23 +321,23 @@ class ProfileProvider extends ChangeNotifier {
       _hrFieldsResolved = true;
       await _saveHrFieldsCache();
     } catch (_) {
-      /// Leave unresolved so the next fetch retries the probe instead of
-      /// permanently assuming HR isn't installed.
+      // Leave unresolved so the next fetch retries the probe instead of
+      // permanently assuming HR isn't installed.
     }
   }
 
   Future<Map<String, dynamic>> _preparePartnerUpdatesForServer(
     Map<String, dynamic> normalized,
   ) async {
-    /// Map our internal 'mobile' to whichever field server supports
+    // Map our internal 'mobile' to whichever field server supports
     if (!normalized.containsKey('mobile')) return normalized;
 
-    /// Don't swallow a probe failure: an unknown field must fail loudly and
-    /// be queued for retry rather than silently dropping the mobile number.
+    // Don't swallow a probe failure: an unknown field must fail loudly and
+    // be queued for retry rather than silently dropping the mobile number.
     final fieldName = await _resolvePartnerMobileFieldName();
 
     if (fieldName == null) {
-      /// Confirmed absent (Odoo 19); drop it rather than merging into `phone`.
+      // Confirmed absent (Odoo 19); drop it rather than merging into `phone`.
       final copy = Map<String, dynamic>.from(normalized);
       copy.remove('mobile');
       return copy;
@@ -359,15 +359,14 @@ class ProfileProvider extends ChangeNotifier {
         throw Exception('Partner ID not found');
       }
 
-      /// Ensure keys are normalized before any processing
       final normalized = _normalizePartnerUpdates(updates);
 
-      /// Always attempt the real write first rather than pre-guessing
-      /// offline status — a local server (LAN/emulator-only Odoo, no
-      /// public-internet route) can be perfectly reachable while a generic
-      /// "do I have internet" probe reports false, which used to skip the
-      /// write and silently queue it forever. Genuine connectivity failures
-      /// are still caught below and queued exactly the same way.
+      // Always attempt the real write first rather than pre-guessing
+      // offline status — a local server (LAN/emulator-only Odoo, no
+      // public-internet route) can be perfectly reachable while a generic
+      // "do I have internet" probe reports false, which used to skip the
+      // write and silently queue it forever. Genuine connectivity failures
+      // are still caught below and queued exactly the same way.
       final toSend = await _preparePartnerUpdatesForServer(normalized);
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.partner',
@@ -385,7 +384,7 @@ class ProfileProvider extends ChangeNotifier {
         _error = 'Failed to update profile: $e';
         rethrow;
       }
-      /// Queue only on connectivity failure.
+      // Queue only on connectivity failure.
       final normalized = _normalizePartnerUpdates(updates);
       _mergeInto(_pendingPartnerUpdates, normalized);
       await _savePendingUpdates();
@@ -408,8 +407,8 @@ class ProfileProvider extends ChangeNotifier {
   /// until the user visited Profile. App shells call this on start.
   Future<void> ensureLoaded() async {
     _startConnectivityListener();
-    /// Show the cached copy immediately when memory was wiped, so a slow or
-    /// failed network read doesn't leave the avatar/name blank.
+    // Show the cached copy immediately when memory was wiped, so a slow or
+    // failed network read doesn't leave the avatar/name blank.
     if (_userData == null) {
       await loadCachedUser();
       await _loadPendingUpdates();
@@ -418,8 +417,8 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   void _startConnectivityListener() {
-    /// Idempotent: initialize()/ensureLoaded() run on every Profile visit
-    /// and shell start, and each call used to stack another listener.
+    // Idempotent: initialize()/ensureLoaded() run on every Profile visit
+    // and shell start, and each call used to stack another listener.
     if (_connectivitySub != null) return;
     _connectivitySub = Connectivity().onConnectivityChanged.listen((
       results,
@@ -432,7 +431,6 @@ class ProfileProvider extends ChangeNotifier {
       }
     });
 
-    /// Initial check
     _checkInternet().then((hasNet) {
       _hasInternet = hasNet;
       notifyListeners();
@@ -469,7 +467,7 @@ class ProfileProvider extends ChangeNotifier {
             normalizeOdooBinaries(jsonDecode(cached)) as Map<String, dynamic>;
         final session = await OdooSessionManager.getCurrentSession();
         if (session != null && !_belongsTo(data, session.userId)) {
-          /// Left behind by a different account — never show it as this one.
+          // Left behind by a different account — never show it as this one.
           await prefs.remove(_cacheKeyUser);
           return;
         }
@@ -511,7 +509,7 @@ class ProfileProvider extends ChangeNotifier {
         'name',
         'login',
         'email',
-        /// phone/mobile live on res.partner; fetched from the partner below
+        // phone/mobile live on res.partner; fetched from the partner below
         'website',
         'function',
         if (_hasJobTitleField) 'job_title',
@@ -589,8 +587,8 @@ class ProfileProvider extends ChangeNotifier {
   Future<bool> fetchUserProfile({bool forceRefresh = false}) async {
     var refreshed = false;
     int? currentUid;
-    /// Only show loading state if we have no cached data
-    /// This allows silent background refresh when data exists
+    // Only show loading state if we have no cached data
+    // This allows silent background refresh when data exists
     if (_userData == null) {
       _isLoading = true;
     }
@@ -606,28 +604,27 @@ class ProfileProvider extends ChangeNotifier {
         return false;
       }
 
-      /// Must run before the read below: requesting HR fields unconditionally
-      /// throws on installs without the HR module.
+      // Must run before the read below: requesting HR fields unconditionally
+      // throws on installs without the HR module.
       await _resolveHrFields();
       await _resolveServerVersion();
 
       currentUid = session.userId;
 
-      /// Read basic user fields from res.users (exclude unsupported fields like 'mobile')
+      // Read basic user fields from res.users (exclude unsupported fields like 'mobile')
       final res = await _readUserRow(session.userId);
 
       if (res is List && res.isNotEmpty) {
         final data = res.first as Map<String, dynamic>;
 
-        /// Prefer HR's job_title over the generic Contacts function, when set.
+        // Prefer HR's job_title over the generic Contacts function, when set.
         final jobTitle = _val(data['job_title']);
         if (jobTitle != null) data['function'] = jobTitle;
 
-        /// If partner is linked, fetch phone/mobile from res.partner and merge for UI compatibility
         final partner = data['partner_id'];
         if (partner != null && partner is List && partner.isNotEmpty) {
           try {
-            /// Determine which mobile field exists to avoid invalid field errors
+            // Determine which mobile field exists to avoid invalid field errors
             final mobileFieldName = await _getPartnerMobileFieldName();
             final fields = <String>[
               'phone',
@@ -652,9 +649,7 @@ class ProfileProvider extends ChangeNotifier {
 
             if (partnerRes is List && partnerRes.isNotEmpty) {
               final partnerData = partnerRes.first as Map<String, dynamic>;
-              /// Merge phone/mobile (and a few address fields if needed by UI)
               data['phone'] = partnerData['phone'];
-              /// Derive unified 'mobile' for UI using whichever field exists
               String? mobileValue;
               if (mobileFieldName != null) {
                 final mv = partnerData[mobileFieldName];
@@ -662,7 +657,7 @@ class ProfileProvider extends ChangeNotifier {
                   mobileValue = mv.toString();
                 }
               }
-              /// If server has no mobile field, keep empty so UI treats it as separate and editable
+              // If server has no mobile field, keep empty so UI treats it as separate and editable
               data['mobile'] = mobileValue ?? '';
               data['street'] = partnerData['street'];
               data['street2'] = partnerData['street2'];
@@ -678,7 +673,7 @@ class ProfileProvider extends ChangeNotifier {
         final workPhone = _val(data['work_phone']);
         if (workPhone != null) data['phone'] = workPhone;
 
-        /// Prefer the Employee's private address over the Contact's, when set.
+        // Prefer the Employee's private address over the Contact's, when set.
         if (_hasPrivateAddressFields) {
           final privateStreet = _val(data['private_street']);
           if (privateStreet != null) data['street'] = privateStreet;
@@ -710,8 +705,8 @@ class ProfileProvider extends ChangeNotifier {
         await prefs.setString(_cacheKeyUser, jsonEncode(data));
         refreshed = true;
 
-        /// Keep the saved-accounts list (switch accounts) showing the same
-        /// name/photo as the server.
+        // Keep the saved-accounts list (switch accounts) showing the same
+        // name/photo as the server.
         final rawImage = data['image_1920'];
         await SessionService.instance.updateStoredAccountProfile(
           userId: session.userId,
@@ -726,8 +721,7 @@ class ProfileProvider extends ChangeNotifier {
     } catch (e) {
       _error = 'Failed to fetch user profile: $e';
       _loadError = e;
-      debugPrint('[ProfileProvider] $_error');
-      /// Falling back to the in-memory copy is only valid for the same user.
+      // Falling back to the in-memory copy is only valid for the same user.
       if (currentUid != null && !_belongsTo(_userData, currentUid)) {
         _userData = null;
         _userAvatar = null;
@@ -826,9 +820,9 @@ class ProfileProvider extends ChangeNotifier {
       final session = await OdooSessionManager.getCurrentSession();
       if (session == null || session.userId == null) return;
 
-      /// Always attempt the real write first — see the note in
-      /// [updatePartnerFields]; the catch block below queues on a genuine
-      /// connectivity failure.
+      // Always attempt the real write first — see the note in
+      // [updatePartnerFields]; the catch block below queues on a genuine
+      // connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
         'method': 'write',
@@ -852,7 +846,7 @@ class ProfileProvider extends ChangeNotifier {
         _error = 'Failed to update profile photo: $e';
         rethrow;
       }
-      /// Queue on connectivity failure too
+      // Queue on connectivity failure too
       _pendingUserUpdates['image_1920'] = base64Image;
       await _savePendingUpdates();
       try {
@@ -921,14 +915,14 @@ class ProfileProvider extends ChangeNotifier {
         throw Exception('Partner ID not found');
       }
 
-      /// Mirrored via `res.users` (never `hr.employee` directly — plain
-      /// employees have no ACL access to `hr.employee`).
+      // Mirrored via `res.users` (never `hr.employee` directly — plain
+      // employees have no ACL access to `hr.employee`).
       final userAddressUpdates =
           _hasPrivateAddressFields ? _toPrivateAddressUpdates(addressData) : null;
 
-      /// Always attempt the real write first — see the note in
-      /// [updatePartnerFields]; the catch block below queues on a genuine
-      /// connectivity failure.
+      // Always attempt the real write first — see the note in
+      // [updatePartnerFields]; the catch block below queues on a genuine
+      // connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.partner',
         'method': 'write',
@@ -960,7 +954,7 @@ class ProfileProvider extends ChangeNotifier {
         _error = 'Failed to update address: $e';
         rethrow;
       }
-      /// Queue on connectivity failure and update local cache
+      // Queue on connectivity failure and update local cache
       _mergeInto(_pendingPartnerUpdates, addressData);
       if (_hasPrivateAddressFields) {
         _mergeInto(_pendingUserUpdates, _toPrivateAddressUpdates(addressData));
@@ -993,14 +987,14 @@ class ProfileProvider extends ChangeNotifier {
 
       await _refreshAfterWrite({'job_title': value});
     } catch (_) {
-      /// Most commonly an AccessError for a non-HR-officer account.
+      // Most commonly an AccessError for a non-HR-officer account.
     }
   }
 
   /// Update multiple profile fields at once (on res.users)
   Future<void> updateProfileFields(Map<String, dynamic> updates) async {
-    /// Name and email are mandatory: refuse blanks here too, so they can
-    /// neither reach Odoo nor sit in the offline queue to be sent later.
+    // Name and email are mandatory: refuse blanks here too, so they can
+    // neither reach Odoo nor sit in the offline queue to be sent later.
     for (final entry in const {'name': 'Name', 'email': 'Email'}.entries) {
       if (!updates.containsKey(entry.key)) continue;
       final value = updates[entry.key];
@@ -1015,9 +1009,9 @@ class ProfileProvider extends ChangeNotifier {
         throw Exception('No active session');
       }
 
-      /// Always attempt the real write first — see the note in
-      /// [updatePartnerFields]; the catch block below queues on a genuine
-      /// connectivity failure.
+      // Always attempt the real write first — see the note in
+      // [updatePartnerFields]; the catch block below queues on a genuine
+      // connectivity failure.
       await OdooSessionManager.callKwWithCompany({
         'model': 'res.users',
         'method': 'write',
@@ -1034,7 +1028,7 @@ class ProfileProvider extends ChangeNotifier {
         _error = 'Failed to update profile: $e';
         rethrow;
       }
-      /// Queue only on connectivity failure.
+      // Queue only on connectivity failure.
       _mergeInto(_pendingUserUpdates, updates);
       await _savePendingUpdates();
       await _applyLocalUserUpdates(updates);
@@ -1174,8 +1168,8 @@ class ProfileProvider extends ChangeNotifier {
     _states = [];
     _isLoadingCountries = false;
     _isLoadingStates = false;
-    /// Clear queued edits and per-server probes — they belong to the
-    /// outgoing account, not the incoming one.
+    // Clear queued edits and per-server probes — they belong to the
+    // outgoing account, not the incoming one.
     _pendingUserUpdates.clear();
     _pendingPartnerUpdates.clear();
     resetMobileFieldDetection();
@@ -1189,8 +1183,6 @@ class ProfileProvider extends ChangeNotifier {
       _pendingUserUpdates.isNotEmpty || _pendingPartnerUpdates.isNotEmpty;
 
   Future<void> processPendingUpdates() => _processPendingUpdates();
-
-  /// ---------- Offline helpers ----------
 
   /// True only for genuine connectivity failures (dropped connection, DNS,
   /// timeout, server down). Determines whether a failed save is queued for
@@ -1253,11 +1245,9 @@ class ProfileProvider extends ChangeNotifier {
         _pendingUserUpdates.clear();
       }
 
-      /// Apply partner pending
       if (_userData != null && _pendingPartnerUpdates.isNotEmpty) {
         final partnerId = _userData!['partner_id'];
         if (partnerId is List && partnerId.isNotEmpty) {
-          /// Normalize any legacy keys before sending
           final normalized = _normalizePartnerUpdates(_pendingPartnerUpdates);
           final toSend = await _preparePartnerUpdatesForServer(normalized);
           await OdooSessionManager.callKwWithCompany({

@@ -182,7 +182,7 @@ class WidgetTimeOffCard extends StatelessWidget {
 
     final pill = pillColors(state, isDark);
 
-    /// The leave type, the duration (bold) and the dates, one line.
+    // The leave type, the duration (bold) and the dates, one line.
     final details = Text.rich(
       TextSpan(
         style: GoogleFonts.manrope(
@@ -215,7 +215,6 @@ class WidgetTimeOffCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// ───── Photo, name, status and details ─────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -275,7 +274,6 @@ class WidgetTimeOffCard extends StatelessWidget {
             ],
           ),
 
-          /// ───── Reason: across the full width, left out when there is none ─────
           if (reason.isNotEmpty) ...[
             const SizedBox(height: reasonGap),
             Text.rich(
@@ -295,7 +293,6 @@ class WidgetTimeOffCard extends StatelessWidget {
             ),
           ],
 
-          /// ───── Actions: two equal buttons ─────
           if (hasButtons) ...[
             SizedBox(height: reason.isNotEmpty ? buttonsGap : buttonsGap + 2),
             Row(

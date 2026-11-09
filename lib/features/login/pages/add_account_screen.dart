@@ -40,7 +40,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     super.initState();
     _loadCurrentSessionInfo();
 
-    /// Auto-focus email field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         FocusScope.of(context).requestFocus(_emailFocus);
@@ -84,7 +83,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     });
 
     try {
-      /// Authenticate with the new credentials
       final newSession = await OdooSessionManager.authenticate(
         serverUrl: _serverUrl!,
         database: _database!,
@@ -101,17 +99,14 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         return;
       }
 
-      /// Store the new account and switch to it
       final sessionService = SessionService.instance;
       await sessionService.storeAccount(newSession, _passwordController.text);
 
-      /// Switch to the newly added account
       await sessionService.switchToAccount(newSession);
 
       if (!mounted) return;
 
 
-      /// Show success message after navigation using post-frame callback
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
           CustomSnackbar.showSuccess(
@@ -130,7 +125,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
-    /// Sync inlineError with _errorMessage (same pattern as credentials screen)
     if (_errorMessage != _inlineError) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -198,7 +192,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             ),
             const SizedBox(height: 16),
 
-            /// Password Field
             LoginTextField(
               controller: _passwordController,
               hint: 'Password',
@@ -247,10 +240,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             ),
             SizedBox(height: _inlineError != null ? 16 : 0),
 
-            /// Error display
             LoginErrorDisplay(error: _inlineError),
 
-            /// Add Account Button
             LoginButton(
               text: 'Add Account',
               isLoading: _isLoading,
@@ -296,7 +287,6 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
 
                       await _addAccount();
 
-                      /// Handle error feedback with haptic response (same as credentials screen)
                       if (!mounted) return;
                       if (_errorMessage != null) {
                         await HapticFeedback.heavyImpact();

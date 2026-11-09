@@ -35,7 +35,6 @@ class SessionService extends ChangeNotifier {
       return;
     }
 
-    /// Set up session callbacks
     OdooSessionManager.setSessionCallbacks(
       onSessionUpdated: (sessionModel) {
         updateSession(sessionModel);
@@ -45,16 +44,13 @@ class SessionService extends ChangeNotifier {
       },
     );
 
-    /// Load current session
     _currentSession = await OdooSessionManager.getCurrentSession();
 
-    /// Load stored accounts
     await _loadStoredAccounts();
 
-    /// Migrate passwords from SharedPreferences to secure storage
     await _migratePasswordsToSecureStorage();
 
-    /// Auto-store current session if not already stored
+    // Auto-store current session if not already stored
     if (_currentSession != null) {
       await _autoStoreCurrentSession();
     }
@@ -101,21 +97,17 @@ class SessionService extends ChangeNotifier {
   /// URL/database history alone, so the sign-in screen keeps it pre-filled.
   Future<void> logout() async {
     try {
-      /// Clear the session on the backend
       await OdooSessionManager.logout();
     } catch (e) {}
 
     try {
-      /// Clear stored accounts for privacy
       await _clearStoredAccountsData();
     } catch (e) {}
 
     try {
-      /// Clear password caches
       await _clearPasswordCaches();
     } catch (e) {}
 
-    /// Clear session service state
     clearSession();
   }
 
@@ -140,7 +132,6 @@ class SessionService extends ChangeNotifier {
           .cast<Map<String, dynamic>>()
           .toList();
 
-      /// Clean up any duplicate accounts
       await _cleanupDuplicateAccounts();
 
       notifyListeners();
@@ -152,7 +143,6 @@ class SessionService extends ChangeNotifier {
   Future<void> _autoStoreCurrentSession() async {
     if (_currentSession == null) return;
 
-    /// Check if current session is already stored
     final currentExists = _storedAccounts.any(
       (account) =>
           account['userId'] == _currentSession!.userId.toString() &&
@@ -164,7 +154,8 @@ class SessionService extends ChangeNotifier {
       await storeAccount(
         _currentSession!,
         '',
-      ); /// Store with empty password initially
+      // Stored with an empty password at first.
+      );
     }
   }
 
@@ -173,7 +164,7 @@ class SessionService extends ChangeNotifier {
 
     for (final account in _storedAccounts) {
       final userId = account['userId']?.toString() ?? '';
-      /// Normalize so accounts stored before normalization existed still merge.
+      // Normalize so accounts stored before normalization existed still merge.
       final serverUrl = normalizeServerUrl(account['serverUrl']?.toString() ?? '');
       final database = account['database']?.toString() ?? '';
 
@@ -215,10 +206,9 @@ class SessionService extends ChangeNotifier {
       String? imageBase64;
       String userDisplayName = session.userLogin;
 
-      /// Try to fetch user details including image
       try {
-        /// Isolated client scoped to this session, not the shared/global
-        /// client which may be authenticated as a different account.
+        // Isolated client scoped to this session, not the shared/global
+        // client which may be authenticated as a different account.
         final client = OdooClient(
           session.serverUrl,
           sessionId: session.odooSession,
@@ -247,11 +237,11 @@ class SessionService extends ChangeNotifier {
         }
       } catch (e) {}
 
-      /// `url` and `serverUrl` share the same normalized value so this
-      /// record stays consistent with dedup/comparison logic elsewhere.
+      // `url` and `serverUrl` share the same normalized value so this
+      // record stays consistent with dedup/comparison logic elsewhere.
       final normalizedUrl = normalizeServerUrl(session.serverUrl);
 
-      /// Create account data (WITHOUT password - stored securely)
+      // Create account data (WITHOUT password - stored securely)
       final accountData = {
         'id': session.userId.toString(),
         'name': userDisplayName,
@@ -262,23 +252,22 @@ class SessionService extends ChangeNotifier {
         'isCurrent': markAsCurrent,
         'lastLogin': DateTime.now().toIso8601String(),
         'imageBase64': imageBase64?.isNotEmpty == true ? imageBase64 : null,
-        /// Keep compatibility fields
         'userId': session.userId.toString(),
         'userName': userDisplayName,
         'serverUrl': normalizedUrl,
-        /// DON'T store password here - use secure storage
+        // DON'T store password here - use secure storage
         'sessionId': session.sessionId,
       };
 
-      /// Mark all other accounts as not current only if this account is being marked as current
+      // Mark all other accounts as not current only if this account is being marked as current
       if (markAsCurrent) {
         for (var account in _storedAccounts) {
           account['isCurrent'] = false;
         }
       }
 
-      /// Check if account already exists (same normalization as
-      /// `_cleanupDuplicateAccounts`'s dedup key).
+      // Check if account already exists (same normalization as
+      // `_cleanupDuplicateAccounts`'s dedup key).
       final existingIndex = _storedAccounts.indexWhere(
         (account) =>
             account['userId']?.toString() == accountData['userId'] &&
@@ -295,7 +284,6 @@ class SessionService extends ChangeNotifier {
       await _cleanupDuplicateAccounts();
       await _saveStoredAccountsWithRetry();
 
-      /// Store password with multiple patterns
       if (password.isNotEmpty) {
         await _storePasswordWithMultiplePatterns(session, password);
       }
@@ -351,7 +339,6 @@ class SessionService extends ChangeNotifier {
     try {
       final secureStorage = SecureStorageService.instance;
 
-      /// Store password with multiple patterns for reliable retrieval
       await secureStorage.storePassword(
         'password_${session.userId}_${session.database}',
         password,
@@ -372,13 +359,11 @@ class SessionService extends ChangeNotifier {
       final username = accountData['username'] ?? accountData['email'];
       final database = accountData['database'];
 
-      /// Try multiple password patterns in secure storage
       List<String> passwordKeys = [
         'password_${userId}_$database',
         'password_${username}_$database',
       ];
 
-      /// Try each password key pattern
       for (String key in passwordKeys) {
         final password = await secureStorage.getPassword(key);
         if (password != null && password.isNotEmpty) {
@@ -398,14 +383,13 @@ class SessionService extends ChangeNotifier {
       try {
         final prefs = await SharedPreferences.getInstance();
 
-        /// JSON encode accounts
         final updatedAccountsJson = _storedAccounts
             .map((account) => jsonEncode(account))
             .toList();
 
         await prefs.setStringList('stored_accounts', updatedAccountsJson);
 
-        return; /// Success
+        return;
       } catch (e) {
         if (attempt == maxRetries) {
         } else {
@@ -429,13 +413,10 @@ class SessionService extends ChangeNotifier {
 
   Future<bool> updateSessionDirectly(AppSessionData newSession) async {
     try {
-      /// Update the current session
       _currentSession = newSession;
 
-      /// Update OdooSessionManager
       await OdooSessionManager.updateSession(newSession);
 
-      /// Notify listeners
       notifyListeners();
 
       return true;
@@ -468,7 +449,6 @@ class SessionService extends ChangeNotifier {
 
   Future<void> _clearPasswordCaches() async {
     try {
-      /// Clear all passwords from secure storage
       await SecureStorageService.instance.clearAll();
     } catch (e) {}
   }
@@ -478,7 +458,6 @@ class SessionService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      /// Check if migration already done
       if (prefs.getBool('passwords_migrated') == true) {
         return;
       }
@@ -486,7 +465,6 @@ class SessionService extends ChangeNotifier {
       final secureStorage = SecureStorageService.instance;
       int migratedCount = 0;
 
-      /// Migrate all password keys from SharedPreferences
       final allKeys = prefs.getKeys();
       for (final key in allKeys) {
         if (key.startsWith('password_')) {
@@ -499,7 +477,6 @@ class SessionService extends ChangeNotifier {
         }
       }
 
-      /// Mark migration as complete
       await prefs.setBool('passwords_migrated', true);
     } catch (e) {}
   }

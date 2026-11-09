@@ -34,7 +34,7 @@ class CustomSnackbar {
 
       final colors = _getColorsForType(type, isDark);
 
-      /// Started once: the builder runs again whenever the route rebuilds.
+      // Started once: the builder runs again whenever the route rebuilds.
       Timer? autoDismiss;
 
       showDialog(

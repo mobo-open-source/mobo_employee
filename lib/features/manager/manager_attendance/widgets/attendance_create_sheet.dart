@@ -106,8 +106,8 @@ class _AttendanceCreateSheetState extends State<AttendanceCreateSheet> {
     try {
       employees = await widget.loadEmployees(widget.employeeDomain);
     } catch (e) {
-      /// Server unreachable: stop the picker's spinner and say why it's
-      /// empty instead of leaving it loading.
+      // Server unreachable: stop the picker's spinner and say why it's
+      // empty instead of leaving it loading.
       if (mounted) {
         CustomSnackbar.showError(
           context,
@@ -152,8 +152,8 @@ class _AttendanceCreateSheetState extends State<AttendanceCreateSheet> {
         checkOut: _checkOut,
       );
 
-      /// Stays "saving" while the sheet animates out, so Save can't create a
-      /// second attendance.
+      // Stays "saving" while the sheet animates out, so Save can't create a
+      // second attendance.
       if (mounted) _close(created: true);
     } catch (e) {
       if (mounted) {
@@ -187,8 +187,8 @@ class _AttendanceCreateSheetState extends State<AttendanceCreateSheet> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    /// The back button must not close the popup mid-save either: the request
-    /// would still create the attendance, unseen by the list.
+    // The back button must not close the popup mid-save either: the request
+    // would still create the attendance, unseen by the list.
     return PopScope(
       canPop: !_isSaving,
       child: FormSheetShell(

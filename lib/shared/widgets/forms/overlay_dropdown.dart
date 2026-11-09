@@ -180,7 +180,6 @@ class _OverlayDropdownFieldState<T> extends State<OverlayDropdownField<T>> {
             initialValue: widget.value,
             validator: widget.validator,
             builder: (field) {
-              /// Keep FormField in sync with external value
               if (field.value != widget.value) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   field.didChange(widget.value);

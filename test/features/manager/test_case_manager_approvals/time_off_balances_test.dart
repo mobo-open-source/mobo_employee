@@ -24,7 +24,7 @@ void main() {
     test(
       'puts the active company first, which Odoo takes as the current one',
       () {
-        /// The list as the app keeps it: the active company (1) ticked last.
+        // The list as the app keeps it: the active company (1) ticked last.
         expect(
           OdooSessionManager.orderAllowedCompanies(
             [4, 3, 1],
@@ -123,7 +123,7 @@ void main() {
       fail = true;
       await provider.fetchTimeOffData(showLoader: false);
 
-      /// Used to wipe them (and the pending count) on any error.
+      // Used to wipe them (and the pending count) on any error.
       expect(provider.timeOffBalances, hasLength(2));
       expect(provider.pendingAllocationCount, 3);
       expect(provider.timeOffDataFailed, isTrue);

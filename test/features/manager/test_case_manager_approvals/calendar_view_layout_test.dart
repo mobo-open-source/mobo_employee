@@ -127,7 +127,7 @@ void main() {
   group('a day with no time off', () {
     const noTimeOff = 'No time off on this day';
 
-    /// The panel card around the message: the nearest bordered Container.
+    // The panel card around the message: the nearest bordered Container.
     Finder card() => find
         .ancestor(
           of: find.text(noTimeOff),

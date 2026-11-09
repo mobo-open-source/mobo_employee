@@ -27,7 +27,6 @@ class MyCalenderWidger extends StatelessWidget {
           );
         }
 
-        /// Loading state
         if (provider.isLoading || provider.isInitialLoadDone == false) {
           return SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -35,7 +34,7 @@ class MyCalenderWidger extends StatelessWidget {
               children: [
                 SizedBox(height: 110, child: _buildShimmerLoading()),
                 const SizedBox(height: 20),
-                /// The same inset as the calendar it stands in for.
+                // The same inset as the calendar it stands in for.
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 5),
                   child: CalendarShimmer(),
@@ -45,7 +44,6 @@ class MyCalenderWidger extends StatelessWidget {
           );
         }
 
-        /// Data state
         return RefreshIndicator(
           onRefresh: provider.refreshMyCalender,
           child: SingleChildScrollView(
@@ -53,7 +51,6 @@ class MyCalenderWidger extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// Dashboard cards
                 TimeOffBalanceCards(
                   balances: provider.timeOffBalances,
                   pendingCount: provider.pendingMyRequest,
@@ -62,7 +59,6 @@ class MyCalenderWidger extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                /// Calendar
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 5),
                   child: MyLeaveCalender(),
@@ -70,7 +66,6 @@ class MyCalenderWidger extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                /// Leave Events
                 if (provider.selectedDateEvents.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
@@ -121,7 +116,7 @@ class MyCalenderWidger extends StatelessWidget {
           "${DateFormat('MMM dd').format(from)} - ${DateFormat('MMM dd, yyyy').format(to)}";
     }
 
-    /// Prevent duplicate date headers
+    // Prevent duplicate date headers
     if (index > 0) {
       final prev = provider.selectedDateEvents[index - 1];
       final prevFrom = prev.dateFrom ?? DateTime.now();

@@ -302,7 +302,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
       return;
     }
 
-    /// Commit any in-progress IME composition before reading the fields.
+    // Commit any in-progress IME composition before reading the fields.
     FocusScope.of(context).unfocus();
 
     setState(() => _isSaving = true);
@@ -317,8 +317,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
 
       final userUpdates = <String, dynamic>{};
       final partnerUpdates = <String, dynamic>{};
-      /// Set only when job_title needs the hr.employee fallback write; see
-      /// `ProfileProvider.canWriteEmployeeJobTitle`.
+      // Set only when job_title needs the hr.employee fallback write; see
+      // `ProfileProvider.canWriteEmployeeJobTitle`.
       String? jobTitleForEmployeeFallback;
 
       if (_nameController.text.trim() != _normalizeForEdit(userData['name'])) {
@@ -332,18 +332,18 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           _normalizeForEdit(userData['phone'])) {
         final newPhone = _phoneController.text.trim();
         partnerUpdates['phone'] = newPhone;
-        /// Mirror onto hr.employee.work_phone too, so the Employees app card
-        /// reflects the change.
+        // Mirror onto hr.employee.work_phone too, so the Employees app card
+        // reflects the change.
         if (provider.hasWorkPhoneField) {
           userUpdates['work_phone'] = newPhone;
         }
       }
 
-      /// Skip on servers with no mobile field (Odoo 19).
+      // Skip on servers with no mobile field (Odoo 19).
       if (!provider.serverHasNoMobileField &&
           _mobileController.text.trim() !=
               _normalizeForEdit(userData['mobile'])) {
-        /// Correct mapping: Work Mobile -> res.partner.mobile
+        // Correct mapping: Work Mobile -> res.partner.mobile
         partnerUpdates['mobile'] = _mobileController.text.trim();
       }
       if (_websiteController.text.trim() !=
@@ -354,8 +354,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
           _normalizeForEdit(userData['function'])) {
         final newFunction = _functionController.text.trim();
         partnerUpdates['function'] = newFunction;
-        /// hr.employee.job_title is separate from res.partner.function and
-        /// is what the Employees app card shows.
+        // hr.employee.job_title is separate from res.partner.function and
+        // is what the Employees app card shows.
         if (provider.hasJobTitleField) {
           if (provider.jobTitleWritableViaUsers) {
             userUpdates['job_title'] = newFunction;
@@ -388,13 +388,13 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     } finally {
       if (!mounted) return;
 
-      /// FIRST close loading dialog
+      // FIRST close loading dialog
       if (_isShowingLoadingDialog) {
         _isShowingLoadingDialog = false;
         Navigator.of(context).pop();
       }
 
-      /// THEN show snackbar
+      // THEN show snackbar
       if (isSuccess) {
         if (HapticsService.isSupported) {
           await HapticsService.success();
@@ -437,7 +437,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
     return _nameController.text.trim() != _normalizeForEdit(userData['name']) ||
         _emailController.text.trim() != _normalizeForEdit(userData['email']) ||
         _phoneController.text.trim() != _normalizeForEdit(userData['phone']) ||
-        /// Ignored when the field doesn't exist server-side (Odoo 19).
+        // Ignored when the field doesn't exist server-side (Odoo 19).
         (!provider.serverHasNoMobileField &&
             _mobileController.text.trim() !=
                 _normalizeForEdit(userData['mobile'])) ||
@@ -1478,9 +1478,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    /// Allow editing while offline; provider will queue updates for sync
+    // Allow editing while offline; provider will queue updates for sync
     final bool isEditingDisabled = false;
-    /// Use class-level _rs(context, size) for responsive text
 
     return PopScope(
       canPop: false,
@@ -1509,7 +1508,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
             ),
           ),
           actions: [
-            /// Pending sync action (visible when there are queued updates)
+            // Pending sync action (visible when there are queued updates)
             Consumer<ProfileProvider>(
               builder: (context, provider, _) {
                 if (!provider.hasPendingUpdates) return const SizedBox.shrink();
@@ -1591,7 +1590,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
         backgroundColor: isDark ? Colors.grey[900]! : Colors.white,
         body: Consumer<ProfileProvider>(
           builder: (context, provider, child) {
-            /// Prefer cached data; avoid shimmer when offline
+            // Prefer cached data; avoid shimmer when offline
             if (provider.userData == null) {
               if (provider.isLoading && provider.hasInternet) {
                 return ListShimmer.buildListShimmer(
@@ -1708,7 +1707,7 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
                             ),
-                            /// Odoo 19 dropped `mobile` from res.partner.
+                            // Odoo 19 dropped `mobile` from res.partner.
                             if (!provider.serverHasNoMobileField) ...[
                               const SizedBox(height: 16),
                               _buildCustomTextField(
@@ -1740,8 +1739,8 @@ class _ProfileDetailScreenState extends State<ProfileDetailScreen> {
                               disabled: isEditingDisabled,
                               controller: _functionController,
                             ),
-                            /// Odoo 17 hides this field entirely rather
-                            /// than showing it read-only.
+                            // Odoo 17 hides this field entirely rather
+                            // than showing it read-only.
                             if (!provider.isOdoo17) ...[
                               const SizedBox(height: 16),
                               _buildCustomTextField(

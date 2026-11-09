@@ -72,7 +72,7 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
       );
     }
 
-    /// Matches WidgetManagerWelcomeCard.
+    // Matches WidgetManagerWelcomeCard.
     Widget welcomeCardShimmer() {
       return Container(
         width: double.infinity,
@@ -101,8 +101,8 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
       );
     }
 
-    /// Matches WidgetQuickOverview: title on top, value and caption in the
-    /// middle, accent bar at the bottom.
+    // Matches WidgetQuickOverview: title on top, value and caption in the
+    // middle, accent bar at the bottom.
     Widget quickOverviewCardShimmer() {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -126,7 +126,7 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
       );
     }
 
-    /// Matches WidgetRecentActivity: icon chip + title/subtitle lines.
+    // Matches WidgetRecentActivity: icon chip + title/subtitle lines.
     Widget recentActivityCardShimmer() {
       return Container(
         width: double.infinity,
@@ -162,7 +162,6 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
           welcomeCardShimmer(),
           const SizedBox(height: 18),
 
-          /// "Quick Overview" title
           line(width: 150, height: 18),
           const SizedBox(height: 16),
           GridView(
@@ -174,7 +173,6 @@ class WidgetShimmerManagerDashboard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          /// "Today's Reports" title
           line(width: 150, height: 18),
           const SizedBox(height: 16),
           recentActivityCardShimmer(),

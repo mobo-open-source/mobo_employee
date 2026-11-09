@@ -33,7 +33,7 @@ class TimeOffBalance {
     if (entry is! List || entry.length < 4 || entry[1] is! Map) return null;
     final data = entry[1] as Map;
 
-    /// Selection('yes'/'no') up to 18, boolean afterwards.
+    // Selection('yes'/'no') up to 18, boolean afterwards.
     final requiresAllocation = entry[2] == true || entry[2] == 'yes';
     final amount = requiresAllocation
         ? data['virtual_remaining_leaves']
@@ -45,7 +45,7 @@ class TimeOffBalance {
       name: entry[0]?.toString() ?? '',
       requiresAllocation: requiresAllocation,
       amount: amount is num ? amount.toDouble() : 0,
-      /// Odoo 20 renamed request_unit to unit_of_measure
+      // Odoo 20 renamed request_unit to unit_of_measure
       isHours: (data['unit_of_measure'] ?? data['request_unit']) == 'hour',
       validity: requiresAllocation && validity is String && validity.isNotEmpty
           ? validity

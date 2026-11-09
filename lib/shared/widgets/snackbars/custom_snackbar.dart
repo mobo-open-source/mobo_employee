@@ -94,8 +94,6 @@ class CustomSnackbar {
     }
   }
 
-  /// ===== Helper methods (UNCHANGED) =====
-
   static void showSuccess(BuildContext context, String message) {
     show(
       context: context,
@@ -166,8 +164,6 @@ class CustomSnackbar {
     );
   }
 }
-
-/// ===== UI WIDGET =====
 
 class _SnackBarContent extends StatelessWidget {
   final String title;
