@@ -25,9 +25,10 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
     /// Initial load for TimeOff
     if (provider.isTimeOffLoading) {
       return ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: WidgetTimeOffCard.listPadding(),
         itemCount: 6,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, __) =>
+            const SizedBox(height: WidgetTimeOffCard.listGap),
         itemBuilder: (_, __) => const WidgetTimeOffCardShimmer(),
       );
     }
@@ -51,8 +52,9 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
 
     return ListView.separated(
       // Room under the last card so it scrolls clear of the speed dial.
-      padding: const EdgeInsets.only(top: 12, bottom: AppSpacing.fabClearance),
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      padding: WidgetTimeOffCard.listPadding(bottom: AppSpacing.fabClearance),
+      separatorBuilder: (_, __) =>
+          const SizedBox(height: WidgetTimeOffCard.listGap),
       itemCount: provider.timeOffList.length,
       itemBuilder: (context, index) {
         final item = provider.timeOffList[index];

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/features/manager/manager_approvals/widgets/widget_timeoff_card.dart';
+import 'package:mobo_employees/features/manager/manager_employees/widgets/widget_employee_card.dart';
 
 Widget _card({
   String status = 'To Approve',
@@ -145,10 +146,89 @@ void main() {
       final photo = tester.getRect(_avatar);
       final buttons = tester.getRect(find.byType(ElevatedButton));
 
-      expect(photo.left - card.left, 12);
-      expect(photo.top - card.top, 12);
-      expect(card.bottom - buttons.bottom, 12);
-      expect(card.right - buttons.right, 12);
+      // 12 of padding, and the 0.5 of the card's hairline border (a bordered
+      // Container pads its child by it).
+      expect(photo.left - card.left, 12.5);
+      expect(photo.top - card.top, 12.5);
+      expect(card.bottom - buttons.bottom, 12.5);
+      expect(card.right - buttons.right, 12.5);
+    });
+
+    group('the surface', () {
+      BoxDecoration surface(WidgetTester tester) {
+        final box = tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byType(WidgetTimeOffCard),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+        return box.decoration! as BoxDecoration;
+      }
+
+      testWidgets('is the Employees list\'s flat card', (tester) async {
+        await tester.pumpWidget(_card());
+
+        final decoration = surface(tester);
+        expect(decoration, AppTheme.flatCardDecoration(false));
+        // White, the default 12 radius, a hairline border and the card shadow —
+        // not the soft search-bar shadow it had.
+        expect(decoration.color, Colors.white);
+        expect(decoration.borderRadius, BorderRadius.circular(12));
+        expect(decoration.boxShadow, const [AppShadows.cardShadow]);
+        expect((decoration.border! as Border).top.width, 0.5);
+        expect((decoration.border! as Border).top.color, Colors.grey[200]);
+      });
+
+      test('is literally the same decoration as an Employees card\'s', () {
+        for (final dark in [false, true]) {
+          expect(
+            WidgetTimeOffCard.decoration(dark),
+            WidgetEmployeeCard.decoration(dark),
+          );
+        }
+      });
+
+      test(
+        'in dark mode is the dark card grey, with the same border colour',
+        () {
+          final dark = WidgetTimeOffCard.decoration(true);
+          expect(dark.color, Colors.grey[850]);
+          expect((dark.border! as Border).top.color, Colors.grey[850]);
+        },
+      );
+    });
+
+    testWidgets('sets the name at 15, larger than the reason below it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_card());
+
+      final name = tester.widget<Text>(find.text('Beth Evans')).style!;
+      final reason =
+          (tester
+                      .widget<RichText>(
+                        find.textContaining('Reason:', findRichText: true),
+                      )
+                      .text
+                  as TextSpan)
+              .style!;
+      expect(name.fontSize, WidgetTimeOffCard.nameFontSize);
+      expect(name.fontSize, 15);
+      expect(name.fontSize!, greaterThan(reason.fontSize!));
+      expect(name.fontWeight, FontWeight.w600);
+    });
+
+    testWidgets('the larger name still fits beside the photo, above the '
+        'details', (tester) async {
+      await tester.pumpWidget(_card());
+
+      final name = tester.getRect(find.text('Beth Evans'));
+      final photo = tester.getRect(_avatar);
+      expect(tester.takeException(), isNull);
+      expect(name.top, greaterThanOrEqualTo(photo.top));
+      expect(name.bottom, lessThanOrEqualTo(photo.bottom));
     });
 
     testWidgets('has a 40 round photo', (tester) async {
@@ -231,6 +311,59 @@ void main() {
       final photo = tester.getRect(_avatar);
       expect(reason.left, photo.left);
       expect(reason.top, greaterThanOrEqualTo(photo.bottom));
+    });
+
+    testWidgets('sets the reason in semi-bold, not the light weight it had', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_card());
+
+      final reason = tester.widget<RichText>(
+        find.textContaining('Reason:', findRichText: true),
+      );
+      expect((reason.text as TextSpan).style?.fontWeight, FontWeight.w600);
+      expect(
+        find.text(
+          'Reason: Personal medical appointment (doctor).',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sets the reason at 13 — larger than the 11 it was', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_card());
+
+      final reason = tester.widget<RichText>(
+        find.textContaining('Reason:', findRichText: true),
+      );
+      final size = (reason.text as TextSpan).style?.fontSize;
+      expect(size, WidgetTimeOffCard.reasonFontSize);
+      expect(size, 13);
+    });
+
+    testWidgets('a long reason wraps to more lines without overflowing', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        _card(
+          reason:
+              'Attending a family wedding out of town, so travelling the day '
+              'before and returning the day after it',
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.textContaining('Reason:', findRichText: true),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a request with no reason leaves the Reason line out', (

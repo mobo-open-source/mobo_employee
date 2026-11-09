@@ -14,7 +14,8 @@ import '../../../../widgets/snackbar_widgets.dart';
 
 /// Popup, in the middle of the screen, mirroring Odoo's Attendances > New form:
 /// an employee, a check-in and an optional check-out (left empty while still
-/// checked in). While it saves, the loading animation covers the form.
+/// checked in). While it saves, the Save button shows the progress — the form
+/// stays in view, locked, and the popup closes once the attendance is created.
 class AttendanceCreateSheet extends StatefulWidget {
   /// The employees Odoo lets this user create attendances for (see
   /// [UserAccessService.attendanceCreateDomain]).
@@ -194,9 +195,10 @@ class _AttendanceCreateSheetState extends State<AttendanceCreateSheet> {
         centered: true,
         title: "New Attendance",
         onClose: _isSaving ? null : _close,
-        busyMessage: _isSaving ? "Saving attendance..." : null,
+        locked: _isSaving,
         footer: SheetSubmitButton(
           label: "Save",
+          loadingLabel: "Saving...",
           isLoading: _isSaving,
           enabled: _isSubmitEnabled,
           isDark: isDark,

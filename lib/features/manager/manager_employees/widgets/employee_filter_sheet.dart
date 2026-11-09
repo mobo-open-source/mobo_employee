@@ -21,12 +21,21 @@ class EmployeeFilterSheet {
 
   static const _groupByOptions = <GroupByOption<EmployeeGroupBy>>[
     GroupByOption(EmployeeGroupBy.none, 'None', 'Display as a simple list'),
-    GroupByOption(EmployeeGroupBy.department, 'Department',
-        'Group employees by department'),
-    GroupByOption(EmployeeGroupBy.jobPosition, 'Job Position',
-        'Group employees by job title'),
-    GroupByOption(EmployeeGroupBy.attendance, 'Attendance',
-        'Group employees by attendance status'),
+    GroupByOption(
+      EmployeeGroupBy.department,
+      'Department',
+      'Group employees by department',
+    ),
+    GroupByOption(
+      EmployeeGroupBy.jobPosition,
+      'Job Position',
+      'Group employees by job title',
+    ),
+    GroupByOption(
+      EmployeeGroupBy.attendance,
+      'Attendance',
+      'Group employees by attendance status',
+    ),
   ];
 
   static Future<void> show(BuildContext context) {
@@ -41,8 +50,10 @@ class EmployeeFilterSheet {
         initialSelected: p.draftFilters,
         groupByOptions: _groupByOptions,
         initialGroupBy: {p.draftGroupBy},
-        onApply: (selected, groupBy, _, __) =>
-            p.applyFilterAndGroup(selected, groupBy.isEmpty ? EmployeeGroupBy.none : groupBy.first),
+        onApply: (selected, groupBy, _, __) => p.applyFilterAndGroup(
+          selected,
+          groupBy.isEmpty ? EmployeeGroupBy.none : groupBy.first,
+        ),
         onClearAll: () async => p.clearAllFilters(),
       ),
     );

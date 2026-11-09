@@ -70,8 +70,32 @@ class WidgetTimeOffCard extends StatelessWidget {
   /// Between the photo and the text beside it.
   static const double avatarGap = 12;
 
-  /// Corner radius of the card.
-  static const double radius = 14;
+  /// Corner radius of the card: the default 12, as the Employees cards.
+  static const double radius = AppRadius.defaultRadius;
+
+  /// The card surface — the same flat card as the Employees list (white, a
+  /// hairline border and the standard card shadow), shared with the loading
+  /// placeholder.
+  static BoxDecoration decoration(bool isDark) =>
+      AppTheme.flatCardDecoration(isDark);
+
+  /// The lists of these cards (Time Off, Allocation): the side inset sits in
+  /// the list's own padding — not outside it — so the card shadow isn't clipped
+  /// at the list's edges, and the gap between cards is the Employees list's 12.
+  static const double listSideInset = 15;
+  static const double listGap = 12;
+
+  /// The list's padding: the side inset, a little room above the first card and
+  /// [bottom] under the last.
+  static EdgeInsets listPadding({double bottom = 12}) =>
+      EdgeInsets.fromLTRB(listSideInset, 12, listSideInset, bottom);
+
+  /// Size of the employee's name: the Employees card's 15, now larger than the
+  /// reason (13) beneath it.
+  static const double nameFontSize = 15;
+
+  /// Size of the "Reason: …" line — it was 11, which read small under the name.
+  static const double reasonFontSize = 13;
 
   /// Between the photo row and the reason, and between the reason and the
   /// buttons.
@@ -186,18 +210,7 @@ class WidgetTimeOffCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(padding),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.greyShade800Color : Colors.white,
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.color000000.withValues(alpha: .04),
-            offset: const Offset(3, 11),
-            blurRadius: 8.5,
-            spreadRadius: -3,
-          ),
-        ],
-      ),
+      decoration: decoration(isDark),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +239,7 @@ class WidgetTimeOffCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
-                                fontSize: 13,
+                                fontSize: nameFontSize,
                                 fontWeight: FontWeight.w600,
                                 height: 1.4,
                                 color: titleColor,
@@ -272,9 +285,11 @@ class WidgetTimeOffCard extends StatelessWidget {
                   TextSpan(text: reason),
                 ],
               ),
+              // Semi-bold, and as large as the name above it: at w400 and 11 the
+              // line was too light and small to read beside the bold duration.
               style: GoogleFonts.manrope(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
+                fontSize: reasonFontSize,
+                fontWeight: FontWeight.w600,
                 color: titleColor,
               ),
             ),

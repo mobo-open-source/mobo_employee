@@ -140,18 +140,7 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
       highlightColor: isDark ? Colors.grey[700]! : Colors.grey.shade100,
       child: Container(
         padding: const EdgeInsets.all(WidgetTimeOffCard.padding),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.grey[850] : Colors.white,
-          borderRadius: BorderRadius.circular(WidgetTimeOffCard.radius),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .04),
-              offset: const Offset(3, 11),
-              blurRadius: 8.5,
-              spreadRadius: -3,
-            ),
-          ],
-        ),
+        decoration: WidgetTimeOffCard.decoration(isDark),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

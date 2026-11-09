@@ -29,6 +29,34 @@ class AppTheme {
   static final Color darkOptionFill = Colors.grey[700]!;
   static final Color darkOptionBorder = Colors.grey[600]!;
 
+  /// The caret, selection and drag handle of a time picker's typing mode — for
+  /// the picker's own `Theme` only. The hour or minute being typed into is
+  /// always the brand-filled "selected" one, so anything brand-coloured on it
+  /// vanishes into the fill — or, like the drag handle's teardrop that hangs
+  /// from the box, shows up as a brand-red bump stuck to it. All three are white
+  /// here (the selection a pale white wash). (A white caret anywhere else would
+  /// be invisible on a light field.)
+  static final TextSelectionThemeData timePickerTextSelection =
+      TextSelectionThemeData(
+        cursorColor: Colors.white,
+        selectionColor: Colors.white.withValues(alpha: 0.35),
+        selectionHandleColor: Colors.white,
+      );
+
+  /// The canonical flat card (§8): white (grey[850] in dark mode), the default
+  /// 12 radius, a hairline border and the standard card shadow. The Employees
+  /// cards and the Approvals (Time Off / Allocation) cards all wear it, so the
+  /// lists look alike.
+  static BoxDecoration flatCardDecoration(bool isDark) => BoxDecoration(
+    color: isDark ? Colors.grey[850] : Colors.white,
+    borderRadius: BorderRadius.circular(AppRadius.defaultRadius),
+    border: Border.all(
+      color: isDark ? Colors.grey[850]! : Colors.grey[200]!,
+      width: 0.5,
+    ),
+    boxShadow: const [AppShadows.cardShadow],
+  );
+
   /// Fill of an inactive submit button in light mode — a form with nothing to
   /// save yet. Dark mode keeps `grey[700]`.
   static const Color disabledButtonFill = Color(0xFFBDBDBD);

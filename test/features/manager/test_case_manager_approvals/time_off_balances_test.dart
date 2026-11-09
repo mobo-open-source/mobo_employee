@@ -21,17 +21,28 @@ TimeOffDashboard _dashboard({int pending = 1}) => TimeOffDashboard(
 
 void main() {
   group('orderAllowedCompanies', () {
-    test('puts the active company first, which Odoo takes as the current one', () {
-      /// The list as the app keeps it: the active company (1) ticked last.
-      expect(
-        OdooSessionManager.orderAllowedCompanies([4, 3, 1], 1, activeFirst: true),
-        [1, 4, 3],
-      );
-    });
+    test(
+      'puts the active company first, which Odoo takes as the current one',
+      () {
+        /// The list as the app keeps it: the active company (1) ticked last.
+        expect(
+          OdooSessionManager.orderAllowedCompanies(
+            [4, 3, 1],
+            1,
+            activeFirst: true,
+          ),
+          [1, 4, 3],
+        );
+      },
+    );
 
     test('keeps the saved order when asked not to reorder', () {
       expect(
-        OdooSessionManager.orderAllowedCompanies([4, 3, 1], 1, activeFirst: false),
+        OdooSessionManager.orderAllowedCompanies(
+          [4, 3, 1],
+          1,
+          activeFirst: false,
+        ),
         [4, 3, 1],
       );
     });
@@ -49,7 +60,11 @@ void main() {
 
     test('has no duplicates and works with an empty list', () {
       expect(
-        OdooSessionManager.orderAllowedCompanies([1, 1, 2], 1, activeFirst: true),
+        OdooSessionManager.orderAllowedCompanies(
+          [1, 1, 2],
+          1,
+          activeFirst: true,
+        ),
         [1, 2],
       );
       expect(
@@ -114,17 +129,20 @@ void main() {
       expect(provider.timeOffDataFailed, isTrue);
     });
 
-    test('a first load that fails is flagged so the page can offer a retry', () async {
-      final provider = ManagerApprovalsProvider(
-        readTimeOffDashboard: () async => throw Exception('server error'),
-        timeOffRetryDelay: Duration.zero,
-      );
+    test(
+      'a first load that fails is flagged so the page can offer a retry',
+      () async {
+        final provider = ManagerApprovalsProvider(
+          readTimeOffDashboard: () async => throw Exception('server error'),
+          timeOffRetryDelay: Duration.zero,
+        );
 
-      await provider.fetchTimeOffData(showLoader: false);
+        await provider.fetchTimeOffData(showLoader: false);
 
-      expect(provider.timeOffBalances, isEmpty);
-      expect(provider.timeOffDataFailed, isTrue);
-    });
+        expect(provider.timeOffBalances, isEmpty);
+        expect(provider.timeOffDataFailed, isTrue);
+      },
+    );
 
     test('retryTimeOffData recovers and clears the failed state', () async {
       var fail = true;

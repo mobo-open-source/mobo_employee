@@ -291,7 +291,17 @@ class _MoboTypeaheadFieldState<T> extends State<MoboTypeaheadField<T>> {
         color: isDark ? AppColors.popupDark : Colors.white,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: widget.popupMaxHeight),
-          child: child,
+          // The popup is mounted by an OverlayPortal, so although it floats over
+          // the screen it is still a *descendant* of whatever scroll view holds
+          // the field — the create-form sheets, which dismiss the keyboard when
+          // dragged. Without this, scrolling the list was read as dragging the
+          // sheet: the field lost focus, the keyboard went, and the dropdown
+          // closed before an employee far down the list could be reached. Its
+          // scrolling is its own, so it stops here.
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (_) => true,
+            child: child,
+          ),
         ),
       ),
     );

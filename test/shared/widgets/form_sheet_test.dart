@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:mobo_employees/core/theme/app_theme.dart';
 import 'package:mobo_employees/shared/widgets/forms/dashed_border_box.dart';
 import 'package:mobo_employees/shared/widgets/loaders/loading_widget.dart';
 import 'package:mobo_employees/shared/widgets/forms/mobo_file_upload_box.dart';
@@ -50,6 +52,11 @@ Widget _shell({
     padding: padding,
   );
 }
+
+/// The Mobo delete icon (a bin).
+final _deleteIcon = find.byWidgetPredicate(
+  (w) => w is HugeIcon && identical(w.icon, HugeIcons.strokeRoundedDelete02),
+);
 
 void main() {
   group('FormSheetShell', () {
@@ -146,7 +153,7 @@ void main() {
 
   group('FormSheetShell: busy and centred', () {
     testWidgets(
-      'a busy shell covers the form with the loading animation and blocks taps',
+      'a locked shell ignores input, and draws nothing over the form',
       (tester) async {
         var taps = 0;
         await tester.pumpWidget(
@@ -154,8 +161,8 @@ void main() {
             FormSheetShell(
               title: 'Saving',
               onClose: null,
-              busyMessage: 'Saving attendance...',
-              children: const [SizedBox(height: 40)],
+              locked: true,
+              children: const [Text('Employee')],
               footer: SizedBox(
                 height: 52,
                 child: ElevatedButton(
@@ -168,13 +175,37 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(find.byType(LoadingWidget), findsOneWidget);
-        expect(find.text('Saving attendance...'), findsOneWidget);
-
         await tester.tap(find.text('Save'), warnIfMissed: false);
-        expect(taps, 0, reason: 'the form must ignore input while busy');
+        expect(taps, 0, reason: 'the form must ignore input while locked');
+        // The form is still in view, with no loading animation on top: the
+        // footer's own button is what shows progress.
+        expect(find.text('Employee'), findsOneWidget);
+        expect(find.byType(LoadingWidget), findsNothing);
       },
     );
+
+    testWidgets('an unlocked shell takes input', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        _host(
+          FormSheetShell(
+            title: 'Idle',
+            onClose: null,
+            children: const [SizedBox(height: 40)],
+            footer: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => taps++,
+                child: const Text('Save'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Save'));
+      expect(taps, 1);
+    });
 
     testWidgets('an idle shell has no loading animation', (tester) async {
       await tester.pumpWidget(_shell());
@@ -332,20 +363,64 @@ void main() {
       expect(picked, 1);
     });
 
-    testWidgets('with a file: its name and a ×, instead of the dotted box', (
+    testWidgets(
+      'with a file: its name and a delete icon, instead of the dotted box',
+      (tester) async {
+        var removed = 0;
+        await tester.pumpWidget(
+          box(fileName: 'medical-certificate.pdf', onRemove: () => removed++),
+        );
+
+        expect(find.text('medical-certificate.pdf'), findsOneWidget);
+        expect(find.byType(DashedBorderBox), findsNothing);
+        expect(find.text('Attach File'), findsNothing);
+
+        await tester.tap(_deleteIcon);
+        expect(removed, 1);
+      },
+    );
+
+    testWidgets('removing is the Mobo delete icon, not a close ×', (
       tester,
     ) async {
-      var removed = 0;
+      await tester.pumpWidget(box(fileName: 'medical-certificate.pdf'));
+
+      expect(_deleteIcon, findsOneWidget);
+      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.byTooltip('Delete attachment'), findsOneWidget);
+      // Red, as a destructive action is everywhere else in Mobo.
+      expect(tester.widget<HugeIcon>(_deleteIcon).color, StatusColors.red);
+    });
+
+    testWidgets('the delete icon is a comfortable tap target', (tester) async {
+      await tester.pumpWidget(box(fileName: 'medical-certificate.pdf'));
+
+      final size = tester.getSize(find.byTooltip('Delete attachment'));
+      expect(size.width, greaterThanOrEqualTo(28));
+      expect(size.height, greaterThanOrEqualTo(28));
+    });
+
+    testWidgets('dark mode uses the softer red', (tester) async {
       await tester.pumpWidget(
-        box(fileName: 'medical-certificate.pdf', onRemove: () => removed++),
+        _host(
+          MoboFileUploadBox(
+            isDark: true,
+            fileName: 'medical-certificate.pdf',
+            onPick: () {},
+            onRemove: () {},
+          ),
+        ),
       );
 
-      expect(find.text('medical-certificate.pdf'), findsOneWidget);
-      expect(find.byType(DashedBorderBox), findsNothing);
-      expect(find.text('Attach File'), findsNothing);
+      expect(
+        tester.widget<HugeIcon>(_deleteIcon).color,
+        StatusColors.errorIcon,
+      );
+    });
 
-      await tester.tap(find.byIcon(Icons.close));
-      expect(removed, 1);
+    testWidgets('empty, there is nothing to delete', (tester) async {
+      await tester.pumpWidget(box());
+      expect(_deleteIcon, findsNothing);
     });
   });
 }
