@@ -225,7 +225,6 @@ class DashboardShimmer extends StatelessWidget {
           _checkInCardShimmer(),
           const SizedBox(height: 18),
 
-          /// "Quick Overview" title
           _line(width: 150, height: 18),
           const SizedBox(height: 16),
           GridView(
@@ -237,7 +236,6 @@ class DashboardShimmer extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          /// "Recent Activity" title
           _line(width: 150, height: 18),
           const SizedBox(height: 16),
           _recentActivityCardShimmer(),

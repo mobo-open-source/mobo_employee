@@ -30,7 +30,7 @@ Map<String, dynamic> _line({
 };
 
 void main() {
-  /// Monday.
+  // Monday.
   final monday = DateTime(2026, 10, 19);
 
   group('ManagerDashboardDataService.startHoursFromLines', () {
@@ -92,8 +92,8 @@ void main() {
     });
 
     test('lines with no hours are not working time, on any version', () {
-      /// Before Odoo 20 the server isn't asked for this, so it's done here:
-      /// an empty line mustn't pull the start of the day earlier.
+      // Before Odoo 20 the server isn't asked for this, so it's done here:
+      // an empty line mustn't pull the start of the day earlier.
       final hours = ManagerDashboardDataService.startHoursFromLines([
         {
           'calendar_id': [3, '40 hours'],
@@ -195,7 +195,7 @@ void main() {
   });
 
   group('ManagerDashboardDataService.startHoursDomain', () {
-    /// The fields Odoo 17-19 have on `resource.calendar.attendance`.
+    // The fields Odoo 17-19 have on `resource.calendar.attendance`.
     const classicFields = {
       'dayofweek',
       'hour_from',
@@ -205,7 +205,7 @@ void main() {
       'date_to',
     };
 
-    /// What Odoo 20 has instead (no `week_type`; dated, recurring lines).
+    // What Odoo 20 has instead (no `week_type`; dated, recurring lines).
     const odoo20Fields = {
       'dayofweek',
       'hour_from',
@@ -216,14 +216,14 @@ void main() {
       'recurrency_until',
     };
 
-    /// The field names the domain filters on.
+    // The field names the domain filters on.
     Set<String> filteredFields(List<dynamic> domain) =>
         domain.whereType<List>().map((leaf) => leaf.first as String).toSet();
 
     test('never filters on duration_hours, which is not stored before Odoo 20', () {
-      /// Odoo 17/18 ignore a condition on it (so zero-hour rows slipped
-      /// through) and Odoo 20 rejects it; the zero-hour rule lives in
-      /// startHoursFromLines instead.
+      // Odoo 17/18 ignore a condition on it (so zero-hour rows slipped
+      // through) and Odoo 20 rejects it; the zero-hour rule lives in
+      // startHoursFromLines instead.
       for (final fields in [classicFields, odoo20Fields]) {
         final domain = ManagerDashboardDataService.startHoursDomain(
           calendarIds: [1, 2],
@@ -267,10 +267,10 @@ void main() {
       'duration_based without dated lines is not Odoo 20: never filters on '
       'date or recurrency_until',
       () {
-        /// What an Odoo 19 server returned in the field: `duration_based` is
-        /// there, `date` is not, and filtering on it failed the whole query
-        /// ("Invalid field resource.calendar.attendance.date"), which the
-        /// Late Check-ins card showed as 0.
+        // What an Odoo 19 server returned in the field: `duration_based` is
+        // there, `date` is not, and filtering on it failed the whole query
+        // ("Invalid field resource.calendar.attendance.date"), which the
+        // Late Check-ins card showed as 0.
         const odoo19Fields = {
           'dayofweek',
           'hour_from',
@@ -303,8 +303,8 @@ void main() {
     });
 
     test('Odoo 17-19: a line limited to a period only counts inside it', () {
-      /// Otherwise an early line that starts tomorrow, or ended last week,
-      /// pulls the start of today's day back and makes on-time check-ins late.
+      // Otherwise an early line that starts tomorrow, or ended last week,
+      // pulls the start of today's day back and makes on-time check-ins late.
       final domain = ManagerDashboardDataService.startHoursDomain(
         calendarIds: [1],
         today: monday,
@@ -330,7 +330,7 @@ void main() {
   });
 
   group('ManagerDashboardDataService.countLateCheckIns', () {
-    /// 09:15 and 07:50 on the device's clock.
+    // 09:15 and 07:50 on the device's clock.
     final nineFifteen = DateTime(2026, 10, 19, 9, 15);
     final sevenFifty = DateTime(2026, 10, 19, 7, 50);
 
@@ -356,9 +356,9 @@ void main() {
     });
 
     test('an employee on a flexible schedule is never late', () {
-      /// Odoo 18/19 keep the weekly lines of a schedule switched to Flexible
-      /// Hours, so without this a 10:30 check-in counted as two and a half
-      /// hours late.
+      // Odoo 18/19 keep the weekly lines of a schedule switched to Flexible
+      // Hours, so without this a 10:30 check-in counted as two and a half
+      // hours late.
       expect(count({1: nineFifteen, 3: nineFifteen}, flexible: {20}), 1);
       expect(count({3: nineFifteen}, flexible: {20}), 0);
     });

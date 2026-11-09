@@ -40,7 +40,8 @@ class StatusBadge extends StatelessWidget {
         );
       case 'confirmed':
         return StatusBadgeStyle(
-          label: 'Waiting', /// Odoo shows 'confirmed' state as 'Waiting'
+          // Odoo shows the 'confirmed' state as 'Waiting'.
+          label: 'Waiting',
           color: StatusColors.orange,
           icon: Icons.hourglass_empty,
         );
@@ -107,8 +108,8 @@ class StatusBadge extends StatelessWidget {
         style ?? StatusBadgeStyle(label: status, color: StatusColors.grey);
     final Color foreground = isDark ? Colors.white : badgeStyle.color;
 
-    /// Canonical status-badge formula (Mobo UI Style Guide §10): no border,
-    /// pill radius, and a colour derived from [StatusColors].
+    // Canonical status-badge formula (Mobo UI Style Guide §10): no border,
+    // pill radius, and a colour derived from [StatusColors].
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

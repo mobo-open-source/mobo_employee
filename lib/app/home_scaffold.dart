@@ -38,7 +38,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
       'History',
     ];
     WidgetsBinding.instance.addObserver(this);
-    /// Start connectivity/internet monitoring and seed current server URL
     ConnectivityService.instance.startMonitoring();
     OdooSessionManager.getCurrentSession().then((session) {
       ConnectivityService.instance.setCurrentServerUrl(session?.serverUrl);
@@ -50,7 +49,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
       }
     });
 
-    /// Ensure ProfileProvider fetches user data on app start
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<ProfileProvider>().fetchUserProfile();
@@ -69,7 +67,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       _validateSession();
-      /// Refresh profile data (including avatar) when app resumes
       if (mounted) {
         context.read<ProfileProvider>().fetchUserProfile(forceRefresh: true);
       }
@@ -84,7 +81,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
           context,
         ).pushNamedAndRemoveUntil('/server_setup', (route) => false);
       } else if (mounted) {
-        /// Refresh permission check on resume
         final session = await OdooSessionManager.getCurrentSession();
         if (session != null && session.isStockUser != _isStockUser) {
           setState(() {
@@ -97,7 +93,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
 
   @override
   Widget build(BuildContext context) {
-    /// CompanyProvider is now provided globally in main.dart
     return Scaffold(body: _buildScreenWithAppBar(Container()));
   }
 
@@ -122,9 +117,8 @@ class _HomeScaffoldState extends State<HomeScaffold>
       ),
       body: Stack(
         children: [
-          /// Main content
           Positioned.fill(child: screen),
-          /// Overlay connection status banner without consuming AppBar bottom height
+          // Overlay connection status banner without consuming AppBar bottom height
           Positioned(
             top: 0,
             left: 0,
@@ -143,25 +137,19 @@ class _HomeScaffoldState extends State<HomeScaffold>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return [
-      /// Company selector
       CompanySelectorWidget(
         onCompanyChanged: () async {
           if (!mounted) return;
 
-          /// Get the newly selected company name for better feedback
           final provider = context.read<CompanyProvider>();
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
 
-          /// Refresh profile data
           await context.read<ProfileProvider>().fetchUserProfile(
             forceRefresh: true,
           );
 
-          ///Show success message
           CustomSnackbar.showSuccess(context, 'Switched to $companyName');
-
-          ///Reload all feature providers with new company context
         },
       ),
       Container(
@@ -222,7 +210,6 @@ class _HomeScaffoldState extends State<HomeScaffold>
                   context,
                   dynamicRoute(context, const ProfileScreen()),
                 ).then((_) {
-                  /// Refresh profile data after returning from profile screen
                   if (mounted) {
                     context.read<ProfileProvider>().fetchUserProfile(
                       forceRefresh: true,

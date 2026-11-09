@@ -210,7 +210,7 @@ class AdministratorAttendanceService {
         if (version.contains("19")) {
           return AttendanceEmployeeModel.fromJson(response.first);
         } else {
-          /// Fallback logic for calculating worked hours if server version is not 19
+          // Fallback logic for calculating worked hours if server version is not 19
           final DateTime from = DateTime(
             DateTime.now().year,
             DateTime.now().month,
@@ -293,7 +293,6 @@ class AdministratorAttendanceService {
       final leaveStart = DateTime.parse(leave['date_from']);
       final leaveEnd = DateTime.parse(leave['date_to']);
 
-      /// Calculate overlap with the specified month
       final start = leaveStart.isAfter(fromDate) ? leaveStart : fromDate;
       final end = leaveEnd.isBefore(toDate) ? leaveEnd : toDate;
 

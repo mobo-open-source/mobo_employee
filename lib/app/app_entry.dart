@@ -39,7 +39,6 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    /// Start monitoring connectivity centrallya
     ConnectivityService.instance.startMonitoring();
     _initFuture = _checkAuthStatus();
 
@@ -82,9 +81,9 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
       sessionValid = await OdooSessionManager.isSessionValid();
       if (!sessionValid) {
       } else {
-        /// Extra safeguard: ensure we can actually authenticate a client.
-        /// If this fails due to temporary connectivity or server issues, DO NOT logout.
-        /// Let the app proceed so the user can retry inside the app.
+        // Extra safeguard: ensure we can actually authenticate a client.
+        // If this fails due to temporary connectivity or server issues, DO NOT logout.
+        // Let the app proceed so the user can retry inside the app.
         try {
           final client = await OdooSessionManager.getClientEnsured();
           final sessionInfo = await client.callRPC(
@@ -92,16 +91,15 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
             'call',
             {},
           );
-          /// company_id is usually in: sessionInfo['user_companies']['current_company']
+          // company_id is usually in: sessionInfo['user_companies']['current_company']
           final currentCompany = sessionInfo;
         } catch (e) {
-          /// Intentionally do not clear session here.
+          // Intentionally do not clear session here.
         }
       }
     }
 
-    /// If logged in and session is valid, check if Inventory (stock) module is installed
-    bool inventoryInstalled = false; /// Force true for now
+    bool inventoryInstalled = false;
     List<String> missingModule = [];
     if (isLoggedIn && sessionValid) {
       try {
@@ -118,8 +116,8 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
         if (currentCompanyId == null) {
           inventoryInstalled = true;
         } else {
-          /// Not `ir.module.module`: only administrators may read it, so for
-          /// an employee that query was refused and the check passed.
+          // Not `ir.module.module`: only administrators may read it, so for
+          // an employee that query was refused and the check passed.
           missingModule = await RequiredModules.findMissing(
             serverUrl: client.baseURL,
             sessionId: client.sessionId?.id ?? '',
@@ -152,7 +150,7 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
         }
       } catch (e) {
         inventoryInstalled = true;
-        /// Keep as false; the MissingInventoryScreen will allow retry
+        // Keep as false; the MissingInventoryScreen will allow retry
       }
     }
 
@@ -184,21 +182,19 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
         final inventoryInstalled =
             snapshot.data!['inventoryInstalled'] as bool? ?? false;
 
-        /// Check if biometric should be skipped
         final biometricContext = BiometricContextService();
         final shouldSkipBiometric =
             widget.skipBiometric || biometricContext.shouldSkipBiometric;
 
-        /// Show biometric lock screen if enabled and logged in
         if (biometricEnabled &&
             isLoggedIn &&
             !shouldSkipBiometric &&
             inventoryInstalled) {
           return AppLockScreen(
             onAuthenticationSuccess: () {
-              /// After biometric unlock, re-enter AppEntry (skipping biometric)
-              /// so that startup checks (including inventory module check)
-              /// can run and route either to HomeScaffold or MissingInventoryScreen.
+              // After biometric unlock, re-enter AppEntry (skipping biometric)
+              // so that startup checks (including inventory module check)
+              // can run and route either to HomeScaffold or MissingInventoryScreen.
               Navigator.pushReplacement(
                 context,
                 dynamicRoute(context, const AppEntry(skipBiometric: true)),
@@ -208,7 +204,7 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
         } else if (isLoggedIn) {
           final userRoleProvider = context.watch<UserTypeRoleCheckProvider>();
           if (userRoleProvider.groupIds.isEmpty) {
-            /// Only refetch if a session still exists, to avoid racing a concurrent logout.
+            // Only refetch if a session still exists, to avoid racing a concurrent logout.
             if (SessionService.instance.currentSession != null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 context.read<UserTypeRoleCheckProvider>().fetchAndSetUserRole();
@@ -230,11 +226,11 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
             }
             return const ServerSetupScreen();
           }
-          /// If logged in but inventory not installed, show guidance screen
+          // If logged in but inventory not installed, show guidance screen
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final roleProvider = context.read<RoleProvider>();
 
-            /// Same staleness guard as above -- skip refetch if no live session.
+            // Same staleness guard as above -- skip refetch if no live session.
             if (roleProvider.role == null &&
                 SessionService.instance.currentSession != null) {
               roleProvider.loadRole().then((_) {
@@ -259,21 +255,18 @@ class _AppEntryState extends State<AppEntry> with WidgetsBindingObserver {
 
           final roleProvider = context.watch<RoleProvider>();
 
-          ///  Wait for role
           if (roleProvider.role == null) {
             return const Scaffold(body: Center(child: LoadingIndicator()));
           }
 
-          /// Admin → existing navbar
           if (roleProvider.isAdmin) {
             return const ManagerBottomNavbarPage();
           }
 
-          /// Officer → manager navbar
           return const BottonnavbarPage();
         }
 
-        /// Not logged in, show login screen
+        // Not logged in, show login screen
         final hasSeenGetStarted =
             snapshot.data!['hasSeenGetStarted'] as bool? ?? false;
         if (!hasSeenGetStarted) {

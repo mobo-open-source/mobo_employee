@@ -75,7 +75,6 @@ class _WidgetManagerCalenderViewPageState
         padding: const EdgeInsets.only(top: 8, bottom: 12),
         child: Column(
           children: [
-            /// ───── Dashboard Cards: one per time off type, as in Odoo ─────
             provider.isLoading
                 ? SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -94,8 +93,8 @@ class _WidgetManagerCalenderViewPageState
                     ),
                   )
                 : provider.timeOffDataFailed && provider.timeOffBalances.isEmpty
-                /// Nothing to show and nothing loaded: say so and offer a
-                /// retry, instead of leaving the area looking empty.
+                // Nothing to show and nothing loaded: say so and offer a
+                // retry, instead of leaving the area looking empty.
                 ? _BalancesUnavailable(onRetry: provider.retryTimeOffData)
                 : TimeOffBalanceCards(
                     balances: provider.timeOffBalances,
@@ -105,7 +104,7 @@ class _WidgetManagerCalenderViewPageState
 
             const SizedBox(height: 12),
 
-            /// ───── Calendar (MUST have fixed width) ─────
+            // Calendar (MUST have fixed width)
             Consumer<ManagerApprovalsProvider>(
               builder: (context, provider, _) {
                 if (provider.isCalendarLoading) {
@@ -115,7 +114,6 @@ class _WidgetManagerCalenderViewPageState
               },
             ),
 
-            /// ───── Selected day: under the calendar, the day's requests ─────
             if (selectedDate != null && !provider.isCalendarLoading) ...[
               const SizedBox(height: 12),
               _SelectedDayLeaves(
@@ -243,7 +241,6 @@ class _SelectedDayLeaves extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// ───── Header: the day, how many are off, close ─────
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 8, 6, 0),
             child: Row(
@@ -287,8 +284,8 @@ class _SelectedDayLeaves extends StatelessWidget {
             ),
           ),
 
-          /// Grey line separating the heading from the requests below. It sits
-          /// outside the card padding so it runs the full width of the card.
+          // Grey line separating the heading from the requests below. It sits
+          // outside the card padding so it runs the full width of the card.
           Divider(height: 12, thickness: 1, color: headerLineColor),
 
           Padding(
@@ -312,7 +309,6 @@ class _SelectedDayLeaves extends StatelessWidget {
                     ),
                   ),
 
-                /// ───── One row per time off ─────
                 for (var i = 0; i < leaves.length; i++) ...[
                   if (i > 0) Divider(height: 16, color: dividerColor),
                   Padding(

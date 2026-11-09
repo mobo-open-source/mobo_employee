@@ -129,8 +129,8 @@ class _MoboTypeaheadFieldState<T> extends State<MoboTypeaheadField<T>> {
     final selectedText = widget.selectedItem != null
         ? widget.displayText(widget.selectedItem as T).trim().toLowerCase()
         : '';
-    /// Tapping a field already filled with the selected item's text should
-    /// browse the full list again, not narrow to a self-match.
+    // Tapping a field already filled with the selected item's text should
+    // browse the full list again, not narrow to a self-match.
     final effectivePattern = term == selectedText ? '' : pattern.trim();
     final results = await widget.suggestionsCallback(effectivePattern);
     return _withSelectedFirst(results);

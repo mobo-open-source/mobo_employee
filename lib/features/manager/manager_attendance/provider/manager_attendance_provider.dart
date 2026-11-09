@@ -148,8 +148,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       canCreateAttendance = canCreate;
       notifyListeners();
     } catch (_) {
-      /// Server unreachable: keep what was last read; the list's own fetch
-      /// reports the error.
+      // Server unreachable: keep what was last read; the list's own fetch
+      // reports the error.
     }
   }
 
@@ -232,10 +232,10 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       [['employee_id.active', '=', true]],
     ];
 
-    /// No scope of the app's own: Odoo's record rules already limit this to
-    /// the attendances the user may see in Odoo's Attendances menu (all of
-    /// them, the employees they're Attendance manager of, or only their
-    /// own). "My Team" narrows to direct reports.
+    // No scope of the app's own: Odoo's record rules already limit this to
+    // the attendances the user may see in Odoo's Attendances menu (all of
+    // them, the employees they're Attendance manager of, or only their
+    // own). "My Team" narrows to direct reports.
     if (currentUserId != null &&
         activeFilters.contains(AttendanceFilter.myTeam)) {
       fragments.add([['employee_id.parent_id.user_id', '=', currentUserId]]);
@@ -336,11 +336,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     final int majorVersion = int.parse(serverVersionString.split('.').first);
 
     if (majorVersion <= 17) {
-      /// Odoo 17 → Employee first
+      // Odoo 17 → Employee first
       groupBy = [AttendanceGroupBy.employee];
       draftGroupBy = [AttendanceGroupBy.employee];
     } else {
-      /// Odoo 18+ → Month → Employee
+      // Odoo 18+ → Month → Employee
       groupBy = [AttendanceGroupBy.month, AttendanceGroupBy.employee];
 
       draftGroupBy = [AttendanceGroupBy.month, AttendanceGroupBy.employee];
@@ -362,7 +362,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
           domain: baseDomain,
         );
 
-    totalMonthGroups = res.groups.length; /// read_group returns total length
+    // read_group returns the total length.
+    totalMonthGroups = res.groups.length;
     notifyListeners();
   }
 
@@ -386,7 +387,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     _searchDebounce = Timer(const Duration(milliseconds: 100), () {
       totalMonthGroups = 0;
       totalEmployeeGroups = 0;
-      /// clear caches
       _monthGroupCache.clear();
       _employeeGroupCache.clear();
       _groupAttendanceCache.clear();
@@ -407,7 +407,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
         fetchRootGroups();
       }
 
-      notifyListeners(); ///  ONLY after debounce
+      // Only after the debounce.
+      notifyListeners();
     });
   }
 
@@ -432,8 +433,8 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
       _monthGroupCache[key] = res;
     } catch (e) {
-      /// Requested from the page's build: a lost connection would otherwise
-      /// leave the group spinning and be re-requested on every rebuild.
+      // Requested from the page's build: a lost connection would otherwise
+      // leave the group spinning and be re-requested on every rebuild.
       if (ConnectivityService.isConnectivityError(e)) loadError = e;
     }
 
@@ -507,12 +508,11 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       temp[key] = (temp[key] ?? 0) + g.count;
     }
 
-    ///  Sort months DESC (latest first)
     final sortedEntries = temp.entries.toList()
       ..sort((a, b) {
         final dateA = DateFormat('MMMM yyyy').parse(a.key);
         final dateB = DateFormat('MMMM yyyy').parse(b.key);
-        return dateB.compareTo(dateA); /// DESC
+        return dateB.compareTo(dateA);
       });
 
     return Map.fromEntries(sortedEntries);
@@ -662,7 +662,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   }
 
   void resetDraftFilters() {
-    /// draftGroupBy = AttendanceGroupBy.none;
+    // draftGroupBy = AttendanceGroupBy.none;
     draftGroupBy.clear();
     groupBy.clear();
     draftFilters.clear();
@@ -692,7 +692,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     _groupOffset = 0;
     hasMoreGroups = true;
 
-    /// clear caches
     _monthGroupCache.clear();
     _employeeGroupCache.clear();
     _groupAttendanceCache.clear();
@@ -768,13 +767,13 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       if (first == AttendanceGroupBy.month) {
         _monthOffset = 0;
         hasMoreMonths = true;
-        await fetchTotalMonthGroups(); /// month total
+        await fetchTotalMonthGroups();
         await fetchNextMonthGroups(reset: true);
       } else if (first == AttendanceGroupBy.employee) {
         _employeeOffset = 0;
         hasMoreEmployees = true;
 
-        await fetchTotalEmployeeGroups(domain: baseDomain); /// administrator total
+        await fetchTotalEmployeeGroups(domain: baseDomain);
         await fetchEmployeeGroups(reset: true);
       }
     } catch (e) {
@@ -789,7 +788,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     searchController.clear();
     _searchDebounce?.cancel();
 
-    /// Restore default grouping
     groupBy = List.from(defaultGroupBy);
     draftGroupBy = List.from(defaultGroupBy);
     activeFilters.clear();
@@ -854,14 +852,12 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     try {
       final domain = baseDomain;
 
-      ///Get TOTAL COUNT
       totalAttendanceCount =
           await ManagerAttendanceDataService.fetchManagerAttendanceCount(
             domain: domain,
             search: currentSearch,
           );
 
-      /// Get PAGINATED DATA
       final res =
           await ManagerAttendanceDataService.fetchManagerAttendancesData(
             domain: domain,
@@ -927,7 +923,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       }
 
     } catch (e) {
-      /// Also runs on a page change; either way the page shows the error.
+      // Also runs on a page change; either way the page shows the error.
       if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isGroupLoading = false;
@@ -946,7 +942,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
       return '$from-$to/$totalAttendanceCount';
     }
 
-    /// grouped logic unchanged
     if (groupBy.first == AttendanceGroupBy.month) {
       if (totalMonthGroups == 0) return '0-0/0';
 
@@ -1078,12 +1073,12 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   String getMonthLabel(dynamic value) {
     if (value == null) return '-';
 
-    /// Odoo may return List [value, label]
+    // Odoo may return List [value, label]
     if (value is List && value.length > 1) {
       return value[1].toString();
     }
 
-    /// Or String directly
+    // Or String directly
     if (value is String) {
       return value;
     }
@@ -1126,7 +1121,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
       }
     } catch (e) {
-      /// Also runs on a page change; either way the page shows the error.
+      // Also runs on a page change; either way the page shows the error.
       if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       isGroupLoading = false;
@@ -1193,7 +1188,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
 
     totalMonthGroups = 0;
     totalEmployeeGroups = 0;
-    /// clear caches
     _monthGroupCache.clear();
     _employeeGroupCache.clear();
     _groupAttendanceCache.clear();
@@ -1231,7 +1225,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     initialLoadDone = true;
     isFirstLoad = true;
     loadError = null;
-    /// Resolve the user again on a retry.
+    // Resolve the user again on a retry.
     currentUserId = null;
     notifyListeners();
 
@@ -1249,7 +1243,7 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     } catch (e) {
       loadError = e;
     } finally {
-      /// After a failure the next refresh/retry redoes this whole load.
+      // After a failure the next refresh/retry redoes this whole load.
       if (loadError != null) initialLoadDone = false;
       // Always clear, even on error, so the shimmer can't get stuck.
       isFirstLoad = false;
@@ -1278,9 +1272,9 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   }
 
   Future<void> clearAllFilters() async {
-    ///  RESET TO DEFAULT, NOT EMPTY
-    /// groupBy = List.from(defaultGroupBy);
-    /// draftGroupBy = List.from(defaultGroupBy);
+    //  RESET TO DEFAULT, NOT EMPTY
+    // groupBy = List.from(defaultGroupBy);
+    // draftGroupBy = List.from(defaultGroupBy);
     activeFilters.clear();
     draftFilters.clear();
     filterStartDate = null;
@@ -1327,16 +1321,13 @@ class ManagerAttendanceProvider extends ChangeNotifier {
   }
 
   void clearOnManagerLogout() {
-    /// Cancel timers
     _searchDebounce?.cancel();
     _searchDebounce = null;
 
-    /// Search
     searchController.clear();
     currentSearch = '';
     draftSearch = '';
 
-    /// Filters
     groupBy.clear();
     draftGroupBy.clear();
     activeFilters.clear();
@@ -1352,7 +1343,6 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     canCreateAttendance = false;
     _showTodayOnNextLoad = false;
 
-    /// Pagination
     _currentPage = 0;
     _groupOffset = 0;
     _monthOffset = 0;
@@ -1362,39 +1352,32 @@ class ManagerAttendanceProvider extends ChangeNotifier {
     hasMoreMonths = true;
     hasMoreEmployees = true;
 
-    /// Totals
     totalAttendanceCount = 0;
     totalMonthCount = 0;
     totalMonthGroups = 0;
     totalEmployeeGroups = 0;
 
-    /// Loading states
     isLoading = false;
     isGroupLoading = false;
     loadError = null;
 
-    /// API models
     modelAttendanceGroupByData = null;
     modelAttendanceGroupByEmployeeData = null;
     modelManagerAttendanceData = null;
 
-    /// Caches
     _monthGroupCache.clear();
     _employeeGroupCache.clear();
     _groupAttendanceCache.clear();
     _monthDetailsCache.clear();
     _employeeDetailsCache.clear();
 
-    /// Loading trackers
     _loadingGroupNodes.clear();
     _loadingGroupAttendance.clear();
     _loadingMonths.clear();
     _loadingEmployees.clear();
 
-    /// Image cache
     _employeeImageCache.clear();
 
-    /// Lifecycle
     initialLoadDone = false;
 
     notifyListeners();

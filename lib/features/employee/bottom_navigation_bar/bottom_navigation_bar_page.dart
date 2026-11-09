@@ -77,7 +77,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
       _currentIndex = index;
     });
 
-    /// The user may have been made a manager in Odoo since the view opened.
+    // The user may have been made a manager in Odoo since the view opened.
     if (!widget.isTest) refreshUserRole(context);
   }
 
@@ -141,8 +141,8 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
 
-          /// Clear first, then reload: clearing resets ProfileProvider, so
-          /// fetching before it (as this used to) left the avatar/name empty.
+          // Clear first, then reload: clearing resets ProfileProvider, so
+          // fetching before it (as this used to) left the avatar/name empty.
           await ClearProviders.clearAllProviders(context);
           if (!mounted) return;
           await context.read<ProfileProvider>().ensureLoaded();
@@ -150,7 +150,7 @@ class _BottonnavbarPageState extends State<BottonnavbarPage> {
           await context.read<BottomNavProvider>().refreshAll(context);
           if (!mounted) return;
 
-          /// After the dashboard reload: Attendance needs its employee id.
+          // After the dashboard reload: Attendance needs its employee id.
           setState(() => _companyGeneration++);
           CustomSnackbar.showSuccess(context, 'Switched to $companyName');
         },

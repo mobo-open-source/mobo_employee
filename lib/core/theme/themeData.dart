@@ -5,7 +5,6 @@ class AppTheme {
   static const Color primaryColor = Color(0xFFC03355);
   static const Color secondaryColor = Color(0xFFffffff);
 
-  // --- Base palette (Mobo UI Style Guide §1) ------------------------------
   static const Color dark = Color(0xFF101010);
   static const Color white = Color(0xFFFFFFFF);
   static const Color lightGrey = Color(0xFFF3F3F3);
@@ -109,31 +108,27 @@ class AppTheme {
   /// Define a custom TextTheme using Manrope font for all text styles
   static TextTheme _buildTextTheme(TextTheme base) {
     return base.copyWith(
-      /// Display styles — Manrope like the rest. These were Qahiri, a
-      /// calligraphic face that nothing in the app asks for: the only thing
-      /// that draws them is Material's time picker (its big hour/minute
-      /// digits), which then looked nothing like the events app's, whose theme
-      /// leaves them at the app font.
+      // Display styles — Manrope like the rest. These were Qahiri, a
+      // calligraphic face that nothing in the app asks for: the only thing
+      // that draws them is Material's time picker (its big hour/minute
+      // digits), which then looked nothing like the events app's, whose theme
+      // leaves them at the app font.
       displayLarge: GoogleFonts.manrope(textStyle: base.displayLarge),
       displayMedium: GoogleFonts.manrope(textStyle: base.displayMedium),
       displaySmall: GoogleFonts.manrope(textStyle: base.displaySmall),
 
-      /// Headline styles
       headlineLarge: GoogleFonts.manrope(textStyle: base.headlineLarge),
       headlineMedium: GoogleFonts.manrope(textStyle: base.headlineMedium),
       headlineSmall: GoogleFonts.manrope(textStyle: base.headlineSmall),
 
-      /// Title styles
       titleLarge: GoogleFonts.manrope(textStyle: base.titleLarge),
       titleMedium: GoogleFonts.manrope(textStyle: base.titleMedium),
       titleSmall: GoogleFonts.manrope(textStyle: base.titleSmall),
 
-      /// Body text styles
       bodyLarge: GoogleFonts.manrope(textStyle: base.bodyLarge),
       bodyMedium: GoogleFonts.manrope(textStyle: base.bodyMedium),
       bodySmall: GoogleFonts.manrope(textStyle: base.bodySmall),
 
-      /// Label styles
       labelLarge: GoogleFonts.manrope(textStyle: base.labelLarge),
       labelMedium: GoogleFonts.manrope(textStyle: base.labelMedium),
       labelSmall: GoogleFonts.manrope(textStyle: base.labelSmall),
@@ -180,7 +175,7 @@ class AppTheme {
       elevation: 4,
     ),
 
-    /// Override the M3 default pale tonal header with the brand color.
+    // Override the M3 default pale tonal header with the brand color.
     datePickerTheme: DatePickerThemeData(
       backgroundColor: Colors.white,
       headerBackgroundColor: primaryColor,
@@ -203,8 +198,8 @@ class AppTheme {
       primary: primaryColor,
       secondary: secondaryColor,
 
-      /// Neutral dark surfaces, as in mobo_billing — the seeded defaults are
-      /// tinted red by the brand colour.
+      // Neutral dark surfaces, as in mobo_billing — the seeded defaults are
+      // tinted red by the brand colour.
       surface: darkSurface,
       onSurface: Colors.white,
     ),
@@ -238,7 +233,7 @@ class AppTheme {
       elevation: 4,
     ),
 
-    /// Same header override as the light theme.
+    // Same header override as the light theme.
     datePickerTheme: DatePickerThemeData(
       backgroundColor: Colors.grey[900],
       headerBackgroundColor: primaryColor,
@@ -248,7 +243,6 @@ class AppTheme {
     dialogTheme: _dialogTheme(darkSurface),
     cardTheme: _cardTheme(Colors.grey[850]!),
 
-    /// Apply the custom TextTheme
     textTheme: _buildTextTheme(TextTheme()),
   );
 }
@@ -276,7 +270,6 @@ class StatusColors {
   /// unknown/default fallback
   static const Color grey = Color(0xFF6B7280);
 
-  // --- Tinted icon/background pairs (§1, §16) ----------------------------
   static const Color infoIcon = Color(0xFF60A5FA);
   static const Color successIcon = Color(0xFF4ADE80);
   static const Color warningIcon = Color(0xFFFBBF24);

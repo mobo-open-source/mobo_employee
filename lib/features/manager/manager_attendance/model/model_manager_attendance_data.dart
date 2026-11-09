@@ -93,32 +93,29 @@ class AttendanceRecord {
     );
   }
 
-  /// ----------------- SAFE PARSERS -----------------
-
   static DateTime? _parseDate(dynamic v) {
     try {
       String? dateStr;
 
-      /// Odoo sometimes sends String
+      // Odoo sometimes sends String
       if (v is String && v.isNotEmpty) {
         dateStr = v;
       }
-      /// Sometimes list (rare, but safe)
+      // Sometimes list (rare, but safe)
       else if (v is List && v.isNotEmpty && v.first is String) {
         dateStr = v.first;
       }
 
       if (dateStr == null) return null;
 
-      /// Remove microseconds & normalize
       String cleaned = dateStr.split('.').first.replaceAll(' ', 'T');
 
-      /// Force UTC if timezone missing
+      // Force UTC if timezone missing
       if (!cleaned.endsWith('Z') && !cleaned.contains('+')) {
         cleaned = '${cleaned}Z';
       }
 
-      /// Parse as UTC and convert to local
+      // Parse as UTC and convert to local
       return DateTime.parse(cleaned).toLocal();
     } catch (e) {
       return null;

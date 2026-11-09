@@ -33,14 +33,14 @@ class CustomRatingDialog extends StatefulWidget {
       barrierDismissible: true,
       builder: (context) {
         return CustomRatingDialog(
-          /// 4-5 stars — hand off to the store review flow and stop asking.
+          // 4-5 stars — hand off to the store review flow and stop asking.
           onGoodReview: (rating, comment) async {
             Navigator.pop(context);
             await ReviewService().neverAskAgain();
             await ReviewService().forceRequestReview();
           },
 
-          /// 1-3 stars — collect the feedback by email and back off 6 months.
+          // 1-3 stars — collect the feedback by email and back off 6 months.
           onBadReview: (rating, comment) async {
             Navigator.pop(context);
             await ReviewService().postponeReview(const Duration(days: 180));
@@ -67,8 +67,8 @@ class _CustomRatingDialogState extends State<CustomRatingDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    /// The action button inverts in dark mode — a near-black fill would
-    /// disappear against the dark card.
+    // The action button inverts in dark mode — a near-black fill would
+    // disappear against the dark card.
     final Color actionBackground = isDark ? Colors.white : _dark;
     final Color actionForeground = isDark ? _dark : Colors.white;
 
@@ -105,7 +105,7 @@ class _CustomRatingDialogState extends State<CustomRatingDialog> {
             ),
             const SizedBox(height: 24),
 
-            /// Filled stars are solid gold; the remainder are gold outlines.
+            // Filled stars are solid gold; the remainder are gold outlines.
             RatingBar(
               initialRating: _rating,
               minRating: 1,

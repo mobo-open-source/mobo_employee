@@ -22,7 +22,6 @@ class ManagerEmployeesDataService {
         ]);
       }
 
-      ///Fetch paginated data
       final records = await odooClient({
         'model': 'hr.employee',
         'method': 'search_read',
@@ -39,7 +38,7 @@ class ManagerEmployeesDataService {
             'work_phone',
             'work_email',
 
-            /// Odoo 20 replaced employee_type with employee_type_id
+            // Odoo 20 replaced employee_type with employee_type_id
             if (majorVersion < 20) 'employee_type',
             'job_id',
             'department_id',

@@ -80,8 +80,8 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
       _currentIndex = index;
     });
 
-    /// The user's manager groups may have been removed in Odoo since the
-    /// view opened.
+    // The user's manager groups may have been removed in Odoo since the
+    // view opened.
     refreshUserRole(context);
   }
 
@@ -94,10 +94,10 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
         surfaceTintColor: Colors.transparent,
         backgroundColor: scaffold,
 
-        /// The status bar is the page's own colour — `#FAFAFA` in the Figma
-        /// frames — flush with the title bar under it, with icons that
-        /// contrast with it. Stated rather than left to AppBar's guess from the
-        /// background, so it can't drift from the design.
+        // The status bar is the page's own colour — `#FAFAFA` in the Figma
+        // frames — flush with the title bar under it, with icons that
+        // contrast with it. Stated rather than left to AppBar's guess from the
+        // background, so it can't drift from the design.
         systemOverlayStyle:
             (isDarkTheme
                     ? SystemUiOverlayStyle.light
@@ -166,8 +166,8 @@ class _ManagerBottomNavbarPageState extends State<ManagerBottomNavbarPage> {
           final companyName =
               provider.selectedCompany?['name']?.toString() ?? 'company';
 
-          /// Await the clear: it resets ProfileProvider at its end, so an
-          /// un-awaited clear could wipe the profile after it was re-fetched.
+          // Await the clear: it resets ProfileProvider at its end, so an
+          // un-awaited clear could wipe the profile after it was re-fetched.
           await ClearProviders.clearAllProviders(context);
           if (!mounted) return;
           setState(() => _companyGeneration++);

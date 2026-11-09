@@ -22,7 +22,6 @@ class WidgetManagerTimeOffViewPage extends StatelessWidget {
       );
     }
 
-    /// Initial load for TimeOff
     if (provider.isTimeOffLoading) {
       return ListView.separated(
         padding: WidgetTimeOffCard.listPadding(),

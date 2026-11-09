@@ -98,7 +98,7 @@ class LeaveMonthCalendar extends StatelessWidget {
 
     final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
 
-    /// Sunday-first: how many blank cells come before the 1st.
+    // Sunday-first: how many blank cells come before the 1st.
     final leading = DateTime(month.year, month.month, 1).weekday % 7;
 
     return Container(
@@ -107,8 +107,8 @@ class LeaveMonthCalendar extends StatelessWidget {
         children: [
           _header(isDark),
 
-          /// Legend: which dot colour is which status. Scales down on a very
-          /// narrow card rather than overflowing it.
+          // Legend: which dot colour is which status. Scales down on a very
+          // narrow card rather than overflowing it.
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: FittedBox(

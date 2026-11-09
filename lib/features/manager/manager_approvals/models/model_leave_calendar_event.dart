@@ -25,8 +25,8 @@ class LeaveCalendarEvent {
 
   /// ONLY fromJson
   factory LeaveCalendarEvent.fromJson(Map<String, dynamic> json) {
-    /// Odoo 20 replaced start/stop_datetime with the request's start/end
-    /// dates (the end date is inclusive).
+    // Odoo 20 replaced start/stop_datetime with the request's start/end
+    // dates (the end date is inclusive).
     final DateTime? from = _parseOdooDate(
       json['start_datetime'] ?? json['request_date_from'],
     );
@@ -37,10 +37,9 @@ class LeaveCalendarEvent {
     return LeaveCalendarEvent(
       id: json['id'] ?? 0,
 
-      /// use display_name (more reliable for calendar view)
+      // use display_name (more reliable for calendar view)
       description: _extractDescription(json['display_name']),
 
-      /// extract leave type from display_name
       leaveTypeName: _extractLeaveType(json['display_name']),
 
       dateFrom: from,
@@ -53,8 +52,6 @@ class LeaveCalendarEvent {
       state: _stringOrDash(json['state']),
     );
   }
-
-  /// ───── helpers ─────
 
   static String _extractLeaveType(dynamic displayName) {
     if (displayName == null) return '';
@@ -83,7 +80,7 @@ class LeaveCalendarEvent {
 
     final text = displayName.toString().trim();
 
-    /// Split on ":" and take the first part
+    // Split on ":" and take the first part
     if (text.contains(':')) {
       return text.split(':').first.trim();
     }
@@ -100,7 +97,7 @@ class LeaveCalendarEvent {
     final raw = v.toString().trim();
     if (raw.isEmpty) return null;
 
-    /// Date-only values have no clock to shift; Dart can't parse "…Z" on them.
+    // Date-only values have no clock to shift; Dart can't parse "…Z" on them.
     final needsUtcMarker =
         raw.contains(':') &&
         !raw.endsWith('Z') &&

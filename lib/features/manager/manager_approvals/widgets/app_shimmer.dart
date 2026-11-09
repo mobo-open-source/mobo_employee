@@ -51,7 +51,6 @@ class CalendarShimmer extends StatelessWidget {
       decoration: LeaveMonthCalendar.cardDecoration(isDark),
       child: Column(
         children: [
-          /// Previous / month / next
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -79,20 +78,17 @@ class CalendarShimmer extends StatelessWidget {
             ),
           ),
 
-          /// Legend
           const Padding(
             padding: EdgeInsets.only(bottom: 12),
             child: AppShimmer(width: 240, height: 16),
           ),
 
-          /// Weekday strip
           const AppShimmer(
             width: double.infinity,
             height: 36,
             borderRadius: BorderRadius.zero,
           ),
 
-          /// Week rows
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -148,7 +144,6 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// Photo
                 Container(
                   width: WidgetTimeOffCard.avatarSize,
                   height: WidgetTimeOffCard.avatarSize,
@@ -159,7 +154,7 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
                 ),
                 const SizedBox(width: WidgetTimeOffCard.avatarGap),
 
-                /// Name + pill, and the details under them
+                // Name + pill, and the details under them
                 Expanded(
                   child: SizedBox(
                     height: WidgetTimeOffCard.avatarSize,
@@ -183,11 +178,9 @@ class WidgetTimeOffCardShimmer extends StatelessWidget {
             ),
             const SizedBox(height: WidgetTimeOffCard.reasonGap),
 
-            /// Reason
             bar(13, width: double.infinity),
             const SizedBox(height: WidgetTimeOffCard.buttonsGap),
 
-            /// Buttons
             Row(
               children: [
                 Expanded(

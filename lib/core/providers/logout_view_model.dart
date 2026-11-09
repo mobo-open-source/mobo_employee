@@ -58,7 +58,7 @@ class LogoutViewModel extends ChangeNotifier {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     side: BorderSide(
-                      color: Theme.of(context).primaryColor, /// Outline color
+                      color: Theme.of(context).primaryColor,
                       width: 1,
                     ),
                   ),
@@ -184,25 +184,24 @@ class LogoutViewModel extends ChangeNotifier {
       },
     );
 
-    /// Small delay to let the dialog render smoothly
+    // Small delay to let the dialog render smoothly
     await Future.delayed(const Duration(milliseconds: 900));
 
-    /// Logout must happen before providers are cleared, so a stale
-    /// `AppEntry` underneath can't race a re-fetch back into the Dashboard.
+    // Logout must happen before providers are cleared, so a stale
+    // `AppEntry` underneath can't race a re-fetch back into the Dashboard.
     await context.read<SessionService>().logout();
 
-    /// Feature providers are cleared later by `AppEntry`'s own init, not
-    /// here -- clearing them while ProfileScreen is still mounted would
-    /// flash it into an error state before the route swaps out.
-    /// Close dialog
+    // Feature providers are cleared later by `AppEntry`'s own init, not
+    // here -- clearing them while ProfileScreen is still mounted would
+    // flash it into an error state before the route swaps out.
     if (dialogContext != null && dialogContext!.mounted) {
       Navigator.of(dialogContext!).pop();
     }
 
-    /// Use the global `navigatorKey` rather than the local `context`: the
-    /// "Logout" tile's subtree can unmount before this point (e.g. a
-    /// provider reset rebuilding ProfileScreen), which would otherwise
-    /// silently skip navigation via a `context.mounted` guard.
+    // Use the global `navigatorKey` rather than the local `context`: the
+    // "Logout" tile's subtree can unmount before this point (e.g. a
+    // provider reset rebuilding ProfileScreen), which would otherwise
+    // silently skip navigation via a `context.mounted` guard.
     final navigator = navigatorKey.currentState;
     final navContext = navigatorKey.currentContext;
     if (navigator != null && navContext != null) {

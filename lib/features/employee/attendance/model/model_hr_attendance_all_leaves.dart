@@ -80,8 +80,8 @@ class ModelAllRequestUnit {
   });
 
   factory ModelAllRequestUnit.fromJson(Map<String, dynamic> json) {
-    /// Odoo 20 dropped request_unit_half/hours; derive them from the type's
-    /// request unit the same way Odoo 19 computed them.
+    // Odoo 20 dropped request_unit_half/hours; derive them from the type's
+    // request unit the same way Odoo 19 computed them.
     final unit = json['work_entry_type_request_unit'];
     return ModelAllRequestUnit(
       halfDay: json['request_unit_half'] ?? unit == 'half_day',

@@ -36,7 +36,6 @@ class WidgetEmployeeCardShimmer extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Avatar shimmer
             Container(
               height: WidgetEmployeeCard.avatarSize,
               width: WidgetEmployeeCard.avatarSize,
@@ -48,8 +47,8 @@ class WidgetEmployeeCardShimmer extends StatelessWidget {
 
             const SizedBox(width: WidgetEmployeeCard.avatarGap),
 
-            /// Text shimmer — in the same fixed line boxes as the card's name /
-            /// phone / email column, so it is the same height.
+            // Text shimmer — in the same fixed line boxes as the card's name /
+            // phone / email column, so it is the same height.
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

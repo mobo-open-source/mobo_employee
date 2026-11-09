@@ -32,15 +32,11 @@ class AppRoutes {
   /// Reset password screen
   static const String resetPassword = '/reset_password';
 
-  /// ==================== Main App Routes ====================
-
   /// App entry point - handles authentication check and routing
   static const String app = '/app';
 
   /// Home scaffold - main app container with bottom navigation
   static const String home = '/home';
-
-  /// ==================== Feature Routes ====================
 
   /// Dashboard screen
   static const String dashboard = '/dashboard';

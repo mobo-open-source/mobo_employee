@@ -33,8 +33,8 @@ class _AttendancePageState extends State<AttendancePage> {
     final attendance = context.read<AttendanceProvider>();
     final dashboard = context.read<DashboardProvider>();
 
-    /// The employee id comes from the dashboard's load; if that failed
-    /// (e.g. server unreachable), retry it before giving up.
+    // The employee id comes from the dashboard's load; if that failed
+    // (e.g. server unreachable), retry it before giving up.
     if (dashboard.employeeId == null && dashboard.loadError != null) {
       await dashboard.refreshDashboard(isRefresh: true);
       if (!mounted) return;
@@ -301,7 +301,6 @@ Widget _monthlyOverviewCard() {
             ),
           ),
         );
-      //final hours = provider.hoursToHHMM(emp.hoursLastMonth);
       return Container(
         decoration: BoxDecoration(
           color: isDark ? AppColors.greyShade800Color : Colors.white,

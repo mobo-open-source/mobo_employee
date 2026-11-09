@@ -28,9 +28,9 @@ class ClearProviders {
     context.read<ManagerEmployeesProvider>().clearOnManagerLogout();
     await context.read<UserTypeRoleCheckProvider>().clearOnLogout();
 
-    /// Drops ProfileProvider's per-account state (cached data, queued
-    /// edits, and server probes) so it isn't read back against a
-    /// different account. See ProfileProvider.resetState().
+    // Drops ProfileProvider's per-account state (cached data, queued
+    // edits, and server probes) so it isn't read back against a
+    // different account. See ProfileProvider.resetState().
     context.read<ProfileProvider>().resetState();
   }
 

@@ -20,7 +20,7 @@ class BiometricContextService {
       return true;
     }
 
-    /// Grace period after account operations
+    // Grace period after account operations
     if (_lastAccountOperationTime != null) {
       final timeSinceOperation = DateTime.now().difference(
         _lastAccountOperationTime!,

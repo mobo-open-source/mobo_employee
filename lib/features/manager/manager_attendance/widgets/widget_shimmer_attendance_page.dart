@@ -12,7 +12,6 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
     final highlight = isDark ? Colors.grey[700]! : Colors.grey.shade100;
     return Column(
       children: [
-        ///  Search bar shimmer placeholder
         Shimmer.fromColors(
           baseColor: base,
           highlightColor: highlight,
@@ -27,7 +26,6 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 
         const SizedBox(height: 15),
 
-        /// "No filters applied" placeholder
         Shimmer.fromColors(
           baseColor: base,
           highlightColor: highlight,
@@ -39,7 +37,6 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        ///  Table container shimmer
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -48,7 +45,6 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
             ),
             child: Column(
               children: [
-                /// Table header shimmer
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -69,7 +65,6 @@ class WidgetShimmerAttendancePage extends StatelessWidget {
 
                 const SizedBox(height: 10),
 
-                /// Attendance rows shimmer
                 Expanded(
                   child: ListView.separated(
                     itemCount: 6,

@@ -33,8 +33,8 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
       if (!provider.initialLoadDone) {
         await provider.initialLoad();
       } else {
-        /// Returning to the tab: re-read so attendances created or edited
-        /// in the Odoo backend meanwhile are shown.
+        // Returning to the tab: re-read so attendances created or edited
+        // in the Odoo backend meanwhile are shown.
         await provider.refreshPage();
       }
     });
@@ -74,7 +74,6 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ///  SEARCH BAR
             Consumer<ManagerAttendanceProvider>(
               builder: (context, provider, __) {
                 return MoboSearchBar(
@@ -89,7 +88,6 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
 
             const SizedBox(height: 15),
 
-            ///  ONLY THIS PART REBUILDS
             Expanded(
               child: Consumer<ManagerAttendanceProvider>(
                 builder: (context, provider, _) {
@@ -118,8 +116,8 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
                       ? provider.groupBy.map((g) => g.label).join(', ')
                       : null;
 
-                  /// Room under the last row so it can scroll clear of the
-                  /// New Attendance button.
+                  // Room under the last row so it can scroll clear of the
+                  // New Attendance button.
                   final bottomPadding = provider.canCreateAttendance
                       ? AppSpacing.fabClearance
                       : 0.0;
@@ -136,8 +134,8 @@ class _ManagerAttendancePageState extends State<ManagerAttendancePage> {
                         groupByLabel: groupLabel,
                         isDark: isDarkTheme,
 
-                        /// A grouped list counts its groups and has no pages
-                        /// to move through.
+                        // A grouped list counts its groups and has no pages
+                        // to move through.
                         paginationText: grouped
                             ? provider.groupCountLabel
                             : provider.pageCountLabel,
@@ -390,9 +388,9 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
       );
     }
 
-    /// Top level: one group tile each, as mobo Sales' grouped lists — the
-    /// records beneath an open group are cards, so there are no column
-    /// headings.
+    // Top level: one group tile each, as mobo Sales' grouped lists — the
+    // records beneath an open group are cards, so there are no column
+    // headings.
     if (widget.level == 0) {
       return Column(
         children: [
@@ -414,8 +412,8 @@ class _RecursiveGroupViewState extends State<_RecursiveGroupView> {
       );
     }
 
-    /// Deeper levels sit inside a group card, so they get a compact
-    /// hairline header rather than another shadowed card.
+    // Deeper levels sit inside a group card, so they get a compact
+    // hairline header rather than another shadowed card.
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

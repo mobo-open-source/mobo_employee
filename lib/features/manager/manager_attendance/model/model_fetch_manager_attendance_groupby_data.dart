@@ -7,7 +7,7 @@ class ModelAttendanceGroupByData {
   ModelAttendanceGroupByData({required this.length, required this.groups});
 
   factory ModelAttendanceGroupByData.fromJson(dynamic json) {
-    /// ---------------- CASE 1: read_group → List ----------------
+    // CASE 1: read_group → List
     if (json is List) {
       final groups = json
           .whereType<Map>()
@@ -21,7 +21,7 @@ class ModelAttendanceGroupByData {
       return ModelAttendanceGroupByData(length: groups.length, groups: groups);
     }
 
-    /// ---------------- CASE 2: web_read_group → Map ----------------
+    // CASE 2: web_read_group → Map
     if (json is Map) {
       final rawGroups = json['groups'];
 
@@ -42,7 +42,6 @@ class ModelAttendanceGroupByData {
       );
     }
 
-    /// ---------------- Fallback ----------------
     return ModelAttendanceGroupByData(length: 0, groups: []);
   }
 }
@@ -71,34 +70,32 @@ class ManagerAttendanceMonthGroup implements AttendanceGroupNode {
   String get label => monthLabel;
 
   factory ManagerAttendanceMonthGroup.fromJson(Map<String, dynamic> json) {
-    /// ---------- Month ----------
     DateTime? parsedDate;
     String label = '-';
 
     final monthValue = json['check_in:month'];
 
-    /// web_read_group → [value, label]
+    // web_read_group → [value, label]
     if (monthValue is List && monthValue.length == 2) {
       parsedDate = DateTime.tryParse(monthValue[0]?.toString() ?? '');
       label = monthValue[1]?.toString() ?? '-';
     }
-    /// read_group → "January 2026"
+    // read_group → "January 2026"
     else if (monthValue is String) {
       label = monthValue;
     }
 
-    /// ---------- Numeric helpers ----------
     double toDouble(dynamic v) => v is num ? v.toDouble() : 0.0;
     int toInt(dynamic v) => v is num ? v.toInt() : 0;
 
-    /// ---------- Totals (handle BOTH keys) ----------
+    // Totals (handle BOTH keys)
     final worked = json['worked_hours:sum'] ?? json['worked_hours'];
     final overtime = json['overtime_hours:sum'] ?? json['overtime_hours'];
     final validated =
         json['validated_overtime_hours:sum'] ??
         json['validated_overtime_hours'];
 
-    /// ---------- Domain (handle BOTH keys) ----------
+    // Domain (handle BOTH keys)
     final domain = json['__extra_domain'] ?? json['__domain'];
     final List<dynamic> safeDomain = domain is List
         ? List<dynamic>.from(domain)

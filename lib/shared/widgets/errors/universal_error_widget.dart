@@ -18,7 +18,6 @@ class UniversalErrorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /// Analyze error using centralized error manager
     final errorInfo = ErrorManager.analyzeError(error);
     final theme = Theme.of(context);
 
@@ -28,7 +27,6 @@ class UniversalErrorWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            /// Animated Icon (with Lottie fallback to icon)
             SizedBox(
               width: 200,
               height: 200,
@@ -36,7 +34,6 @@ class UniversalErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            /// Title
             Text(
               errorInfo.title,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -47,7 +44,6 @@ class UniversalErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            /// Message
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -76,7 +72,6 @@ class UniversalErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Action buttons
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -113,7 +108,6 @@ class UniversalErrorWidget extends StatelessWidget {
               ],
             ),
 
-            /// Help text for module errors
             if (errorInfo.type == ErrorType.moduleNotInstalled) ...[
               const SizedBox(height: 24),
               Text(
@@ -132,7 +126,6 @@ class UniversalErrorWidget extends StatelessWidget {
   }
 
   Widget _buildAnimation(ErrorInfo errorInfo) {
-    // Try to load Lottie animation, fallback to icon
     String? animationUrl = _getAnimationUrl(errorInfo.type);
 
     if (animationUrl != null) {
@@ -171,8 +164,6 @@ class UniversalErrorWidget extends StatelessWidget {
   }
 
   String? _getAnimationUrl(ErrorType type) {
-    // Return null to use fallback icons for now
-    // You can add Lottie URLs later
     return null;
   }
 }

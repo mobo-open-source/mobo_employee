@@ -54,7 +54,7 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    ///initially setting db and url while adding account
+    //initially setting db and url while adding account
 
     _databaseFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _databaseFadeController, curve: Curves.easeInOut),
@@ -107,9 +107,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
       create: (_) => LoginProvider(),
       child: Consumer<LoginProvider>(
         builder: (context, provider, child) {
-          /// Handle database field animation
-
-          ///setting the url an
           if (!_didPrefill && widget.isAddingAccount) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               if (!mounted) return;
@@ -128,7 +125,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
 
           _handleDatabaseFetch(provider);
 
-          /// Sync inlineError with provider.errorMessage
           if (!provider.isLoadingDatabases &&
               provider.errorMessage != inlineError) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -144,15 +140,15 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
             onTap: () {
               FocusScope.of(
                 context,
-              ).unfocus(); /// removes focus from text fields
+              ).unfocus();
             },
             child: LoginLayout(
               title: 'Sign In',
               subtitle: 'Configure your server connection',
-              /// Only shown when there's actually a previous screen to return
-              /// to (e.g. reached via "Add Account" from Switch Accounts) —
-              /// at initial app launch this is the root screen and there is
-              /// nothing to go back to.
+              // Only shown when there's actually a previous screen to return
+              // to (e.g. reached via "Add Account" from Switch Accounts) —
+              // at initial app launch this is the root screen and there is
+              // nothing to go back to.
               backButton: Navigator.canPop(context)
                   ? Positioned(
                       top: 24,
@@ -181,7 +177,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    /// Server URL field with custom autocomplete
                     _CustomAutocompleteField(
                       controller: provider.urlController,
                       suggestions: provider.previousUrls,
@@ -190,18 +185,15 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                           !(provider.urlCheck &&
                               provider.dropdownItems.isNotEmpty),
                       onSuggestionSelected: (String selection) {
-                        /// Use the new helper method to separate protocol and domain
                         provider.setUrlFromFullUrl(selection);
 
-                        /// Immediately seed this URL into history so it persists for future launches
+                        // Immediately seed this URL into history so it persists for future launches
                         provider.seedUrlToHistory(selection);
 
-                        /// Get the domain part for validation
                         final domain = provider.extractDomain(selection);
 
                         setState(() {
                           urlHasError = domain.isEmpty;
-                          /// Resume auto-fetching now that user explicitly selected a suggestion
                           _awaitingSuggestionSelection = false;
                         });
 
@@ -228,8 +220,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                         selectedProtocol: provider.selectedProtocol,
                         isLoading: provider.isLoadingDatabases,
                         onProtocolAutoDetected: () {
-                          /// A full URL with protocol was typed/pasted; trigger immediate DB fetch
-                          /// Normalize current field state and run fetch without requiring suggestion selection
+                          // A full URL with protocol was typed/pasted; trigger immediate DB fetch
+                          // Normalize current field state and run fetch without requiring suggestion selection
                           setState(() {
                             _awaitingSuggestionSelection = false;
                             inlineError = null;
@@ -257,8 +249,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                           return null;
                         },
                         onChanged: (val) {
-                          /// Don't set controller.text here as it causes cursor to jump
-                          /// The controller already has the correct value from user input
+                          // Don't set controller.text here as it causes cursor to jump
+                          // The controller already has the correct value from user input
 
                           final newUrlHasError = val.isEmpty;
                           if (urlHasError != newUrlHasError ||
@@ -274,7 +266,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                             provider.formKey.currentState?.validate();
                           }
 
-                          /// Debounced auto-fetch of databases
                           _urlDebounce?.cancel();
                           final trimmed = val.trim();
                           if (trimmed.isEmpty) {
@@ -285,7 +276,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                               () {
                                 if (!mounted) return;
                                 if (_awaitingSuggestionSelection) {
-                                  /// Wait for suggestion selection before fetching
                                   return;
                                 }
                                 if (provider.isValidUrl(trimmed)) {
@@ -304,7 +294,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                         },
                         onProtocolChanged: (protocol) {
                           provider.setProtocol(protocol);
-                          /// Re-fetch databases when protocol changes if URL is valid
                           final trimmed = provider.urlController.text.trim();
                           if (trimmed.isNotEmpty &&
                               provider.isValidUrl(trimmed)) {
@@ -314,7 +303,7 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                               () {
                                 if (!mounted) return;
                                 if (_awaitingSuggestionSelection) {
-                                  /// Do not fetch while waiting for suggestion selection
+                                  // Do not fetch while waiting for suggestion selection
                                   return;
                                 }
                                 provider.fetchDatabaseList();
@@ -326,7 +315,6 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    /// Animated Database dropdown
                     AnimatedBuilder(
                       animation: _databaseFadeAnimation,
                       builder: (context, child) {
@@ -392,10 +380,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen>
                       },
                     ),
 
-                    /// Error display
                     LoginErrorDisplay(error: inlineError),
 
-                    /// Next Button
                     LoginButton(
                       text: 'Next',
                       onPressed: _canProceedToCredentials(provider)
@@ -450,10 +436,9 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
   @override
   void didUpdateWidget(_CustomAutocompleteField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    /// Update suggestions when the suggestions list changes
     if (oldWidget.suggestions != widget.suggestions) {
       if (_focusNode.hasFocus) {
-        /// Defer updates to after the current frame to avoid modifying the tree during build
+        // Defer updates to after the current frame to avoid modifying the tree during build
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           if (!widget.enableSuggestions) {
@@ -464,7 +449,6 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
           if (_filteredSuggestions.isNotEmpty && _overlayEntry == null) {
             _showSuggestionsOverlay();
           } else if (_overlayEntry != null) {
-            /// Safely request overlay rebuild after frame
             try {
               _overlayEntry!.markNeedsBuild();
             } catch (_) {}
@@ -473,7 +457,6 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
       }
     }
 
-    /// If suggestions were enabled and now disabled, hide overlay immediately
     if (oldWidget.enableSuggestions && !widget.enableSuggestions) {
       _hideSuggestions();
     }
@@ -511,7 +494,6 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
         if (_showSuggestions && _filteredSuggestions.isNotEmpty) {
           _overlayEntry!.markNeedsBuild();
         } else {
-          /// Hide overlay if no suggestions
           _removeOverlay();
         }
       }
@@ -537,19 +519,18 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
       _filteredSuggestions = widget.suggestions.where((suggestion) {
         final suggestionLower = suggestion.toLowerCase();
 
-        /// If user typed a protocol, use startsWith on full string
         if (text.startsWith('http://') || text.startsWith('https://')) {
           return suggestionLower.startsWith(text);
         }
 
-        /// Otherwise, compare by domain portion (ignore protocol), startsWith
+        // Otherwise, compare by domain portion (ignore protocol), startsWith
         final textDomain = _extractDomainFromUrl(text);
         final suggestionDomain = _extractDomainFromUrl(suggestionLower);
         if (suggestionDomain.startsWith(textDomain)) {
           return true;
         }
 
-        /// As a fallback, do a contains match on full suggestion
+        // As a fallback, do a contains match on full suggestion
         return suggestionLower.contains(textDomain);
       }).toList();
     }
@@ -561,7 +542,6 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
       _showSuggestions = _filteredSuggestions.isNotEmpty;
     });
 
-    /// Force overlay rebuild or hide it
     if (_overlayEntry != null) {
       if (_filteredSuggestions.isEmpty) {
         _removeOverlay();
@@ -585,7 +565,7 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
   }
 
   void _showSuggestionsOverlay() {
-    /// Don't show overlay if no suggestions
+    // Don't show overlay if no suggestions
     if (_filteredSuggestions.isEmpty || !widget.enableSuggestions) {
       return;
     }
@@ -594,12 +574,10 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
       return;
     }
 
-    /// Get the field's render box to match its width exactly
     final renderBox = context.findRenderObject() as RenderBox?;
     final fieldWidth =
         renderBox?.size.width ?? (MediaQuery.of(context).size.width - 48);
 
-    /// Get theme for proper styling
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDark ? const Color(0xFF2D2D2D) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -680,7 +658,7 @@ class _CustomAutocompleteFieldState extends State<_CustomAutocompleteField> {
       ),
     );
 
-    /// Defer insertion to post-frame to avoid build-time modifications
+    // Defer insertion to post-frame to avoid build-time modifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _overlayEntry == null) return;
       final overlayState = Overlay.maybeOf(context);

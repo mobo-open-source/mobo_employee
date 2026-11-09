@@ -207,8 +207,8 @@ class LeavePageProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      /// A failing summary (e.g. no allocations yet) must not keep the
-      /// calendar and the request list from loading.
+      // A failing summary (e.g. no allocations yet) must not keep the
+      // calendar and the request list from loading.
       try {
         await _loadSummary();
       } catch (e) {
@@ -540,9 +540,9 @@ class LeavePageProvider extends ChangeNotifier {
       final versionStr = session!.odooSession.serverVersion;
       final majorVersion = int.tryParse(versionStr.split('.').first) ?? 19;
 
-      /// Use the picked dates themselves: re-parsing the "MMM dd" display
-      /// text dropped the year, so a range crossing New Year was sent
-      /// backwards and rejected by Odoo.
+      // Use the picked dates themselves: re-parsing the "MMM dd" display
+      // text dropped the year, so a range crossing New Year was sent
+      // backwards and rejected by Odoo.
       final fromDate = DateFormat('yyyy-MM-dd').format(this.fromDate!);
       final toDate = DateFormat('yyyy-MM-dd').format(this.toDate!);
 
@@ -563,11 +563,11 @@ class LeavePageProvider extends ChangeNotifier {
             ],
         };
       } else {
-        /// `request_date_from`/`request_date_to` are plain Date fields on
-        /// 17/18 (no time component) — Odoo computes the actual start/end
-        /// datetime server-side from the employee's working calendar.
-        /// Appending a time-of-day here made `hr.leave.create` reject the
-        /// value outright.
+        // `request_date_from`/`request_date_to` are plain Date fields on
+        // 17/18 (no time component) — Odoo computes the actual start/end
+        // datetime server-side from the employee's working calendar.
+        // Appending a time-of-day here made `hr.leave.create` reject the
+        // value outright.
         payload = {
           'employee_id': employeeId,
           TimeOffTypeService.typeField(majorVersion): leaveTypeId,

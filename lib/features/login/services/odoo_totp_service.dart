@@ -273,7 +273,7 @@ class OdooTotpService {
     final totpUri = Uri.parse('$base/web/login/totp');
     final cookieHeader = 'session_id=$sessionId';
 
-    // ── Step 2: GET the form for a CSRF token tied to this session ──────
+    // Step 2: GET the form for a CSRF token tied to this session
     // Odoo derives the token from the session id, so it has to come from a
     // request made on *this* session.
     String? csrfToken = await _fetchCsrfToken(
@@ -299,7 +299,7 @@ class OdooTotpService {
       );
     }
 
-    // ── Step 3: POST the code ───────────────────────────────────────────
+    // Step 3: POST the code
     var postResponse = await _postCode(
       totpUri: totpUri,
       cookieHeader: cookieHeader,
@@ -368,7 +368,7 @@ class OdooTotpService {
     // and only fall back to the pre-MFA one if the server didn't send one.
     final finalSessionId = _sessionIdFrom(postResponse) ?? sessionId;
 
-    // ── Step 4: confirm with Odoo that the session is really logged in ──
+    // Step 4: confirm with Odoo that the session is really logged in
     // `uid` is only a real user id once MFA has actually passed
     // server-side, which makes it the authoritative success signal —
     // unlike the mere presence of a session cookie, which is already true

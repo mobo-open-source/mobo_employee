@@ -172,7 +172,7 @@ void main() {
   });
 
   group('the avatar beside the text', () {
-    /// The avatar and the name / phone / email column, as laid out.
+    // The avatar and the name / phone / email column, as laid out.
     ({Rect avatar, Rect text, Rect card}) rects(WidgetTester tester) {
       final card = find.byType(WidgetEmployeeCard);
       return (

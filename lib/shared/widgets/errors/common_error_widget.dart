@@ -102,11 +102,9 @@ class CommonErrorWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            /// Lottie Animation
             SizedBox(width: 200, height: 200, child: _buildAnimation()),
             const SizedBox(height: 24),
 
-            /// Title
             Text(
               title,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -117,7 +115,6 @@ class CommonErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            /// Message
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -179,7 +176,6 @@ class CommonErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Action buttons
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -221,7 +217,6 @@ class CommonErrorWidget extends StatelessWidget {
   }
 
   Widget _buildAnimation() {
-    /// Use online Lottie animations from LottieFiles
     final animationUrl = _getAnimationUrl();
 
     return Lottie.network(
@@ -229,7 +224,6 @@ class CommonErrorWidget extends StatelessWidget {
       fit: BoxFit.contain,
       repeat: true,
       errorBuilder: (context, error, stackTrace) {
-        /// Fallback to icon if animation fails to load
         final config = _getErrorConfig();
         return Center(
           child: TweenAnimationBuilder<double>(

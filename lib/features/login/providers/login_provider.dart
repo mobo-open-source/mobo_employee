@@ -65,7 +65,7 @@ class LoginProvider with ChangeNotifier {
       ..idleTimeout = const Duration(seconds: 10)
       ..maxConnectionsPerHost = 5;
 
-    ///Allow bad SSL only in debug mode
+    //Allow bad SSL only in debug mode
     if (!kReleaseMode) {
       client.badCertificateCallback =
           (X509Certificate cert, String host, int port) {
@@ -78,19 +78,16 @@ class LoginProvider with ChangeNotifier {
 
   /// Try to find a saved database for the current URL, handling protocol differences
   String? _resolveSavedDatabaseForUrl(String fullUrl) {
-    /// Exact match first
     if (_serverDatabaseMap.containsKey(fullUrl)) {
       return _serverDatabaseMap[fullUrl];
     }
 
-    /// Try alternate protocol (http <-> https)
     String alt;
     if (fullUrl.startsWith('https://')) {
       alt = 'http://${fullUrl.substring(8)}';
     } else if (fullUrl.startsWith('http://')) {
       alt = 'https://${fullUrl.substring(7)}';
     } else {
-      /// If somehow no protocol, check both
       alt = 'https://$fullUrl';
       if (_serverDatabaseMap.containsKey(alt)) return _serverDatabaseMap[alt];
       alt = 'http://$fullUrl';
@@ -101,7 +98,6 @@ class LoginProvider with ChangeNotifier {
       return _serverDatabaseMap[alt];
     }
 
-    /// Normalize trailing slash differences
     String stripSlash(String u) =>
         u.endsWith('/') ? u.substring(0, u.length - 1) : u;
     final noSlash = stripSlash(fullUrl);
@@ -146,11 +142,9 @@ class LoginProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       if (fullUrl.isEmpty) return;
       List<String> urls = prefs.getStringList('previous_server_urls') ?? [];
-      /// Normalize trailing slash
       String u = fullUrl.endsWith('/')
           ? fullUrl.substring(0, fullUrl.length - 1)
           : fullUrl;
-      /// Move to front if already exists
       urls.removeWhere((e) => e == u);
       urls.insert(0, u);
       if (urls.length > 10) {
@@ -166,13 +160,11 @@ class LoginProvider with ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      /// 1) Start with any explicitly saved history from previous logins
+      // 1) Start with any explicitly saved history from previous logins
       final historyUrls = prefs.getStringList('previous_server_urls') ?? [];
 
-      /// We'll maintain insertion order and uniqueness
       final Set<String> orderedUnique = <String>{};
 
-      /// Helper to add if non-empty and normalized
       String _normalize(String url) {
         if (url.trim().isEmpty) return '';
         return normalizeServerUrl(url, defaultScheme: _selectedProtocol);
@@ -185,10 +177,9 @@ class LoginProvider with ChangeNotifier {
         orderedUnique.add(normalized);
       }
 
-      /// 2) Last used server info (persists across logout) - prefer to show first
+      // 2) Last used server info (persists across logout) - prefer to show first
       try {
         final lastFromPrefs = prefs.getString('lastServerUrl');
-        /// If missing in prefs directly, also try through manager API
         if (lastFromPrefs != null && lastFromPrefs.isNotEmpty) {
           addUrl(lastFromPrefs);
         } else {
@@ -197,31 +188,30 @@ class LoginProvider with ChangeNotifier {
         }
       } catch (_) {}
 
-      /// 3) Add current session server (if any)
+      // 3) Add current session server (if any)
       try {
         final current = await OdooSessionManager.getCurrentSession();
         addUrl(current?.serverUrl);
       } catch (_) {}
 
-      /// 4) Add any stored account URLs from SessionService (initialized in AppEntry)
+      // 4) Add any stored account URLs from SessionService (initialized in AppEntry)
       try {
         final accounts = SessionService.instance.storedAccounts;
         for (final acc in accounts) {
-          /// Try multiple possible keys to be robust
           addUrl(acc['url']?.toString());
           addUrl(acc['serverUrl']?.toString());
         }
       } catch (_) {}
 
-      /// 5) Finally, append historyUrls (keeps their order, deduped by set)
+      // 5) Finally, append historyUrls (keeps their order, deduped by set)
       for (final u in historyUrls) {
         addUrl(u);
       }
 
       _previousUrls = orderedUnique.toList();
 
-      /// Load server-database mappings
-      /// 4.a) Preferred: consolidated JSON map
+      // Load server-database mappings
+      // 4.a) Preferred: consolidated JSON map
       try {
         final rawMap = prefs.getString('server_db_map');
         if (rawMap != null && rawMap.isNotEmpty) {
@@ -236,13 +226,14 @@ class LoginProvider with ChangeNotifier {
         }
       } catch (_) {}
 
-      /// 4.b) Backward-compat: scan individual keys if any
+      // 4.b) Backward-compat: scan individual keys if any
       try {
         final mappingKeys = prefs.getKeys().where(
           (key) => key.startsWith('server_db_'),
         );
         for (final key in mappingKeys) {
-          final serverUrl = key.substring(10); /// Remove 'server_db_' prefix
+          // Drop the 'server_db_' prefix.
+          final serverUrl = key.substring(10);
           final dbName = prefs.getString(key);
           if (dbName != null) {
             _serverDatabaseMap[serverUrl] = dbName;
@@ -250,7 +241,6 @@ class LoginProvider with ChangeNotifier {
         }
       } catch (_) {}
 
-      /// Also seed mapping from lastServerUrl/lastDatabase if present
       final lastServer = prefs.getString('lastServerUrl');
       final lastDb = prefs.getString('lastDatabase');
       if ((lastServer != null && lastServer.isNotEmpty) &&
@@ -275,8 +265,8 @@ class LoginProvider with ChangeNotifier {
     required String sessionId,
   }) async {
     try {
-      /// Also reached after 2FA and when switching accounts, where the
-      /// session came from `get_session_info` rather than a password login.
+      // Also reached after 2FA and when switching accounts, where the
+      // session came from `get_session_info` rather than a password login.
       DatabaseExpiry.ensureActive(sessionInfo);
 
       final Map<String, dynamic> userCompanies =
@@ -304,12 +294,10 @@ class LoginProvider with ChangeNotifier {
         serverVersion: sessionInfo['server_version'],
       );
 
-      /// Persist last used server + database
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('lastServerUrl', sessionInfo['server_url'] ?? '');
       await prefs.setString('lastDatabase', sessionInfo['db'] ?? '');
 
-      /// Mark logged in
       await prefs.setBool('isLoggedIn', true);
 
       final clientnew = OdooClient(serverUrls, sessionId: odooSession);
@@ -333,7 +321,6 @@ class LoginProvider with ChangeNotifier {
       final sessionService = SessionService.instance;
       await sessionService.storeAccount(newSession, password2);
 
-      /// Switch to the newly added account
       await sessionService.switchToAccount(newSession);
 
       notifyListeners();
@@ -347,7 +334,6 @@ class LoginProvider with ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final fullUrl = getFullUrl();
 
-      /// Save server URL to history
       List<String> urls = prefs.getStringList('previous_server_urls') ?? [];
       if (fullUrl.isNotEmpty && !urls.contains(fullUrl)) {
         urls.insert(0, fullUrl);
@@ -358,13 +344,11 @@ class LoginProvider with ChangeNotifier {
         _previousUrls = urls;
       }
 
-      /// Save server-database mapping
       if (fullUrl.isNotEmpty && database != null && database!.isNotEmpty) {
-        /// Backward-compat per-key storage
+        // Backward-compat per-key storage
         await prefs.setString('server_db_$fullUrl', database!);
         _serverDatabaseMap[fullUrl] = database!;
 
-        /// Consolidated JSON map for reliable retrieval
         try {
           final existing = prefs.getString('server_db_map');
           final Map<String, dynamic> map =
@@ -435,13 +419,12 @@ class LoginProvider with ChangeNotifier {
       return;
     }
 
-    /// Preserve the current selection while reloading
     final String? previousSelection = database;
 
     isLoadingDatabases = true;
     urlCheck = false;
     errorMessage = null;
-    /// Do not nullify the current database here; keep it until new list arrives
+    // Do not nullify the current database here; keep it until new list arrives
     dropdownItems.clear();
     _safeNotifyListeners();
 
@@ -477,7 +460,6 @@ class LoginProvider with ChangeNotifier {
           .map((e) => e.toString())
           .toList();
 
-      /// final dbList = response as List<dynamic>;
       if (dbList.isEmpty) {
         errorMessage = 'No databases found on this server.';
         urlCheck = false;
@@ -487,7 +469,7 @@ class LoginProvider with ChangeNotifier {
         dropdownItems = uniqueDbList.map((e) => e.toString()).toList();
         urlCheck = true;
 
-        /// Persist the validated URL to history immediately so suggestions work before the first login
+        // Persist the validated URL to history immediately so suggestions work before the first login
         try {
           final prefs = await SharedPreferences.getInstance();
           final fullUrl = getFullUrl();
@@ -505,20 +487,19 @@ class LoginProvider with ChangeNotifier {
           }
         } catch (_) {}
 
-        /// Smart database selection logic:
-        /// 1. Check if there's a saved database for this server URL
+        // Smart database selection logic:
+        // 1. Check if there's a saved database for this server URL
         final fullUrl = getFullUrl();
         final savedDatabase = _resolveSavedDatabaseForUrl(fullUrl);
 
         if (savedDatabase != null && dropdownItems.contains(savedDatabase)) {
-          /// Auto-select the previously used database for this server
+          // Auto-select the previously used database for this server
           database = savedDatabase;
         } else if (previousSelection != null &&
             dropdownItems.contains(previousSelection)) {
-          /// Restore previous selection if still available
           database = previousSelection;
         } else {
-          /// 2. Fallback: check lastServerUrl/lastDatabase from prefs via manager
+          // 2. Fallback: check lastServerUrl/lastDatabase from prefs via manager
           try {
             final lastUrl = await OdooSessionManager.getLastServerUrl();
             final lastDb = await OdooSessionManager.getLastDatabase();
@@ -533,7 +514,6 @@ class LoginProvider with ChangeNotifier {
               if (a == null || b == null) return false;
               final A = normalize(a);
               final B = normalize(b);
-              /// Compare ignoring protocol
               String stripProto(String s) =>
                   s.replaceFirst(RegExp('^https?://'), '');
               return stripProto(A) == stripProto(B);
@@ -547,7 +527,7 @@ class LoginProvider with ChangeNotifier {
             }
           } catch (_) {}
 
-          /// 3. As a final fallback, default to first database
+          // 3. As a final fallback, default to first database
           if (database == null && uniqueDbList.isNotEmpty) {
             database = uniqueDbList.first.toString();
           }
@@ -658,7 +638,6 @@ class LoginProvider with ChangeNotifier {
         await _saveCredentials();
         await _setAuthenticationTimestamp();
 
-        /// Store account in SessionService for account switching.
         try {
           final sessionService = SessionService.instance;
           final currentSession = await OdooSessionManager.getCurrentSession();

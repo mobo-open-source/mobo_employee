@@ -4,8 +4,8 @@ import 'package:mobo_employees/features/profile/providers/profile_provider.dart'
 void main() {
   group('ProfileProvider.deniedFieldsIn', () {
     test('Odoo 18 lists every denied field in one message', () {
-      /// Copied from the Configuration screen of a plain employee (the demo
-      /// user) on an Odoo 18 database.
+      // Copied from the Configuration screen of a plain employee (the demo
+      // user) on an Odoo 18 database.
       const message =
           'You do not have enough rights to access the fields '
           '"private_street,private_street2,private_city,private_zip,'

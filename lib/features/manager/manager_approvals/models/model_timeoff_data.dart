@@ -54,7 +54,6 @@ class ModelTimeOffData {
   });
 
   factory ModelTimeOffData.fromJson(Map<String, dynamic> json) {
-    /// ───── Employee ─────
     int empId = 0;
     String empName = '';
 
@@ -67,7 +66,6 @@ class ModelTimeOffData {
       empName = employee[1]?.toString() ?? '';
     }
 
-    /// ───── Department ─────
     int deptId = 0;
     String deptName = '';
 
@@ -80,11 +78,9 @@ class ModelTimeOffData {
       deptName = department[1]?.toString() ?? '';
     }
 
-    /// User
     final user = json['user_id'];
     final int userId = user is Map ? (user['id'] as num?)?.toInt() ?? 0 : 0;
 
-    /// ───── Leave Type ─────
     String leaveType = '';
     final holiday = json['holiday_status_id'] ?? json['work_entry_type_id'];
     if (holiday is Map) {
@@ -125,8 +121,6 @@ class ModelTimeOffData {
       canRefuse: json['can_refuse'] == true,
     );
   }
-
-  /// ───── Helpers ─────
 
   static String _stringOrEmpty(dynamic v) {
     if (v == null || v == false) return '';

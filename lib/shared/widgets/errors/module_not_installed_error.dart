@@ -26,7 +26,6 @@ class ModuleNotInstalledError extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            /// Animated icon
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.0, end: 1.0),
               duration: const Duration(milliseconds: 600),
@@ -51,7 +50,6 @@ class ModuleNotInstalledError extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Title
             Text(
               'Module Not Installed',
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -62,7 +60,6 @@ class ModuleNotInstalledError extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            /// Module name badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -94,7 +91,6 @@ class ModuleNotInstalledError extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            /// Error message
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -155,7 +151,6 @@ class ModuleNotInstalledError extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            /// Action buttons
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -192,7 +187,6 @@ class ModuleNotInstalledError extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            /// Help text
             Text(
               'Need help? Contact your system administrator to install the required module.',
               style: theme.textTheme.bodySmall?.copyWith(

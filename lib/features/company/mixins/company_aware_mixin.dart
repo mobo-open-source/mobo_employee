@@ -29,7 +29,6 @@ mixin CompanyAwareMixin<T extends StatefulWidget> on State<T> {
   /// Override this method to handle company changes
   /// This will be called when the selected company changes
   void onCompanyChanged(int? newCompanyId) {
-    /// Override in your widget to reload data
   }
 
   /// Helper to get current company ID

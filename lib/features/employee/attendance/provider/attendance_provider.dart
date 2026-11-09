@@ -155,7 +155,7 @@ class AttendanceProvider extends ChangeNotifier {
         loadMonthlyAttendanceCount(employeeId: employeeId, month: month),
       ]);
     } catch (e) {
-      /// Other failures leave the sections that did load on screen.
+      // Other failures leave the sections that did load on screen.
       if (ConnectivityService.isConnectivityError(e)) loadError = e;
     } finally {
       _isRefreshing = false;
@@ -196,7 +196,7 @@ class AttendanceProvider extends ChangeNotifier {
       month: month,
     );
 
-    /// The user may have paged to another month while this was in flight.
+    // The user may have paged to another month while this was in flight.
     if (_monthKey(month) != _monthKey(focusedDay)) return;
 
     attendanceDates
@@ -420,7 +420,7 @@ class AttendanceProvider extends ChangeNotifier {
   }
 
   int _odooDayFromDate(DateTime date) {
-    /// Dart: Monday = 1 → Odoo: 0
+    // Dart: Monday = 1 → Odoo: 0
     return date.weekday - 1;
   }
 

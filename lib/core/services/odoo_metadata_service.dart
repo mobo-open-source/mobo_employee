@@ -25,7 +25,7 @@ class OdooMetadataService {
       _modelCache[model] = ok;
       return ok;
     } catch (e) {
-      /// If access to ir.model is restricted (AccessError), attempt a direct probe on the target model
+      // If access to ir.model is restricted (AccessError), attempt a direct probe on the target model
       try {
         final res = await OdooSessionManager.callKwWithCompany({
           'model': model,
@@ -39,7 +39,7 @@ class OdooMetadataService {
         _modelCache[model] = ok;
         return ok;
       } catch (e2) {
-        /// If fields_get also fails (e.g., truly missing model), mark as false
+        // If fields_get also fails (e.g., truly missing model), mark as false
         _modelCache[model] = false;
         return false;
       }

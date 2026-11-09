@@ -83,7 +83,8 @@ class BiometricService {
       final bool didAuthenticate = await _localAuth!.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
-          biometricOnly: false, /// Allow PIN/Pattern as fallback
+          // Allow PIN/pattern as a fallback.
+          biometricOnly: false,
           stickyAuth: true,
           useErrorDialogs: true,
         ),
@@ -91,7 +92,6 @@ class BiometricService {
 
       return didAuthenticate;
     } on PlatformException catch (e) {
-      /// Handle specific error cases
       switch (e.code) {
         case 'NotAvailable':
           break;
@@ -171,7 +171,6 @@ class BiometricService {
   static Future<void> initialize() async {
     try {
       await _ensureInitialized();
-      /// Pre-initialize the local auth instance
       await _localAuth?.isDeviceSupported();
     } catch (e) {}
   }

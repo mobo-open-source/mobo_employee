@@ -85,8 +85,8 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
                 onPrev: provider.previousPage,
                 onNext: provider.nextPage,
 
-                /// The count shows on a single page too; the arrows drop out
-                /// on their own when there is nowhere to go.
+                // The count shows on a single page too; the arrows drop out
+                // on their own when there is nowhere to go.
                 showPagination:
                     provider.totalRecords > 0 && !provider.isLoading,
               ),
@@ -107,7 +107,6 @@ class _ManagerEmployeesPageState extends State<ManagerEmployeesPage> {
                       padding: _listPadding,
                       itemCount: 12,
 
-                      /// shimmer count
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: _cardGap),
                       itemBuilder: (_, __) => const WidgetEmployeeCardShimmer(),

@@ -53,9 +53,9 @@ class LeaveService {
     dynamic entries;
     int pendingAllocations = 0;
 
-    /// Odoo's own dashboard always sends `from_dashboard`; without it the
-    /// server returns every time off type — Odoo 20 lists ~20 empty cards —
-    /// instead of only those the employee has an allocation for.
+    // Odoo's own dashboard always sends `from_dashboard`; without it the
+    // server returns every time off type — Odoo 20 lists ~20 empty cards —
+    // instead of only those the employee has an allocation for.
     const dashboardContext = {'from_dashboard': true};
 
     if (majorVersion >= 19) {
@@ -67,7 +67,7 @@ class LeaveService {
       }, activeCompanyFirst: true);
       if (result is Map) {
         entries = result['allocation_data'];
-        /// Odoo 20 renamed allocation_request_amount to allocations_number
+        // Odoo 20 renamed allocation_request_amount to allocations_number
         final pending =
             result['allocations_number'] ?? result['allocation_request_amount'];
         pendingAllocations = pending is num ? pending.toInt() : 0;
@@ -76,8 +76,8 @@ class LeaveService {
       entries = await OdooSessionManager.callKwWithCompany({
         'model': 'hr.leave.type',
         'method': 'get_allocation_data_request',
-        /// 18's dashboard passes hidden_allocations=False so only types
-        /// flagged "show on dashboard" are listed; 17 has no such flag.
+        // 18's dashboard passes hidden_allocations=False so only types
+        // flagged "show on dashboard" are listed; 17 has no such flag.
         'args': [today, if (majorVersion == 18) false],
         'kwargs': {'context': dashboardContext},
       }, activeCompanyFirst: true);
@@ -108,7 +108,7 @@ class LeaveService {
       return result is int ? result : 0;
     }
 
-    /// 17 has no such method; count it the way 18 does.
+    // 17 has no such method; count it the way 18 does.
     final session = await OdooSessionManager.getCurrentSession();
     final userId = session?.userId;
     if (userId == null) return 0;
@@ -215,7 +215,7 @@ class LeaveService {
 
       final employeeId = employee.isNotEmpty ? employee[0]['id'] : null;
 
-      /// Odoo 20 replaced hr.leave.type with hr.work.entry.type
+      // Odoo 20 replaced hr.leave.type with hr.work.entry.type
       if (await OdooSessionManager.getServerMajorVersion() >= 20) {
         final records = await TimeOffTypeService.fetchSelectableTypes(
           employeeId: employeeId,
@@ -251,12 +251,12 @@ class LeaveService {
             if (version.contains("19")) '|',
             if (version.contains("19")) ['allows_negative', '=', true],
 
-            /// On 17/18 `requires_allocation` is the long-standing
-            /// Selection('yes'/'no') field (not the boolean used above for
-            /// 19), so a type that doesn't require allocation at all (e.g.
-            /// "Unpaid Leave") must be matched by that string value here —
-            /// otherwise it has no allocation, `virtual_remaining_leaves`
-            /// is always 0, and it silently never appears in the picker.
+            // On 17/18 `requires_allocation` is the long-standing
+            // Selection('yes'/'no') field (not the boolean used above for
+            // 19), so a type that doesn't require allocation at all (e.g.
+            // "Unpaid Leave") must be matched by that string value here —
+            // otherwise it has no allocation, `virtual_remaining_leaves`
+            // is always 0, and it silently never appears in the picker.
             if (!version.contains("19")) '|',
             if (!version.contains("19")) ['requires_allocation', '=', 'no'],
 
@@ -278,8 +278,8 @@ class LeaveService {
       bool parseBool(dynamic value) {
         if (value is bool) return value;
         if (value is String) {
-          /// `requires_allocation` is Selection('yes'/'no') on 17/18 and
-          /// boolean-flavoured on 19; accept both spellings.
+          // `requires_allocation` is Selection('yes'/'no') on 17/18 and
+          // boolean-flavoured on 19; accept both spellings.
           final v = value.toLowerCase();
           return v == 'true' || v == 'yes';
         }

@@ -23,7 +23,7 @@ class RoleProvider extends ChangeNotifier {
     try {
       final role = await UserRoleService.getUserRole();
 
-      /// Logged out meanwhile ([_role] cleared): don't bring a role back.
+      // Logged out meanwhile ([_role] cleared): don't bring a role back.
       if (role == null || _role == null || role == _role) return false;
       _role = role;
       notifyListeners();

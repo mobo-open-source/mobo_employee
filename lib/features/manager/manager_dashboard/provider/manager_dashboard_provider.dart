@@ -100,12 +100,11 @@ class ManagerDashboardProvider extends ChangeNotifier {
 
     setGreetings();
 
-    /// Build dashboard model ONCE
     buildDashboardModel();
 
-    /// END initial loading
     isManagerDashboardLoading = false;
-    isInitialized = true; /// SET HERE (AFTER EVERYTHING)
+    // Set here, after everything else.
+    isInitialized = true;
 
     safeNotify();
   }
@@ -145,7 +144,7 @@ class ManagerDashboardProvider extends ChangeNotifier {
       await _loadCounts();
       buildDashboardModel();
     } catch (_) {
-      /// In-place refresh; the next one tries again.
+      // In-place refresh; the next one tries again.
     } finally {
       _isRefreshingCounts = false;
       safeNotify();
@@ -331,14 +330,12 @@ class ManagerDashboardProvider extends ChangeNotifier {
   Future<void> clearOnManagerLogout() async {
 
 
-    /// User data
     employeeId = null;
     userName = "";
     userImageBytes = null;
     greetings = "";
     currentTime = "";
 
-    /// Counters
     leaveRequestCount = 0;
     totalEmployeeCount = 0;
     todayAttendanceCount = 0;
@@ -350,16 +347,13 @@ class ManagerDashboardProvider extends ChangeNotifier {
 
     ManagerDashboardDataService.reset();
 
-    /// Loading flags
     isManagerDashboardLoading = false;
     isManagerDashboardDataLoading = false;
     _isRefreshingCounts = false;
 
-    /// Dashboard model
     dashboard = ModelManagerDashboard.empty();
     loadError = null;
 
-    /// Reset initialization flags
     isInitialized = false;
     _initialized = false;
 
@@ -372,7 +366,6 @@ class ManagerDashboardProvider extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
-    /// clearDashboard();
     super.dispose();
   }
 }
